@@ -6,11 +6,15 @@ If you're just interested in the TankTerm binary and you don't need the
 install it directly through cargo:
 
 ```sh
-cargo install --git https://github.com/DaveWK/TankTerm tankterm
+cargo install --git https://github.com/DaveWK/TankTerm --branch staging tankterm
 ```
 
-Note that you will still need to install the dependencies for your OS of choice.
-Please refer to the [Dependencies](#dependencies) section.
+This installs the `tankTerm` binary. TankTerm is developed on the `staging`
+branch; `master` tracks upstream Alacritty, so the branch has to be specified.
+
+Note that you will still need to install the dependencies for your OS of choice,
+and the default [font](#font). Please refer to the [Dependencies](#dependencies)
+section.
 
 # Manual Installation
 
@@ -22,18 +26,20 @@ Please refer to the [Dependencies](#dependencies) section.
         2. [Arch Linux](#arch-linux)
         3. [Fedora](#fedora)
         4. [CentOS/RHEL 7](#centosrhel-7)
-        5. [openSUSE](#opensuse)
-        6. [Slackware](#slackware)
-        7. [Void Linux](#void-linux)
-        8. [FreeBSD](#freebsd)
-        9. [OpenBSD](#openbsd)
-        10. [Solus](#solus)
-        11. [NixOS/Nixpkgs](#nixosnixpkgs)
-        12. [Gentoo](#gentoo)
-        13. [GNU Guix](#gnu-guix)
-        14. [Alpine Linux](#alpine-linux)
-        15. [Windows](#windows)
-        16. [Other](#other)
+        5. [RHEL 8](#rhel-8)
+        6. [openSUSE](#opensuse)
+        7. [Slackware](#slackware)
+        8. [Void Linux](#void-linux)
+        9. [FreeBSD](#freebsd)
+        10. [OpenBSD](#openbsd)
+        11. [Solus](#solus)
+        12. [NixOS/Nixpkgs](#nixosnixpkgs)
+        13. [Gentoo](#gentoo)
+        14. [GNU Guix](#gnu-guix)
+        15. [Alpine Linux](#alpine-linux)
+        16. [Windows](#windows)
+        17. [Other](#other)
+    4. [Font](#font)
 2. [Building](#building)
     1. [Linux/Windows/BSD](#linux--windows--bsd)
     2. [macOS](#macos)
@@ -50,10 +56,11 @@ Please refer to the [Dependencies](#dependencies) section.
 
 ### Clone the source code
 
-Before compiling TankTerm, you'll have to first clone the source code:
+Before compiling TankTerm, you'll have to first clone the source code. TankTerm
+is developed on the `staging` branch; `master` tracks upstream Alacritty.
 
 ```sh
-git clone https://github.com/DaveWK/TankTerm.git
+git clone --branch staging https://github.com/DaveWK/TankTerm.git
 cd TankTerm
 ```
 
@@ -61,12 +68,15 @@ cd TankTerm
 
 1. Install [`rustup.rs`](https://rustup.rs/).
 
-3. To make sure you have the right Rust compiler installed, run
+2. To make sure you have the right Rust compiler installed, run
 
    ```sh
    rustup override set stable
    rustup update stable
    ```
+
+TankTerm needs at least the Rust version set as `rust-version` in `Cargo.toml`
+(currently 1.85.0).
 
 ### Dependencies
 
@@ -233,6 +243,27 @@ installed as well as [Clang 3.9 or greater](http://releases.llvm.org/download.ht
 
 If you build TankTerm on another distribution, we would love some help
 filling in this section of the README.
+
+### Font
+
+TankTerm's default font is [Iosevka Term](https://github.com/be5invis/Iosevka),
+which isn't bundled and usually isn't installed by default. If it's missing,
+TankTerm falls back to the system's monospace font (`monospace` on Linux/BSD,
+`Menlo` on macOS and `Consolas` on Windows).
+
+To use it, download `PkgTTF-IosevkaTerm-<version>.zip` from the
+[Iosevka releases](https://github.com/be5invis/Iosevka/releases) page and install
+the font files it contains. On Linux/BSD, for example:
+
+```sh
+mkdir -p ~/.local/share/fonts/iosevka-term
+unzip PkgTTF-IosevkaTerm-*.zip -d ~/.local/share/fonts/iosevka-term
+fc-cache -f
+fc-list | grep -i "Iosevka Term"
+```
+
+To use a different font instead, set `font.normal.family` in your
+configuration file; see `man 5 tankTerm`.
 
 ## Building
 
