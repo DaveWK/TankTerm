@@ -31,7 +31,7 @@ introduced the regression helps out a lot.
 All patches have to be sent on GitHub as [pull requests](https://github.com/DaveWK/TankTerm/pulls).
 
 You can find the minimum supported Rust version in TankTerm's manifest file
-(`cat alacritty/Cargo.toml | grep "rust-version"`). TankTerm **must** always
+(`grep "rust-version" Cargo.toml`). TankTerm **must** always
 build with the MSRV and bumping it should be avoided if possible.
 
 Since `alacritty_terminal`'s version always tracks the next release, make sure that the version is

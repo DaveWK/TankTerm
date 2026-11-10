@@ -14,6 +14,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - Web Assembly build support (without the PTY modules)
 
+### Changed
+
+- **Child processes receive `TANKTERM_WINDOW_ID` instead of `ALACRITTY_WINDOW_ID`**
+
 ### Fixed
 
 - Panic when the PTY could not be set to non-blocking

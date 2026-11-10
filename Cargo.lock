@@ -31,46 +31,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "alacritty"
-version = "0.18.0-dev"
-dependencies = [
- "ahash",
- "alacritty_config",
- "alacritty_config_derive",
- "alacritty_terminal",
- "bitflags 2.13.2",
- "clap",
- "clap_complete",
- "copypasta",
- "crossfont",
- "dirs",
- "embed-resource",
- "gl_generator",
- "glutin",
- "home",
- "libc",
- "log",
- "notify",
- "objc2 0.6.5",
- "objc2-app-kit 0.3.2",
- "objc2-foundation 0.3.2",
- "parking_lot",
- "png",
- "polling",
- "serde",
- "serde_json",
- "serde_yaml",
- "signal-hook",
- "tempfile",
- "toml",
- "toml_edit",
- "unicode-width",
- "windows-sys 0.61.2",
- "winit",
- "xdg",
-]
-
-[[package]]
 name = "alacritty_config"
 version = "0.2.4-dev"
 dependencies = [
@@ -2075,6 +2035,46 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "tankterm"
+version = "0.18.0-dev"
+dependencies = [
+ "ahash",
+ "alacritty_config",
+ "alacritty_config_derive",
+ "alacritty_terminal",
+ "bitflags 2.13.2",
+ "clap",
+ "clap_complete",
+ "copypasta",
+ "crossfont",
+ "dirs",
+ "embed-resource",
+ "gl_generator",
+ "glutin",
+ "home",
+ "libc",
+ "log",
+ "notify",
+ "objc2 0.6.5",
+ "objc2-app-kit 0.3.2",
+ "objc2-foundation 0.3.2",
+ "parking_lot",
+ "png",
+ "polling",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "signal-hook",
+ "tempfile",
+ "toml",
+ "toml_edit",
+ "unicode-width",
+ "windows-sys 0.61.2",
+ "winit",
+ "xdg",
 ]
 
 [[package]]
