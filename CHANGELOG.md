@@ -21,7 +21,7 @@ Notable changes to the `tankterm_terminal` crate are documented in its
     `tankterm_config_derive`
 - Fixed `alacritty-escapes(7)` manpage missing from macOS install
 - Build manpages with `extra/man/scdoc.sh`, which keeps groff from splitting names across lines
-- Added the `Open Alacritty here` entry to the right-click context menu for folders on Windows
+- Added the `Open TankTerm here` entry to the right-click context menu for folders on Windows
 - Minimum Rust version has been bumped to 1.95.0
 
 ### Added
@@ -79,7 +79,12 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 - Off-by-one in vi mode ParagraphUp action
 - Unbounded per-cell memory usage for zero-width cells
 - Unbounded Kitty keyboard mode stack size
-- Keyboard and mouse bindings missing from `alacritty msg get-config` output
+- Keyboard and mouse bindings missing from `tankTerm msg get-config` output
+- Config file changes not watched after `general.import` changes, and the watcher restarting
+    on every reload when imports didn't change
+- Possible deadlock on exit with ConPTY on Windows, from the window closing after the console
+    was detached
+- `CSI 1 J` (erase above) not clearing the first line when the cursor is on the second line
 
 ## 0.17.0
 

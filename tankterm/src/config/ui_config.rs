@@ -80,7 +80,7 @@ pub struct UiConfig {
     /// RGB values for colors.
     pub colors: Colors,
 
-    /// Lip Gloss style blocks for the cursor, selection, search matches, hints and bars.
+    /// Lip Gloss style blocks for the cursor, selection, search matches, hints, bars and key help.
     pub style: StyleConfig,
 
     /// Path where config was loaded from.
@@ -368,7 +368,7 @@ impl<'de> Deserialize<'de> for HintsAlphabet {
         }
 
         if character_count < 2 {
-            return Err(D::Error::custom("must include at last 2 characters"));
+            return Err(D::Error::custom("must include at least 2 characters"));
         }
 
         Ok(Self(value))

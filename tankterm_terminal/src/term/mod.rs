@@ -787,7 +787,7 @@ impl<T> Term<T> {
 
     /// Scroll screen down.
     ///
-    /// Text moves down; clear at bottom
+    /// Text moves down; clear at top
     /// Expects origin to be in scroll range.
     #[inline]
     fn scroll_down_relative(&mut self, origin: Line, mut lines: usize) {
@@ -815,7 +815,7 @@ impl<T> Term<T> {
 
     /// Scroll screen up
     ///
-    /// Text moves up; clear at top
+    /// Text moves up; clear at bottom
     /// Expects origin to be in scroll range.
     #[inline]
     fn scroll_up_relative(&mut self, origin: Line, mut lines: usize) {
@@ -1483,7 +1483,7 @@ impl<T: EventListener> Handler for Term<T> {
         }
     }
 
-    /// Set current position as a tabstop.
+    /// Ring the terminal bell.
     #[inline]
     fn bell(&mut self) {
         trace!("Bell");
@@ -1808,9 +1808,8 @@ impl<T: EventListener> Handler for Term<T> {
             ansi::ClearMode::Above => {
                 let cursor = self.grid.cursor.point;
 
-                // If clearing more than one line.
-                if cursor.line > 1 {
-                    // Fully clear all lines before the current line.
+                // Fully clear all lines before the current line.
+                if cursor.line > 0 {
                     self.grid.reset_region(..cursor.line);
                 }
 
@@ -2335,7 +2334,7 @@ impl<T: EventListener> Handler for Term<T> {
     }
 }
 
-/// The state of the [`Mode`] and [`PrivateMode`].
+/// The state of the [`ansi::Mode`] and [`PrivateMode`].
 #[repr(u8)]
 #[derive(Debug, Clone, Copy)]
 enum ModeState {
@@ -2398,7 +2397,7 @@ impl TabStops {
         }
     }
 
-    /// Increase tabstop capacity.
+    /// Resize tabstops to the new column count.
     #[inline]
     fn resize(&mut self, columns: usize) {
         let mut index = self.tabs.len();
@@ -2994,6 +2993,28 @@ mod tests {
     }
 
     #[test]
+    fn clear_above_from_second_line() {
+        let size = TermSize::new(5, 3);
+        let mut term = Term::new(Config::default(), &size, VoidListener);
+        for line in 0..3 {
+            for column in 0..5 {
+                term.grid[Line(line)][Column(column)].c = 'x';
+            }
+        }
+
+        // ED 1 with the cursor on the second line clears the first line and the second up to it.
+        term.grid.cursor.point = Point::new(Line(1), Column(2));
+        term.clear_screen(ansi::ClearMode::Above);
+
+        let row = |line| -> String {
+            (0..5).map(|column| term.grid[Line(line)][Column(column)].c).collect()
+        };
+        assert_eq!(row(0), "     ");
+        assert_eq!(row(1), "   xx");
+        assert_eq!(row(2), "xxxxx");
+    }
+
+    #[test]
     fn clear_saved_lines() {
         let size = TermSize::new(7, 17);
         let mut term = Term::new(Config::default(), &size, VoidListener);
@@ -3093,7 +3114,7 @@ mod tests {
         assert_eq!(term.history_size(), 10);
         assert_eq!(term.grid.cursor.point, Point::new(Line(9), Column(0)));
 
-        // Increase visible lines.
+        // Decrease visible lines.
         size.screen_lines = 5;
         term.resize(size);
 
@@ -3116,7 +3137,7 @@ mod tests {
         // Enter alt screen.
         term.set_private_mode(NamedPrivateMode::SwapScreenAndSetRestoreCursor.into());
 
-        // Increase visible lines.
+        // Decrease visible lines.
         size.screen_lines = 5;
         term.resize(size);
 
@@ -3134,7 +3155,7 @@ mod tests {
         // Reset terminal for partial damage tests since it's initialized as fully damaged.
         term.reset_damage();
 
-        // Test that we damage input form [`Term::input`].
+        // Test that we damage input from [`Term::input`].
 
         let left = term.grid.cursor.point.column.0;
         term.input('d');

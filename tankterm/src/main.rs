@@ -158,7 +158,7 @@ fn tankterm(mut options: Options) -> Result<(), Box<dyn Error>> {
         .window(window_settings(&config, &options))
         .run();
 
-    // Without explicitly detaching the console cmd won't redraw it's prompt.
+    // Without explicitly detaching the console cmd won't redraw its prompt.
     #[cfg(windows)]
     unsafe {
         FreeConsole();

@@ -29,6 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Off-by-one in ViMotion::ParagraphUp
 - Unbounded per-cell memory usage for zero-width cells
 - Unsoundness in `Row::new` when `columns == 0`
+- `CSI 1 J` (erase above) not clearing the first line when the cursor is on the second line
 
 ## 0.26.0
 

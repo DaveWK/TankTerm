@@ -63,7 +63,8 @@ impl Env {
     }
 }
 
-/// System-wide configs would be picked up by every test, so skip when one exists.
+/// A system-wide config would be found instead of "no config", so tests expecting none skip when
+/// one exists.
 fn has_system_config() -> bool {
     ["/etc/tankterm", "/etc/alacritty"].iter().any(|dir| Path::new(dir).exists())
 }
@@ -78,7 +79,7 @@ fn tankterm_xdg_config() {
 }
 
 #[test]
-fn legacy_tankterm_config_used_as_fallback() {
+fn legacy_alacritty_xdg_config_used_as_fallback() {
     let env = Env::new();
     let config = env.xdg_config_home.join("alacritty/alacritty.toml");
     env.write_config(&config);
