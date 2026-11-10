@@ -500,6 +500,18 @@ mod tests {
     }
 
     #[test]
+    fn color_scheme_follows_colors() {
+        use tankterm_terminal::term::ColorScheme;
+
+        assert_eq!(load_str("").color_scheme(), ColorScheme::Dark);
+        assert_eq!(
+            load_str("[colors.primary]\nbackground = '#f1fff5'\n").color_scheme(),
+            ColorScheme::Light
+        );
+        assert_eq!(load_str("[colors]\nmode = 'light'\n").color_scheme(), ColorScheme::Light);
+    }
+
+    #[test]
     fn cli_overrides_use_configured_palette() {
         let mut config = load_str("[colors.normal]\ngreen = '#00aa00'\n");
         let mut overrides = ParsedOptions::from_options(&["colors.cursor.cursor = '2'".into()]);

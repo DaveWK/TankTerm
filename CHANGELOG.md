@@ -25,6 +25,8 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 
 ### Added
 
+- Color scheme reporting: `CSI ? 996 n` queries and mode 2031 notifications tell applications whether
+    the colors are dark or light, following `colors.mode` or the background
 - Colors can be given like in Lip Gloss: ANSI colors (`"5"`, `"201"`) and `{ light, dark }` pairs
 - `colors.mode` to choose the light or dark color of pairs; detected from the background by default
 - `[style]` blocks for the cursor, selection, search matches, hints and bars, with Lip Gloss style

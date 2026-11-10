@@ -13,6 +13,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 
 - Web Assembly build support (without the PTY modules)
+- `Term::set_color_scheme` and `Term::report_color_scheme`, answering `CSI ? 996 n` color scheme
+    queries and reporting changes to applications that enable private mode 2031
 
 ### Changed
 

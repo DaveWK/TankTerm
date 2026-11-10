@@ -153,6 +153,11 @@ where
             // Parse the incoming bytes.
             state.parser.advance(&mut **terminal, &buf[..unprocessed]);
 
+            // The parser doesn't support color scheme queries, so answer them here.
+            for _ in 0..state.color_scheme_queries.scan(&buf[..unprocessed]) {
+                terminal.report_color_scheme();
+            }
+
             processed += unprocessed;
             unprocessed = 0;
 
@@ -401,6 +406,37 @@ pub struct State {
     write_list: VecDeque<Cow<'static, [u8]>>,
     writing: Option<Writing>,
     parser: ansi::Processor,
+    color_scheme_queries: ColorSchemeQueryScanner,
+}
+
+/// Finds color scheme queries (`CSI ? 996 n`) in PTY output, even when split across reads.
+#[derive(Debug, Default)]
+struct ColorSchemeQueryScanner {
+    /// Number of bytes of the query matched so far.
+    matched: usize,
+}
+
+impl ColorSchemeQueryScanner {
+    const QUERY: &'static [u8] = b"\x1b[?996n";
+
+    /// Count the complete queries ending in `bytes`.
+    fn scan(&mut self, bytes: &[u8]) -> usize {
+        let mut found = 0;
+        for &byte in bytes {
+            if byte == Self::QUERY[self.matched] {
+                self.matched += 1;
+            } else {
+                // ESC only appears at the start of the query, so it can restart a match.
+                self.matched = usize::from(byte == Self::QUERY[0]);
+            }
+
+            if self.matched == Self::QUERY.len() {
+                found += 1;
+                self.matched = 0;
+            }
+        }
+        found
+    }
 }
 
 impl State {
@@ -481,5 +517,43 @@ impl<T> PeekableReceiver<T> {
                 res => res.ok(),
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn finds_whole_query() {
+        let mut scanner = ColorSchemeQueryScanner::default();
+        assert_eq!(scanner.scan(b"before\x1b[?996nafter"), 1);
+    }
+
+    #[test]
+    fn finds_query_split_across_reads() {
+        let mut scanner = ColorSchemeQueryScanner::default();
+        assert_eq!(scanner.scan(b"text\x1b[?9"), 0);
+        assert_eq!(scanner.scan(b"96"), 0);
+        assert_eq!(scanner.scan(b"n"), 1);
+    }
+
+    #[test]
+    fn finds_every_query() {
+        let mut scanner = ColorSchemeQueryScanner::default();
+        assert_eq!(scanner.scan(b"\x1b[?996n\x1b[?996n"), 2);
+    }
+
+    #[test]
+    fn restarts_on_escape() {
+        let mut scanner = ColorSchemeQueryScanner::default();
+        // An interrupted query followed by a complete one.
+        assert_eq!(scanner.scan(b"\x1b[?99\x1b[?996n"), 1);
+    }
+
+    #[test]
+    fn ignores_other_sequences() {
+        let mut scanner = ColorSchemeQueryScanner::default();
+        assert_eq!(scanner.scan(b"\x1b[?997;1n\x1b[6n\x1b[?996h"), 0);
     }
 }

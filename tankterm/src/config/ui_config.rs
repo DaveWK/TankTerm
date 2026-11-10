@@ -14,8 +14,8 @@ use winit::keyboard::{Key, ModifiersState};
 
 use tankterm_config::SerdeReplace;
 use tankterm_config_derive::{ConfigDeserialize, SerdeReplace};
-use tankterm_terminal::term::Config as TermConfig;
 use tankterm_terminal::term::search::RegexSearch;
+use tankterm_terminal::term::{ColorScheme, Config as TermConfig};
 use tankterm_terminal::tty::{Options as PtyOptions, Shell};
 
 use crate::config::LOG_TARGET_CONFIG;
@@ -35,6 +35,7 @@ use crate::config::selection::Selection;
 use crate::config::style::StyleConfig;
 use crate::config::terminal::Terminal;
 use crate::config::window::WindowConfig;
+use crate::display::color::ColorContext;
 
 /// Regex used for the default URL hint.
 #[rustfmt::skip]
@@ -119,6 +120,15 @@ pub struct UiConfig {
 }
 
 impl UiConfig {
+    /// Whether the configured colors are dark or light, as reported to applications.
+    pub fn color_scheme(&self) -> ColorScheme {
+        if ColorContext::from_colors(&self.colors).dark {
+            ColorScheme::Dark
+        } else {
+            ColorScheme::Light
+        }
+    }
+
     /// Derive [`TermConfig`] from the config.
     pub fn term_options(&self) -> TermConfig {
         TermConfig {

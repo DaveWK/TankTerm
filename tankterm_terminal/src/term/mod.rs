@@ -77,6 +77,7 @@ bitflags! {
         const REPORT_ALTERNATE_KEYS   = 1 << 20;
         const REPORT_ALL_KEYS_AS_ESC  = 1 << 21;
         const REPORT_ASSOCIATED_TEXT  = 1 << 22;
+        const REPORT_COLOR_SCHEME     = 1 << 23;
         const MOUSE_MODE              = Self::MOUSE_REPORT_CLICK.bits() | Self::MOUSE_MOTION.bits() | Self::MOUSE_DRAG.bits();
         const KITTY_KEYBOARD_PROTOCOL = Self::DISAMBIGUATE_ESC_CODES.bits()
                                       | Self::REPORT_EVENT_TYPES.bits()
@@ -85,6 +86,19 @@ bitflags! {
                                       | Self::REPORT_ASSOCIATED_TEXT.bits();
          const ANY                    = u32::MAX;
     }
+}
+
+/// Private mode for color scheme update notifications.
+///
+/// See <https://contour-terminal.org/vt-extensions/color-palette-update-notifications/>.
+pub const COLOR_SCHEME_MODE: u16 = 2031;
+
+/// Whether the terminal's colors are dark or light.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum ColorScheme {
+    #[default]
+    Dark,
+    Light,
 }
 
 impl From<KeyboardModes> for TermMode {
@@ -269,6 +283,9 @@ pub struct Term<T> {
     /// Terminal focus controlling the cursor shape.
     pub is_focused: bool,
 
+    /// Whether the frontend's colors are dark or light, reported to applications.
+    color_scheme: ColorScheme,
+
     /// Cursor for keyboard selection.
     pub vi_mode_cursor: ViModeCursor,
 
@@ -384,6 +401,39 @@ pub enum Osc52 {
     CopyPaste,
 }
 
+impl<T: EventListener> Term<T> {
+    /// Whether the frontend's colors are dark or light.
+    #[inline]
+    pub fn color_scheme(&self) -> ColorScheme {
+        self.color_scheme
+    }
+
+    /// Update whether the frontend's colors are dark or light.
+    ///
+    /// Applications that enabled private mode 2031 are notified when this changes.
+    pub fn set_color_scheme(&mut self, color_scheme: ColorScheme) {
+        if self.color_scheme == color_scheme {
+            return;
+        }
+
+        self.color_scheme = color_scheme;
+        if self.mode.contains(TermMode::REPORT_COLOR_SCHEME) {
+            self.report_color_scheme();
+        }
+    }
+
+    /// Answer a color scheme query (`CSI ? 996 n`) with `CSI ? 997 ; 1 n` for dark colors or
+    /// `CSI ? 997 ; 2 n` for light ones.
+    pub fn report_color_scheme(&mut self) {
+        let scheme = match self.color_scheme {
+            ColorScheme::Dark => 1,
+            ColorScheme::Light => 2,
+        };
+        trace!("Reporting color scheme {:?}", self.color_scheme);
+        self.event_proxy.send_event(Event::PtyWrite(format!("\x1b[?997;{scheme}n")));
+    }
+}
+
 impl<T> Term<T> {
     #[inline]
     pub fn scroll_display(&mut self, scroll: Scroll)
@@ -438,6 +488,7 @@ impl<T> Term<T> {
             colors: color::Colors::default(),
             title_stack: Default::default(),
             is_focused: Default::default(),
+            color_scheme: Default::default(),
             selection: Default::default(),
             title: Default::default(),
             mode: Default::default(),
@@ -1934,6 +1985,11 @@ impl<T: EventListener> Handler for Term<T> {
     fn set_private_mode(&mut self, mode: PrivateMode) {
         let mode = match mode {
             PrivateMode::Named(mode) => mode,
+            PrivateMode::Unknown(COLOR_SCHEME_MODE) => {
+                trace!("Enabling color scheme reports");
+                self.mode.insert(TermMode::REPORT_COLOR_SCHEME);
+                return;
+            },
             PrivateMode::Unknown(mode) => {
                 debug!("Ignoring unknown mode {mode} in set_private_mode");
                 return;
@@ -1997,6 +2053,11 @@ impl<T: EventListener> Handler for Term<T> {
     fn unset_private_mode(&mut self, mode: PrivateMode) {
         let mode = match mode {
             PrivateMode::Named(mode) => mode,
+            PrivateMode::Unknown(COLOR_SCHEME_MODE) => {
+                trace!("Disabling color scheme reports");
+                self.mode.remove(TermMode::REPORT_COLOR_SCHEME);
+                return;
+            },
             PrivateMode::Unknown(mode) => {
                 debug!("Ignoring unknown mode {mode} in unset_private_mode");
                 return;
@@ -2083,6 +2144,9 @@ impl<T: EventListener> Handler for Term<T> {
                 },
                 NamedPrivateMode::SyncUpdate => ModeState::Reset,
                 NamedPrivateMode::ColumnMode => ModeState::NotSupported,
+            },
+            PrivateMode::Unknown(COLOR_SCHEME_MODE) => {
+                self.mode.contains(TermMode::REPORT_COLOR_SCHEME).into()
             },
             PrivateMode::Unknown(_) => ModeState::NotSupported,
         };
@@ -2517,6 +2581,84 @@ mod tests {
     use crate::term::cell::{Cell, Flags};
     use crate::term::test::TermSize;
     use crate::vte::ansi::{self, CharsetIndex, Handler, StandardCharset};
+
+    /// Listener recording everything the terminal writes back to the PTY.
+    #[derive(Clone, Default)]
+    struct PtyWrites(std::sync::Arc<std::sync::Mutex<Vec<String>>>);
+
+    impl EventListener for PtyWrites {
+        fn send_event(&self, event: Event) {
+            if let Event::PtyWrite(text) = event {
+                self.0.lock().unwrap().push(text);
+            }
+        }
+    }
+
+    impl PtyWrites {
+        fn take(&self) -> Vec<String> {
+            std::mem::take(&mut *self.0.lock().unwrap())
+        }
+    }
+
+    fn color_scheme_term() -> (Term<PtyWrites>, PtyWrites) {
+        let writes = PtyWrites::default();
+        let size = TermSize::new(10, 5);
+        (Term::new(Config::default(), &size, writes.clone()), writes)
+    }
+
+    #[test]
+    fn color_scheme_query_reports_dark_and_light() {
+        let (mut term, writes) = color_scheme_term();
+
+        term.report_color_scheme();
+        term.set_color_scheme(ColorScheme::Light);
+        term.report_color_scheme();
+
+        assert_eq!(writes.take(), ["\x1b[?997;1n", "\x1b[?997;2n"]);
+    }
+
+    #[test]
+    fn color_scheme_changes_reported_only_in_mode_2031() {
+        let (mut term, writes) = color_scheme_term();
+
+        // Without the mode, changes are silent.
+        term.set_color_scheme(ColorScheme::Light);
+        assert!(writes.take().is_empty());
+
+        term.set_private_mode(ansi::PrivateMode::Unknown(COLOR_SCHEME_MODE));
+        term.set_color_scheme(ColorScheme::Dark);
+        // Setting the same scheme again isn't a change.
+        term.set_color_scheme(ColorScheme::Dark);
+        assert_eq!(writes.take(), ["\x1b[?997;1n"]);
+
+        term.unset_private_mode(ansi::PrivateMode::Unknown(COLOR_SCHEME_MODE));
+        term.set_color_scheme(ColorScheme::Light);
+        assert!(writes.take().is_empty());
+    }
+
+    #[test]
+    fn color_scheme_mode_is_reported() {
+        let (mut term, writes) = color_scheme_term();
+
+        term.report_private_mode(ansi::PrivateMode::Unknown(COLOR_SCHEME_MODE));
+        term.set_private_mode(ansi::PrivateMode::Unknown(COLOR_SCHEME_MODE));
+        term.report_private_mode(ansi::PrivateMode::Unknown(COLOR_SCHEME_MODE));
+
+        // DECRPM: 2 is reset, 1 is set.
+        assert_eq!(writes.take(), ["\x1b[?2031;2$y", "\x1b[?2031;1$y"]);
+    }
+
+    #[test]
+    fn color_scheme_mode_set_through_escape_sequence() {
+        let (mut term, _) = color_scheme_term();
+        let mut parser: ansi::Processor = ansi::Processor::new();
+
+        parser.advance(&mut term, b"\x1b[?2031h");
+        assert!(term.mode().contains(TermMode::REPORT_COLOR_SCHEME));
+
+        parser.advance(&mut term, b"\x1b[?2031l");
+        assert!(!term.mode().contains(TermMode::REPORT_COLOR_SCHEME));
+    }
 
     #[test]
     fn scroll_display_page_up() {

@@ -124,7 +124,7 @@ brevity.
 :[ Modes: *4*, *20*
 |  _CSI ? h_
 :  Partial
-:[ Modes: *1*, *3*, *6*, *7*, *12*, *25*, *1000*, *1002*, *1004*, *1005*, *1006*, *1007*, *1042*, *1049*, *2004*, *2026*
+:[ Modes: *1*, *3*, *6*, *7*, *12*, *25*, *1000*, *1002*, *1004*, *1005*, *1006*, *1007*, *1042*, *1049*, *2004*, *2026*, *2031*
 |  _CSI I_
 :  Implemented
 :[
@@ -155,6 +155,9 @@ brevity.
 |  _CSI n_
 :  Implemented
 :[
+|  _CSI ? n_
+:  Partial
+:[ Parameters: *996* (dark/light color scheme, answered with _CSI ? 997 ; 1 n_ or _CSI ? 997 ; 2 n_)
 |  _CSI P_
 :  Implemented
 :[
