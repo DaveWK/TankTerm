@@ -279,7 +279,7 @@ impl<'de> Deserialize<'de> for Class {
                             Err(err) => {
                                 error!(
                                     target: LOG_TARGET_CONFIG,
-                                    "Config error: class.instance: {err}"
+                                    "Config error: class.general: {err}"
                                 );
                             },
                         },

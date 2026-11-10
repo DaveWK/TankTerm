@@ -224,7 +224,7 @@ pub struct WindowIdentity {
 }
 
 impl WindowIdentity {
-    /// Override the [`WindowIdentity`]'s fields with the [`WindowOptions`].
+    /// Override the [`Identity`]'s fields with the [`WindowIdentity`].
     pub fn override_identity_config(&self, identity: &mut Identity) {
         if let Some(title) = &self.title {
             identity.title.clone_from(title);

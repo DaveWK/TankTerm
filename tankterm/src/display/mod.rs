@@ -762,7 +762,7 @@ impl Display {
             self.window.set_resize_increments(PhysicalSize::new(cell_width, cell_height));
         }
 
-        // Resize when terminal when its dimensions have changed.
+        // Resize terminal when its dimensions have changed.
         if self.size_info.screen_lines() != new_size.screen_lines
             || self.size_info.columns() != new_size.columns()
         {
@@ -1539,7 +1539,8 @@ impl Display {
         }
     }
 
-    /// Request a new frame for a window on Wayland.
+    /// Schedule the next frame from the monitor refresh rate, for windows without Wayland frame
+    /// callbacks.
     fn request_frame(&mut self, scheduler: &mut Scheduler) {
         // Mark that we've used a frame.
         self.window.has_frame = false;

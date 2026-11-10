@@ -569,7 +569,7 @@ impl<T> Term<T> {
         let wide_spacer = Flags::WIDE_CHAR_SPACER | Flags::LEADING_WIDE_CHAR_SPACER;
         let last_column = self.columns() - 1;
 
-        // Immediately stop if start point in on line break.
+        // Immediately stop if start point is on line break.
         if point.column == last_column && !self.grid[point].flags.contains(Flags::WRAPLINE) {
             return Err(point);
         }
@@ -1123,7 +1123,6 @@ mod tests {
         #[rustfmt::skip]
         let term = mock_term("https://github.com");
 
-        // Bottom to top.
         let mut regex = RegexSearch::new("/github.com|https://github.com").unwrap();
         let start = Point::new(Line(0), Column(0));
         let end = Point::new(Line(0), Column(17));
@@ -1135,7 +1134,6 @@ mod tests {
         #[rustfmt::skip]
         let term = mock_term("rust");
 
-        // Bottom to top.
         let mut regex = RegexSearch::new(";*|rust").unwrap();
         let start = Point::new(Line(0), Column(0));
         let end = Point::new(Line(0), Column(3));

@@ -19,7 +19,8 @@ use crate::display::hint::{self, HintState};
 use crate::display::{Display, SizeInfo};
 use crate::event::SearchState;
 
-/// Minimum contrast between a fixed cursor color and the cell's background.
+/// Minimum contrast between a cell's foreground and background before a cursor color taken from
+/// the cell falls back to the primary colors.
 pub const MIN_CURSOR_CONTRAST: f64 = 1.5;
 
 /// Renderable terminal content.
@@ -486,7 +487,7 @@ struct Hint<'a> {
     /// Hint matches and position.
     matches: HintMatches<'a>,
 
-    /// Last match checked against current cell position.
+    /// Remaining label characters for each visible hint match.
     labels: &'a Vec<Vec<char>>,
 }
 

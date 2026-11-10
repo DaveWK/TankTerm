@@ -22,7 +22,6 @@ pub struct List([Rgb; COUNT]);
 
 impl From<&'_ Colors> for List {
     fn from(colors: &Colors) -> List {
-        // Type inference fails without this annotation.
         let mut list = List([Rgb::default(); COUNT]);
 
         list.fill_named(colors);
@@ -243,7 +242,6 @@ impl Add<Rgb> for Rgb {
     }
 }
 
-/// Deserialize Rgb color from a hex string.
 /// What Lip Gloss style color values resolve against while the configuration is read.
 ///
 /// ANSI palette indices and light/dark pairs depend on the configured palette and background, so
@@ -408,6 +406,7 @@ fn named_color(name: &str) -> Option<Rgb> {
     }
 }
 
+/// Deserialize Rgb from a hex string, ANSI index or name, CharmTone name, or light/dark pair.
 impl<'de> Deserialize<'de> for Rgb {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where

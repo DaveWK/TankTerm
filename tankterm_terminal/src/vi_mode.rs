@@ -23,7 +23,7 @@ pub enum ViMotion {
     Right,
     /// First column, or beginning of the line when already at the first column.
     First,
-    /// Last column, or beginning of the line when already at the last column.
+    /// Last occupied cell, end of the wrapped line, or last column when already beyond it.
     Last,
     /// First non-empty cell in this terminal row, or first non-empty cell
     /// of the line when already at the first cell of the row.
@@ -188,7 +188,7 @@ impl ViModeCursor {
     /// Get target cursor point for vim-like page movement.
     #[must_use = "this returns the result of the operation, without modifying the original"]
     pub fn scroll<T: EventListener>(mut self, term: &Term<T>, lines: i32) -> Self {
-        // Clamp movement to within visible region.
+        // Clamp movement to within the grid.
         let line = (self.point.line - lines).grid_clamp(term, Boundary::Grid);
 
         // Find the first occupied cell after scrolling has been performed.

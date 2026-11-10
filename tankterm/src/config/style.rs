@@ -1,9 +1,9 @@
 //! Lip Gloss style blocks for everything TankTerm draws on top of the terminal content.
 //!
-//! Each element (cursor, selection, search matches, hint labels, footer bar, line indicator) is
-//! styled by a [`Style`] with Lip Gloss's properties: colors and text attributes. Styles compose
-//! like Lip Gloss's `Inherit`: a style can inherit from named styles defined in `[style.defs]`,
-//! taking every property it doesn't set itself.
+//! Each element (cursor, selection, search matches, hint labels, footer bar, line indicator, key
+//! help) is styled by a [`Style`] with Lip Gloss's properties: colors and text attributes. Styles
+//! compose like Lip Gloss's `Inherit`: a style can inherit from named styles defined in
+//! `[style.defs]`, taking every property it doesn't set itself.
 //!
 //! Every property resolves in this order:
 //!

@@ -759,7 +759,7 @@ impl Canvas {
         (start_y, end_y)
     }
 
-    /// Gives bounds for vertical straight line on `y` with `stroke_size`.
+    /// Gives bounds for vertical straight line on `x` with `stroke_size`.
     fn v_line_bounds(&self, x: f32, stroke_size: usize) -> (f32, f32) {
         let start_x = cmp::max((x - stroke_size as f32 / 2.) as i32, 0) as f32;
         let end_x = cmp::min((x + stroke_size as f32 / 2.) as i32, self.width as i32) as f32;
@@ -884,9 +884,10 @@ impl Canvas {
         }
     }
 
-    /// Draws a quarter of a circle centered in `(0., self.height - radius)` with radius
-    /// `self.width` and an attached rectangle to form a "╭" using a given `stroke_size` in the
-    /// bottom-right quadrant of the `Canvas` coordinate system.
+    /// Draws a quarter of a circle with radius `(min(width, height) + stroke_size) / 2`, centered
+    /// on the edge across the longer side, and a straight stroke joining it to the middle of
+    /// that edge, to form a "╭" using a given `stroke_size` in the bottom-right quadrant of the
+    /// `Canvas` coordinate system.
     fn draw_rounded_corner(&mut self, stroke_size: usize) {
         let radius = (self.width.min(self.height) + stroke_size) as f32 / 2.;
         let stroke_size_f = stroke_size as f32;
@@ -1020,7 +1021,7 @@ mod tests {
         let offset = Default::default();
         let glyph_offset = Default::default();
 
-        // Test coverage of box drawing characters.
+        // Test coverage of powerline symbols.
         for character in '\u{e0b0}'..='\u{e0b3}' {
             assert!(builtin_glyph(character, &METRICS, &offset, &glyph_offset).is_some());
         }

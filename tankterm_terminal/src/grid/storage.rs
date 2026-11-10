@@ -47,8 +47,8 @@ pub struct Storage<T> {
     ///
     /// Shrinking this length allows reducing the number of lines in the scrollback buffer without
     /// having to truncate the raw `inner` buffer.
-    /// As long as `len` is bigger than `inner`, it is also possible to grow the scrollback buffer
-    /// without any additional insertions.
+    /// As long as `len` is smaller than `inner.len()`, it is also possible to grow the scrollback
+    /// buffer without any additional insertions.
     len: usize,
 }
 
@@ -142,9 +142,9 @@ impl<T> Storage<T> {
         self.len
     }
 
-    /// Swap implementation for Row<T>.
+    /// Swap implementation for `Row<T>`.
     ///
-    /// Exploits the known size of Row<T> to produce a slightly more efficient
+    /// Exploits the known size of `Row<T>` to produce a slightly more efficient
     /// swap than going through slice::swap.
     ///
     /// The default implementation from swap generates 8 movups and 4 movaps
@@ -229,7 +229,7 @@ impl<T> Storage<T> {
         // Use if/else instead of remainder here to improve performance.
         //
         // Requires `zeroed` to be smaller than `self.inner.len() * 2`,
-        // but both `self.zero` and `requested` are always smaller than `self.inner.len()`.
+        // but both `self.zero` and `positive` are always smaller than `self.inner.len()`.
         if zeroed >= self.inner.len() { zeroed - self.inner.len() } else { zeroed }
     }
 
@@ -423,8 +423,8 @@ mod tests {
     ///   2: 1
     /// After:
     ///   0: 2 <- Hidden
-    ///   0: 0 <- Zero
-    ///   1: 1
+    ///   1: 0 <- Zero
+    ///   2: 1
     #[test]
     fn shrink_before_zero() {
         // Setup storage area.
@@ -595,8 +595,8 @@ mod tests {
     ///   1: 2 <- Hidden
     ///   2: 0 <- Zero
     /// After:
-    ///   0: 1
     ///   0: 0 <- Zero
+    ///   1: 1
     #[test]
     fn truncate_invisible_lines_beginning() {
         // Setup storage area.
@@ -640,13 +640,12 @@ mod tests {
     ///   4: 2
     ///   5: 3 <- Hidden
     /// After Growing:
-    ///   0: 4
-    ///   1: 5
-    ///   2: -
-    ///   3: 0 <- Zero
-    ///   4: 1
-    ///   5: 2
-    ///   6: 3
+    ///   0: 4 <- Hidden
+    ///   1: 5 <- Hidden
+    ///   2: 0 <- Zero
+    ///   3: 1
+    ///   4: 2
+    ///   5: 3
     #[test]
     fn shrink_then_grow() {
         // Setup storage area.

@@ -115,7 +115,7 @@ impl Processor {
         event_loop.listen_device_events(DeviceEvents::Never);
 
         // SAFETY: Since this takes a pointer to the winit event loop, it MUST be dropped first,
-        // which is done in `loop_exiting`.
+        // which is done in `exiting`.
         let clipboard = unsafe { Clipboard::new(event_loop.display_handle().unwrap().as_raw()) };
 
         // Create a config monitor.
@@ -196,7 +196,7 @@ impl Processor {
 
     /// Run the event loop.
     ///
-    /// The result is exit code generate from the loop.
+    /// Returns the initial window creation error or the event loop's error, if any.
     pub fn run(&mut self, event_loop: EventLoop<Event>) -> Result<(), Box<dyn Error>> {
         let result = event_loop.run_app(self);
         match self.initial_window_error.take() {
@@ -868,7 +868,7 @@ impl<'a, N: Notify + 'a, T: EventListener> input::ActionContext<T> for ActionCon
                 break;
             }
 
-            // On unix, the working directory of the foreground shell is used by `start_daemon`.
+            // On unix, the working directory of the foreground shell is used by `spawn_daemon`.
             #[cfg(not(windows))]
             if arg == "--working-directory" {
                 let _ = env_args.next();
@@ -973,7 +973,7 @@ impl<'a, N: Notify + 'a, T: EventListener> input::ActionContext<T> for ActionCon
             };
         }
 
-        // Remove vi mode IME inhibitor, so the user can input the target character.
+        // Remove vi mode IME inhibitor, so the user can type the search regex.
         self.window().set_ime_inhibitor(ImeInhibitor::VI, false);
 
         self.display.damage_tracker.frame().mark_fully_damaged();
@@ -1116,7 +1116,7 @@ impl<'a, N: Notify + 'a, T: EventListener> input::ActionContext<T> for ActionCon
         self.update_search();
     }
 
-    /// Go to the previous regex in the search history.
+    /// Go to the next regex in the search history.
     #[inline]
     fn search_history_next(&mut self) {
         let index = match &mut self.search_state.history_index {
@@ -1410,7 +1410,7 @@ impl<'a, N: Notify + 'a, T: EventListener> input::ActionContext<T> for ActionCon
         }
     }
 
-    /// Toggle the vi mode status.
+    /// Cycle the key help between hidden, short and full.
     #[inline]
     fn toggle_help(&mut self) {
         // Cycle hidden, short and full help; the display reserves lines for it on update.
@@ -1420,6 +1420,8 @@ impl<'a, N: Notify + 'a, T: EventListener> input::ActionContext<T> for ActionCon
         *self.dirty = true;
     }
 
+    /// Toggle the vi mode status.
+    #[inline]
     fn toggle_vi_mode(&mut self) {
         let was_in_vi_mode = self.terminal.mode().contains(TermMode::VI);
         if was_in_vi_mode {
@@ -1463,7 +1465,7 @@ impl<'a, N: Notify + 'a, T: EventListener> input::ActionContext<T> for ActionCon
         self.inline_search(direction);
     }
 
-    /// Jump to the next matching character in the line.
+    /// Jump to the previous matching character in the line.
     fn inline_search_previous(&mut self) {
         let direction = self.inline_search_state.direction.opposite();
         self.inline_search(direction);
@@ -1579,7 +1581,7 @@ impl<'a, N: Notify + 'a, T: EventListener> ActionContext<'a, N, T> {
                     // Move vi cursor to the start of the match.
                     self.terminal.vi_goto_point(*regex_match.start());
                 } else {
-                    // Select the match when vi mode is not active.
+                    // Scroll the match into view when vi mode is not active.
                     self.terminal.scroll_to_point(*regex_match.start());
                 }
 

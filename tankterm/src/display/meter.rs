@@ -6,7 +6,7 @@
 //!
 //! ```rust
 //! // create a meter
-//! let mut meter = tankterm_terminal::meter::Meter::new();
+//! let mut meter = Meter::default();
 //!
 //! // Sample something.
 //! {
@@ -25,7 +25,7 @@ const NUM_SAMPLES: usize = 10;
 /// The meter.
 #[derive(Default)]
 pub struct Meter {
-    /// Track last 60 timestamps.
+    /// Last `NUM_SAMPLES` sample times, in microseconds.
     times: [f64; NUM_SAMPLES],
 
     /// Average sample time in microseconds.
@@ -37,7 +37,7 @@ pub struct Meter {
 
 /// Sampler.
 ///
-/// Samplers record how long they are "alive" for and update the meter on drop..
+/// Samplers record how long they are "alive" for and update the meter on drop.
 pub struct Sampler<'a> {
     /// Reference to meter that created the sampler.
     meter: &'a mut Meter,
