@@ -524,9 +524,9 @@ impl<T: EventListener, A: ActionContext<T>> Processor<T, A> {
             x.saturating_sub(size_info.padding_x() as usize) % size_info.cell_width() as usize;
         let half_cell_width = (size_info.cell_width() / 2.0) as usize;
 
-        let additional_padding =
-            (size_info.width() - size_info.padding_x() * 2.) % size_info.cell_width();
-        let end_of_grid = size_info.width() - size_info.padding_x() - additional_padding;
+        let grid_width = size_info.width() - size_info.padding_x() - size_info.padding_right();
+        let additional_padding = grid_width % size_info.cell_width();
+        let end_of_grid = size_info.width() - size_info.padding_right() - additional_padding;
 
         if cell_x > half_cell_width
             // Edge case when mouse leaves the window.
@@ -1152,6 +1152,8 @@ impl<T: EventListener, A: ActionContext<T>> Processor<T, A> {
 mod tests {
     use super::*;
 
+    use crate::display::WindowPadding;
+
     use winit::event::{DeviceId, Event as WinitEvent, WindowEvent};
     use winit::keyboard::Key;
     use winit::window::WindowId;
@@ -1298,8 +1300,7 @@ mod tests {
                     51.0,
                     3.0,
                     3.0,
-                    0.,
-                    0.,
+                    WindowPadding::default(),
                     false,
                 );
 

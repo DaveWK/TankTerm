@@ -140,6 +140,22 @@ impl From<glutin::error::Error> for Error {
     }
 }
 
+/// Window padding in pixels, which can differ on every side.
+#[derive(Debug, Copy, Clone, Default, PartialEq)]
+pub struct WindowPadding {
+    pub top: f32,
+    pub right: f32,
+    pub bottom: f32,
+    pub left: f32,
+}
+
+impl WindowPadding {
+    /// The same padding on the left and right, and on the top and bottom.
+    pub const fn symmetric(horizontal: f32, vertical: f32) -> Self {
+        Self { top: vertical, right: horizontal, bottom: vertical, left: horizontal }
+    }
+}
+
 /// Terminal size info.
 #[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq, Eq)]
 pub struct SizeInfo<T = f32> {
@@ -155,11 +171,19 @@ pub struct SizeInfo<T = f32> {
     /// Height of individual cell.
     cell_height: T,
 
-    /// Horizontal window padding.
+    /// Left window padding.
     padding_x: T,
 
-    /// Vertical window padding.
+    /// Top window padding.
     padding_y: T,
+
+    /// Right window padding.
+    #[serde(default)]
+    padding_right: T,
+
+    /// Bottom window padding.
+    #[serde(default)]
+    padding_bottom: T,
 
     /// Number of lines in the viewport.
     screen_lines: usize,
@@ -177,6 +201,8 @@ impl From<SizeInfo<f32>> for SizeInfo<u32> {
             cell_height: size_info.cell_height as u32,
             padding_x: size_info.padding_x as u32,
             padding_y: size_info.padding_y as u32,
+            padding_right: size_info.padding_right as u32,
+            padding_bottom: size_info.padding_bottom as u32,
             screen_lines: size_info.screen_lines,
             columns: size_info.columns,
         }
@@ -224,6 +250,16 @@ impl<T: Clone + Copy> SizeInfo<T> {
     pub fn padding_y(&self) -> T {
         self.padding_y
     }
+
+    #[inline]
+    pub fn padding_right(&self) -> T {
+        self.padding_right
+    }
+
+    #[inline]
+    pub fn padding_bottom(&self) -> T {
+        self.padding_bottom
+    }
 }
 
 impl SizeInfo<f32> {
@@ -233,19 +269,19 @@ impl SizeInfo<f32> {
         height: f32,
         cell_width: f32,
         cell_height: f32,
-        mut padding_x: f32,
-        mut padding_y: f32,
+        padding: WindowPadding,
         dynamic_padding: bool,
     ) -> SizeInfo {
+        let WindowPadding { mut top, mut right, mut bottom, mut left } = padding;
         if dynamic_padding {
-            padding_x = Self::dynamic_padding(padding_x.floor(), width, cell_width);
-            padding_y = Self::dynamic_padding(padding_y.floor(), height, cell_height);
+            (left, right) = Self::dynamic_padding(left.floor(), right.floor(), width, cell_width);
+            (top, bottom) = Self::dynamic_padding(top.floor(), bottom.floor(), height, cell_height);
         }
 
-        let lines = (height - 2. * padding_y) / cell_height;
+        let lines = (height - top - bottom) / cell_height;
         let screen_lines = cmp::max(lines as usize, MIN_SCREEN_LINES);
 
-        let columns = (width - 2. * padding_x) / cell_width;
+        let columns = (width - left - right) / cell_width;
         let columns = cmp::max(columns as usize, MIN_COLUMNS);
 
         SizeInfo {
@@ -253,8 +289,10 @@ impl SizeInfo<f32> {
             height,
             cell_width,
             cell_height,
-            padding_x: padding_x.floor(),
-            padding_y: padding_y.floor(),
+            padding_x: left.floor(),
+            padding_y: top.floor(),
+            padding_right: right.floor(),
+            padding_bottom: bottom.floor(),
             screen_lines,
             columns,
         }
@@ -276,10 +314,11 @@ impl SizeInfo<f32> {
             && y > self.padding_y as usize
     }
 
-    /// Calculate padding to spread it evenly around the terminal content.
+    /// Calculate padding to spread the space left over by the grid evenly on both sides.
     #[inline]
-    fn dynamic_padding(padding: f32, dimension: f32, cell_dimension: f32) -> f32 {
-        padding + ((dimension - 2. * padding) % cell_dimension) / 2.
+    fn dynamic_padding(start: f32, end: f32, dimension: f32, cell_dimension: f32) -> (f32, f32) {
+        let extra = ((dimension - start - end) % cell_dimension) / 2.;
+        (start + extra, end + extra)
     }
 }
 
@@ -444,7 +483,7 @@ impl Display {
             glyph_cache.reset_glyph_cache(&mut api);
         });
 
-        let padding = config.window.padding(window.scale_factor as f32);
+        let padding = config.window.padding(window.scale_factor as f32, cell_width, cell_height);
         let viewport_size = window.inner_size();
 
         // Create new size with at least one column and row.
@@ -453,13 +492,18 @@ impl Display {
             viewport_size.height as f32,
             cell_width,
             cell_height,
-            padding.0,
-            padding.1,
+            padding,
             config.window.dynamic_padding && config.window.dimensions().is_none(),
         );
 
         info!("Cell size: {cell_width} x {cell_height}");
-        info!("Padding: {} x {}", size_info.padding_x(), size_info.padding_y());
+        info!(
+            "Padding: {} {} {} {} (top, right, bottom, left)",
+            size_info.padding_y(),
+            size_info.padding_right(),
+            size_info.padding_bottom(),
+            size_info.padding_x(),
+        );
         info!("Width: {}, Height: {}", size_info.width(), size_info.height());
 
         // Update OpenGL projection.
@@ -687,15 +731,15 @@ impl Display {
             height = dimensions.height as f32;
         }
 
-        let padding = config.window.padding(self.window.scale_factor as f32);
+        let padding =
+            config.window.padding(self.window.scale_factor as f32, cell_width, cell_height);
 
         let mut new_size = SizeInfo::new(
             width,
             height,
             cell_width,
             cell_height,
-            padding.0,
-            padding.1,
+            padding,
             config.window.dynamic_padding,
         );
 
@@ -763,7 +807,14 @@ impl Display {
 
         self.renderer.resize(&self.size_info);
 
-        info!("Padding: {} x {}", self.size_info.padding_x(), self.size_info.padding_y());
+        let size = &self.size_info;
+        info!(
+            "Padding: {} {} {} {} (top, right, bottom, left)",
+            size.padding_y(),
+            size.padding_right(),
+            size.padding_bottom(),
+            size.padding_x(),
+        );
         info!("Width: {}, Height: {}", self.size_info.width(), self.size_info.height());
     }
 
@@ -1624,13 +1675,67 @@ fn window_size(
     cell_height: f32,
     scale_factor: f32,
 ) -> PhysicalSize<u32> {
-    let padding = config.window.padding(scale_factor);
+    let padding = config.window.padding(scale_factor, cell_width, cell_height);
 
     let grid_width = cell_width * dimensions.columns.max(MIN_COLUMNS) as f32;
     let grid_height = cell_height * dimensions.lines.max(MIN_SCREEN_LINES) as f32;
 
-    let width = (padding.0).mul_add(2., grid_width).floor();
-    let height = (padding.1).mul_add(2., grid_height).floor();
+    let width = (grid_width + padding.left + padding.right).floor();
+    let height = (grid_height + padding.top + padding.bottom).floor();
 
     PhysicalSize::new(width as u32, height as u32)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn symmetric_padding() {
+        let size = SizeInfo::new(100., 100., 10., 20., WindowPadding::symmetric(5., 10.), false);
+
+        assert_eq!((size.padding_x(), size.padding_right()), (5., 5.));
+        assert_eq!((size.padding_y(), size.padding_bottom()), (10., 10.));
+        assert_eq!(size.columns(), 9);
+        assert_eq!(size.screen_lines(), 4);
+    }
+
+    #[test]
+    fn asymmetric_padding() {
+        let padding = WindowPadding { top: 20., right: 10., bottom: 0., left: 30. };
+        let size = SizeInfo::new(200., 100., 10., 20., padding, false);
+
+        // Offsets are the left and top padding.
+        assert_eq!((size.padding_x(), size.padding_y()), (30., 20.));
+        assert_eq!((size.padding_right(), size.padding_bottom()), (10., 0.));
+
+        // 200 - 30 - 10 = 160 -> 16 columns, 100 - 20 - 0 = 80 -> 4 lines.
+        assert_eq!(size.columns(), 16);
+        assert_eq!(size.screen_lines(), 4);
+
+        // Points in the left padding aren't part of the grid.
+        assert!(!size.contains_point(25, 50));
+        assert!(size.contains_point(35, 50));
+    }
+
+    #[test]
+    fn dynamic_padding_splits_leftover_space() {
+        // 105 - 10 - 20 = 75 leaves 5 pixels next to 7 columns, split 2.5 on each side.
+        let padding = WindowPadding { top: 0., right: 20., bottom: 0., left: 10. };
+        let size = SizeInfo::new(105., 100., 10., 10., padding, true);
+
+        assert_eq!(size.columns(), 7);
+        assert_eq!(size.padding_x(), 12.);
+        assert_eq!(size.padding_right(), 22.);
+    }
+
+    #[test]
+    fn window_size_includes_each_padding_side_once() {
+        let config: UiConfig = toml::from_str("[window]\npadding = [1, 2, 3, 4]\n").unwrap();
+
+        let size = window_size(&config, Dimensions { columns: 80, lines: 24 }, 10., 20., 1.);
+
+        // Grid of 800x480, plus 2+4 cells of horizontal and 1+3 of vertical padding.
+        assert_eq!(size, PhysicalSize::new(800 + 60, 480 + 80));
+    }
 }
