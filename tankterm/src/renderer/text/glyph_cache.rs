@@ -173,7 +173,7 @@ impl GlyphCache {
                 error!("{err}");
 
                 let fallback_desc =
-                    Self::make_desc(Font::default().normal(), Slant::Normal, Weight::Normal);
+                    Self::make_desc(&FontDescription::system(), Slant::Normal, Weight::Normal);
                 rasterizer.load_font(&fallback_desc, size)
             },
         }
