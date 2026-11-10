@@ -76,7 +76,7 @@ cd TankTerm
    ```
 
 TankTerm needs at least the Rust version set as `rust-version` in `Cargo.toml`
-(currently 1.85.0).
+(currently 1.95.0).
 
 ### Dependencies
 

@@ -22,6 +22,7 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 - Fixed `alacritty-escapes(7)` manpage missing from macOS install
 - Build manpages with `extra/man/scdoc.sh`, which keeps groff from splitting names across lines
 - Added the `Open Alacritty here` entry to the right-click context menu for folders on Windows
+- Minimum Rust version has been bumped to 1.95.0
 
 ### Added
 
@@ -47,6 +48,7 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 
 ### Changed
 
+- Wayland client-side decorations draw their title with `ab_glyph` instead of `crossfont`
 - Logs follow Charm's log layout (`<time> <LEVEL> <prefix>: <message>`), styled on a terminal unless
     `NO_COLOR` is set, with JSON and logfmt output through `TANKTERM_LOG_FORMAT`
 - Default config location is now `tankterm/tankterm.toml`; `alacritty` config locations are still
