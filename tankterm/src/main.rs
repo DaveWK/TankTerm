@@ -27,6 +27,7 @@ use windows_sys::Win32::System::Console::{ATTACH_PARENT_PROCESS, AttachConsole, 
 use tankterm_terminal::tty;
 
 mod app;
+mod chrome;
 mod cli;
 // Most configuration options belong to the previous OpenGL front end and aren't read by the iced
 // front end yet, but are still parsed so existing config files keep loading without errors.
@@ -42,6 +43,7 @@ mod panic;
 mod term_settings;
 
 use crate::app::App;
+use crate::chrome::Chrome;
 use crate::cli::{Options, Subcommands};
 use crate::config::UiConfig;
 #[cfg(target_os = "macos")]
@@ -138,7 +140,10 @@ fn tankterm(mut options: Options) -> Result<(), Box<dyn Error>> {
     // Spawn the shell before starting iced, so failing to launch it is reported as an error.
     let title = term_settings::window_title(&config, &options);
     let settings = term_settings::settings(&config, &options);
-    let app = App::new(title, config.window.dynamic_title, settings)?;
+    let primary = &config.colors.primary;
+    let chrome =
+        Chrome::new(config.style.resolve(), &settings.font, primary.foreground, primary.background);
+    let app = App::new(title, config.window.dynamic_title, settings, chrome)?;
 
     // iced takes a reusable boot function, but the application is only booted once.
     let app = Mutex::new(Some(app));
