@@ -99,17 +99,29 @@ pub struct FontDescription {
     pub style: Option<String>,
 }
 
+/// Default font family.
+pub const DEFAULT_FAMILY: &str = "Iosevka Term Extended";
+
+/// Monospace font that ships with the operating system.
+#[cfg(not(any(target_os = "macos", windows)))]
+const SYSTEM_FAMILY: &str = "monospace";
+#[cfg(target_os = "macos")]
+const SYSTEM_FAMILY: &str = "Menlo";
+#[cfg(windows)]
+const SYSTEM_FAMILY: &str = "Consolas";
+
 impl Default for FontDescription {
     fn default() -> FontDescription {
-        FontDescription {
-            #[cfg(not(any(target_os = "macos", windows)))]
-            family: "monospace".into(),
-            #[cfg(target_os = "macos")]
-            family: "Menlo".into(),
-            #[cfg(windows)]
-            family: "Consolas".into(),
-            style: None,
-        }
+        FontDescription { family: DEFAULT_FAMILY.into(), style: None }
+    }
+}
+
+impl FontDescription {
+    /// The operating system's monospace font, used when the configured font can't be loaded.
+    ///
+    /// Unlike the default font, this is always installed.
+    pub fn system() -> FontDescription {
+        FontDescription { family: SYSTEM_FAMILY.into(), style: None }
     }
 }
 
@@ -170,5 +182,51 @@ impl Serialize for Size {
         S: Serializer,
     {
         serializer.serialize_f32(self.0.as_pt())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::config::UiConfig;
+
+    #[test]
+    fn default_family_is_iosevka() {
+        let font = Font::default();
+        assert_eq!(font.normal().family, "Iosevka Term Extended");
+        assert_eq!(font.normal().style, None);
+
+        // Bold, italic and bold italic inherit the normal family.
+        assert_eq!(font.bold().family, "Iosevka Term Extended");
+        assert_eq!(font.italic().family, "Iosevka Term Extended");
+        assert_eq!(font.bold_italic().family, "Iosevka Term Extended");
+    }
+
+    #[test]
+    fn system_family_is_platform_monospace() {
+        let expected = if cfg!(target_os = "macos") {
+            "Menlo"
+        } else if cfg!(windows) {
+            "Consolas"
+        } else {
+            "monospace"
+        };
+
+        assert_eq!(FontDescription::system().family, expected);
+        assert_ne!(FontDescription::system().family, DEFAULT_FAMILY);
+    }
+
+    #[test]
+    fn config_without_family_uses_default() {
+        let config: UiConfig = toml::from_str("[font.normal]\nstyle = \"Bold\"\n").unwrap();
+        assert_eq!(config.font.normal().family, DEFAULT_FAMILY);
+        assert_eq!(config.font.normal().style.as_deref(), Some("Bold"));
+    }
+
+    #[test]
+    fn configured_family_overrides_default() {
+        let config: UiConfig = toml::from_str("[font.normal]\nfamily = \"Fira Code\"\n").unwrap();
+        assert_eq!(config.font.normal().family, "Fira Code");
     }
 }
