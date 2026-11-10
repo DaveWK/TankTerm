@@ -348,16 +348,18 @@ directory.
 ### Manual Page
 
 Installing the manual page requires the additional dependencies `gzip` and `scdoc`.
+`extra/man/scdoc.sh` runs `scdoc` and adjusts its output so groff lays out the
+pages without splitting names across lines.
 
 ```sh
 sudo mkdir -p /usr/local/share/man/man1
 sudo mkdir -p /usr/local/share/man/man5
 sudo mkdir -p /usr/local/share/man/man7
-scdoc < extra/man/tankTerm.1.scd | gzip -c | sudo tee /usr/local/share/man/man1/tankTerm.1.gz > /dev/null
-scdoc < extra/man/tankTerm-msg.1.scd | gzip -c | sudo tee /usr/local/share/man/man1/tankTerm-msg.1.gz > /dev/null
-scdoc < extra/man/tankTerm.5.scd | gzip -c | sudo tee /usr/local/share/man/man5/tankTerm.5.gz > /dev/null
-scdoc < extra/man/tankTerm-bindings.5.scd | gzip -c | sudo tee /usr/local/share/man/man5/tankTerm-bindings.5.gz > /dev/null
-scdoc < extra/man/tankTerm-escapes.7.scd | gzip -c | sudo tee /usr/local/share/man/man7/tankTerm-escapes.7.gz > /dev/null
+extra/man/scdoc.sh extra/man/tankTerm.1.scd | gzip -c | sudo tee /usr/local/share/man/man1/tankTerm.1.gz > /dev/null
+extra/man/scdoc.sh extra/man/tankTerm-msg.1.scd | gzip -c | sudo tee /usr/local/share/man/man1/tankTerm-msg.1.gz > /dev/null
+extra/man/scdoc.sh extra/man/tankTerm.5.scd | gzip -c | sudo tee /usr/local/share/man/man5/tankTerm.5.gz > /dev/null
+extra/man/scdoc.sh extra/man/tankTerm-bindings.5.scd | gzip -c | sudo tee /usr/local/share/man/man5/tankTerm-bindings.5.gz > /dev/null
+extra/man/scdoc.sh extra/man/tankTerm-escapes.7.scd | gzip -c | sudo tee /usr/local/share/man/man7/tankTerm-escapes.7.gz > /dev/null
 ```
 
 ### Shell completions

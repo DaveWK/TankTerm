@@ -48,11 +48,11 @@ $(APP_NAME)-%: $(TARGET)-%
 	@mkdir -p $(APP_BINARY_DIR)
 	@mkdir -p $(APP_EXTRAS_DIR)
 	@mkdir -p $(APP_COMPLETIONS_DIR)
-	@scdoc < $(MANPAGE) | gzip -c > $(APP_EXTRAS_DIR)/tankTerm.1.gz
-	@scdoc < $(MANPAGE-MSG) | gzip -c > $(APP_EXTRAS_DIR)/tankTerm-msg.1.gz
-	@scdoc < $(MANPAGE-CONFIG) | gzip -c > $(APP_EXTRAS_DIR)/tankTerm.5.gz
-	@scdoc < $(MANPAGE-CONFIG-BINDINGS) | gzip -c > $(APP_EXTRAS_DIR)/tankTerm-bindings.5.gz
-	@scdoc < $(MANPAGE-ESCAPES) | gzip -c > $(APP_EXTRAS_DIR)/tankTerm-escapes.7.gz
+	@extra/man/scdoc.sh $(MANPAGE) | gzip -c > $(APP_EXTRAS_DIR)/tankTerm.1.gz
+	@extra/man/scdoc.sh $(MANPAGE-MSG) | gzip -c > $(APP_EXTRAS_DIR)/tankTerm-msg.1.gz
+	@extra/man/scdoc.sh $(MANPAGE-CONFIG) | gzip -c > $(APP_EXTRAS_DIR)/tankTerm.5.gz
+	@extra/man/scdoc.sh $(MANPAGE-CONFIG-BINDINGS) | gzip -c > $(APP_EXTRAS_DIR)/tankTerm-bindings.5.gz
+	@extra/man/scdoc.sh $(MANPAGE-ESCAPES) | gzip -c > $(APP_EXTRAS_DIR)/tankTerm-escapes.7.gz
 	@tic -xe alacritty,alacritty-direct -o $(APP_EXTRAS_DIR) $(TERMINFO)
 	@cp -fRp $(APP_TEMPLATE) $(APP_DIR)
 	@cp -fp $(APP_BINARY) $(APP_BINARY_DIR)

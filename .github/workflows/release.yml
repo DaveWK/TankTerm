@@ -73,11 +73,11 @@ jobs:
         run: cargo test --release
       - name: Generate manpages
         run: |
-          scdoc < extra/man/tankTerm.1.scd | gzip -c > "./tankTerm.1.gz"
-          scdoc < extra/man/tankTerm-msg.1.scd | gzip -c > "./tankTerm-msg.1.gz"
-          scdoc < extra/man/tankTerm.5.scd | gzip -c > "./tankTerm.5.gz"
-          scdoc < extra/man/tankTerm-bindings.5.scd | gzip -c > "./tankTerm-bindings.5.gz"
-          scdoc < extra/man/tankTerm-escapes.7.scd | gzip -c > "./tankTerm-escapes.7.gz"
+          extra/man/scdoc.sh extra/man/tankTerm.1.scd | gzip -c > "./tankTerm.1.gz"
+          extra/man/scdoc.sh extra/man/tankTerm-msg.1.scd | gzip -c > "./tankTerm-msg.1.gz"
+          extra/man/scdoc.sh extra/man/tankTerm.5.scd | gzip -c > "./tankTerm.5.gz"
+          extra/man/scdoc.sh extra/man/tankTerm-bindings.5.scd | gzip -c > "./tankTerm-bindings.5.gz"
+          extra/man/scdoc.sh extra/man/tankTerm-escapes.7.scd | gzip -c > "./tankTerm-escapes.7.gz"
       - name: Upload Assets
         run: |
           mv ./extra/logo/alacritty-term.svg ./TankTerm.svg

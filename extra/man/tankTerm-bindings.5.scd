@@ -9,326 +9,329 @@ tankTerm-bindings - Default configuration file bindings.
 This page documents all key and mouse bindings for the default TankTerm
 configuration. See *tankTerm*(5) for full configuration format documentation.
 
+Every value in these tables is a string, so the first key binding below is
+written as { key = _"Paste"_, action = _"Paste"_ } in the configuration file.
+
 # MOUSE BINDINGS
 
 [[ *mouse*
 :[ *mods*
-:[ *action*
-|  _"Right"_
+:< *action*
+|  _Right_
 :[
-:  _"ExpandSelection"_
-|  _"Right"_
-:  _"Control"_
-:  _"ExpandSelection"_
-|  _"Middle"_
-:  _"~Vi"_
-:  _"PasteSelection"_
+:  _ExpandSelection_
+|  _Right_
+:  _Control_
+:  _ExpandSelection_
+|  _Middle_
+:  _~Vi_
+:  _PasteSelection_
 
 # KEY BINDINGS
 
 [[ *key*
 :[ *mods*
 :[ *mode*
-:[ *action* / *chars*
-|  _"Paste"_
+:< *action* / *chars*
+|  _Paste_
 :[
 :[
-:  _"Paste"_
-|  _"Copy"_
+:  _Paste_
+|  _Copy_
 :[
 :[
-:  _"Copy"_
-|  _"L"_
-:  _"Control"_
+:  _Copy_
+|  _L_
+:  _Control_
 :[
-:  _"ClearLogNotice"_
-|  _"Paste"_
+:  _ClearLogNotice_
+|  _Paste_
 :[
-:  _"Vi|Search"_
-:  _"Paste"_
-|  _"L"_
-:  _"Control"_
-:  _"~Vi|~Search"_
+:  _Vi|Search_
+:  _Paste_
+|  _L_
+:  _Control_
+:  _~Vi|~Search_
 :  *chars*: _"\\u000c"_
-|  _"PageUp"_
-:  _"Shift"_
-:  _"~Alt"_
-:  _"ScrollPageUp"_
-|  _"PageDown"_
-:  _"Shift"_
-:  _"~Alt"_
-:  _"ScrollPageDown"_
-|  _"Home"_
-:  _"Shift"_
-:  _"~Alt"_
-:  _"ScrollToTop"_
-|  _"End"_
-:  _"Shift"_
-:  _"~Alt"_
-:  _"ScrollToBottom"_
+|  _PageUp_
+:  _Shift_
+:  _~Alt_
+:  _ScrollPageUp_
+|  _PageDown_
+:  _Shift_
+:  _~Alt_
+:  _ScrollPageDown_
+|  _Home_
+:  _Shift_
+:  _~Alt_
+:  _ScrollToTop_
+|  _End_
+:  _Shift_
+:  _~Alt_
+:  _ScrollToBottom_
 
 ## Vi Mode
 
 [[ *key*
 :[ *mods*
 :[ *mode*
-:[ *action*
-|  _"Space"_
-:  _"Shift|Control"_
-:  _"~Search"_
-:  _"ToggleViMode"_
-|  _"Space"_
-:  _"Shift|Control"_
-:  _"Vi|~Search"_
-:  _"ScrollToBottom"_
-|  _"Escape"_
+:< *action*
+|  _Space_
+:  _Shift|Control_
+:  _~Search_
+:  _ToggleViMode_
+|  _Space_
+:  _Shift|Control_
+:  _Vi|~Search_
+:  _ScrollToBottom_
+|  _Escape_
 :[
-:  _"Vi|~Search"_
-:  _"ClearSelection"_
-|  _"I"_
+:  _Vi|~Search_
+:  _ClearSelection_
+|  _I_
 :[
-:  _"Vi|~Search"_
-:  _"ToggleViMode"_
-|  _"I"_
+:  _Vi|~Search_
+:  _ToggleViMode_
+|  _I_
 :[
-:  _"Vi|~Search"_
-:  _"ScrollToBottom"_
-|  _"C"_
-:  _"Control"_
-:  _"Vi|~Search"_
-:  _"ToggleViMode"_
-|  _"Y"_
-:  _"Control"_
-:  _"Vi|~Search"_
-:  _"ScrollLineUp"_
-|  _"E"_
-:  _"Control"_
-:  _"Vi|~Search"_
-:  _"ScrollLineDown"_
-|  _"G"_
+:  _Vi|~Search_
+:  _ScrollToBottom_
+|  _C_
+:  _Control_
+:  _Vi|~Search_
+:  _ToggleViMode_
+|  _Y_
+:  _Control_
+:  _Vi|~Search_
+:  _ScrollLineUp_
+|  _E_
+:  _Control_
+:  _Vi|~Search_
+:  _ScrollLineDown_
+|  _G_
 :[
-:  _"Vi|~Search"_
-:  _"ScrollToTop"_
-|  _"G"_
-:  _"Shift"_
-:  _"Vi|~Search"_
-:  _"ScrollToBottom"_
-|  _"B"_
-:  _"Control"_
-:  _"Vi|~Search"_
-:  _"ScrollPageUp"_
-|  _"F"_
-:  _"Control"_
-:  _"Vi|~Search"_
-:  _"ScrollPageDown"_
-|  _"U"_
-:  _"Control"_
-:  _"Vi|~Search"_
-:  _"ScrollHalfPageUp"_
-|  _"D"_
-:  _"Control"_
-:  _"Vi|~Search"_
-:  _"ScrollHalfPageDown"_
-|  _"Y"_
+:  _Vi|~Search_
+:  _ScrollToTop_
+|  _G_
+:  _Shift_
+:  _Vi|~Search_
+:  _ScrollToBottom_
+|  _B_
+:  _Control_
+:  _Vi|~Search_
+:  _ScrollPageUp_
+|  _F_
+:  _Control_
+:  _Vi|~Search_
+:  _ScrollPageDown_
+|  _U_
+:  _Control_
+:  _Vi|~Search_
+:  _ScrollHalfPageUp_
+|  _D_
+:  _Control_
+:  _Vi|~Search_
+:  _ScrollHalfPageDown_
+|  _Y_
 :[
-:  _"Vi|~Search"_
-:  _"Copy"_
-|  _"Y"_
+:  _Vi|~Search_
+:  _Copy_
+|  _Y_
 :[
-:  _"Vi|~Search"_
-:  _"ClearSelection"_
-|  _"Copy"_
+:  _Vi|~Search_
+:  _ClearSelection_
+|  _Copy_
 :[
-:  _"Vi|~Search"_
-:  _"ClearSelection"_
-|  _"Y"_
-:  _"Shift"_
-:  _"Vi|~Search"_
-:  _"ToggleNormalSelection"_
-|  _"Y"_
-:  _"Shift"_
-:  _"Vi|~Search"_
-:  _"Last"_
-|  _"Y"_
-:  _"Shift"_
-:  _"Vi|~Search"_
-:  _"Copy"_
-|  _"Y"_
-:  _"Shift"_
-:  _"Vi|~Search"_
-:  _"ClearSelection"_
-|  _"V"_
+:  _Vi|~Search_
+:  _ClearSelection_
+|  _Y_
+:  _Shift_
+:  _Vi|~Search_
+:  _ToggleNormalSelection_
+|  _Y_
+:  _Shift_
+:  _Vi|~Search_
+:  _Last_
+|  _Y_
+:  _Shift_
+:  _Vi|~Search_
+:  _Copy_
+|  _Y_
+:  _Shift_
+:  _Vi|~Search_
+:  _ClearSelection_
+|  _V_
 :[
-:  _"Vi|~Search"_
-:  _"ToggleNormalSelection"_
-|  _"V"_
-:  _"Shift"_
-:  _"Vi|~Search"_
-:  _"ToggleLineSelection"_
-|  _"V"_
-:  _"Control"_
-:  _"Vi|~Search"_
-:  _"ToggleBlockSelection"_
-|  _"V"_
-:  _"Alt"_
-:  _"Vi|~Search"_
-:  _"ToggleSemanticSelection"_
-|  _"Enter"_
+:  _Vi|~Search_
+:  _ToggleNormalSelection_
+|  _V_
+:  _Shift_
+:  _Vi|~Search_
+:  _ToggleLineSelection_
+|  _V_
+:  _Control_
+:  _Vi|~Search_
+:  _ToggleBlockSelection_
+|  _V_
+:  _Alt_
+:  _Vi|~Search_
+:  _ToggleSemanticSelection_
+|  _Enter_
 :[
-:  _"Vi|~Search"_
-:  _"Open"_
-|  _"Z"_
+:  _Vi|~Search_
+:  _Open_
+|  _Z_
 :[
-:  _"Vi|~Search"_
-:  _"CenterAroundViCursor"_
-|  _"F"_
+:  _Vi|~Search_
+:  _CenterAroundViCursor_
+|  _F_
 :[
-:  _"Vi|~Search"_
-:  _"InlineSearchForward"_
-|  _"F"_
-:  _"Shift"_
-:  _"Vi|~Search"_
-:  _"InlineSearchBackward"_
-|  _"T"_
+:  _Vi|~Search_
+:  _InlineSearchForward_
+|  _F_
+:  _Shift_
+:  _Vi|~Search_
+:  _InlineSearchBackward_
+|  _T_
 :[
-:  _"Vi|~Search"_
-:  _"InlineSearchForwardShort"_
-|  _"T"_
-:  _"Shift"_
-:  _"Vi|~Search"_
-:  _"InlineSearchBackwardShort"_
-|  _";"_
+:  _Vi|~Search_
+:  _InlineSearchForwardShort_
+|  _T_
+:  _Shift_
+:  _Vi|~Search_
+:  _InlineSearchBackwardShort_
+|  _;_
 :[
-:  _"Vi|~Search"_
-:  _"InlineSearchNext"_
-|  _","_
+:  _Vi|~Search_
+:  _InlineSearchNext_
+|  _,_
 :[
-:  _"Vi|~Search"_
-:  _"InlineSearchPrevious"_
-|  _"\*"_
-:  _"Shift"_
-:  _"Vi|~Search"_
-:  _"SemanticSearchForward"_
-|  _"#"_
-:  _"Shift"_
-:  _"Vi|~Search"_
-:  _"SemanticSearchBackward"_
-|  _"K"_
+:  _Vi|~Search_
+:  _InlineSearchPrevious_
+|  _\*_
+:  _Shift_
+:  _Vi|~Search_
+:  _SemanticSearchForward_
+|  _#_
+:  _Shift_
+:  _Vi|~Search_
+:  _SemanticSearchBackward_
+|  _K_
 :[
-:  _"Vi|~Search"_
-:  _"Up"_
-|  _"J"_
+:  _Vi|~Search_
+:  _Up_
+|  _J_
 :[
-:  _"Vi|~Search"_
-:  _"Down"_
-|  _"H"_
+:  _Vi|~Search_
+:  _Down_
+|  _H_
 :[
-:  _"Vi|~Search"_
-:  _"Left"_
-|  _"L"_
+:  _Vi|~Search_
+:  _Left_
+|  _L_
 :[
-:  _"Vi|~Search"_
-:  _"Right"_
-|  _"ArrowUp"_
+:  _Vi|~Search_
+:  _Right_
+|  _ArrowUp_
 :[
-:  _"Vi|~Search"_
-:  _"Up"_
-|  _"ArrowDown"_
+:  _Vi|~Search_
+:  _Up_
+|  _ArrowDown_
 :[
-:  _"Vi|~Search"_
-:  _"Down"_
-|  _"ArrowLeft"_
+:  _Vi|~Search_
+:  _Down_
+|  _ArrowLeft_
 :[
-:  _"Vi|~Search"_
-:  _"Left"_
-|  _"ArrowRight"_
+:  _Vi|~Search_
+:  _Left_
+|  _ArrowRight_
 :[
-:  _"Vi|~Search"_
-:  _"Right"_
-|  _"0"_
+:  _Vi|~Search_
+:  _Right_
+|  _0_
 :[
-:  _"Vi|~Search"_
-:  _"First"_
-|  _"$"_
-:  _"Shift"_
-:  _"Vi|~Search"_
-:  _"Last"_
-|  _"Home"_
+:  _Vi|~Search_
+:  _First_
+|  _$_
+:  _Shift_
+:  _Vi|~Search_
+:  _Last_
+|  _Home_
 :[
-:  _"Vi|~Search"_
-:  _"First"_
-|  _"End"_
+:  _Vi|~Search_
+:  _First_
+|  _End_
 :[
-:  _"Vi|~Search"_
-:  _"Last"_
-|  _"^"_
-:  _"Shift"_
-:  _"Vi|~Search"_
-:  _"FirstOccupied"_
-|  _"H"_
-:  _"Shift"_
-:  _"Vi|~Search"_
-:  _"High"_
-|  _"M"_
-:  _"Shift"_
-:  _"Vi|~Search"_
-:  _"Middle"_
-|  _"L"_
-:  _"Shift"_
-:  _"Vi|~Search"_
-:  _"Low"_
-|  _"B"_
+:  _Vi|~Search_
+:  _Last_
+|  _^_
+:  _Shift_
+:  _Vi|~Search_
+:  _FirstOccupied_
+|  _H_
+:  _Shift_
+:  _Vi|~Search_
+:  _High_
+|  _M_
+:  _Shift_
+:  _Vi|~Search_
+:  _Middle_
+|  _L_
+:  _Shift_
+:  _Vi|~Search_
+:  _Low_
+|  _B_
 :[
-:  _"Vi|~Search"_
-:  _"SemanticLeft"_
-|  _"W"_
+:  _Vi|~Search_
+:  _SemanticLeft_
+|  _W_
 :[
-:  _"Vi|~Search"_
-:  _"SemanticRight"_
-|  _"E"_
+:  _Vi|~Search_
+:  _SemanticRight_
+|  _E_
 :[
-:  _"Vi|~Search"_
-:  _"SemanticRightEnd"_
-|  _"B"_
-:  _"Shift"_
-:  _"Vi|~Search"_
-:  _"WordLeft"_
-|  _"W"_
-:  _"Shift"_
-:  _"Vi|~Search"_
-:  _"WordRight"_
-|  _"E"_
-:  _"Shift"_
-:  _"Vi|~Search"_
-:  _"WordRightEnd"_
-|  _"%"_
-:  _"Shift"_
-:  _"Vi|~Search"_
-:  _"Bracket"_
-|  _"{"_
-:  _"Shift"_
-:  _"Vi|~Search"_
-:  _"ParagraphUp"_
-|  _"}"_
-:  _"Shift"_
-:  _"Vi|~Search"_
-:  _"ParagraphDown"_
-|  _"/"_
+:  _Vi|~Search_
+:  _SemanticRightEnd_
+|  _B_
+:  _Shift_
+:  _Vi|~Search_
+:  _WordLeft_
+|  _W_
+:  _Shift_
+:  _Vi|~Search_
+:  _WordRight_
+|  _E_
+:  _Shift_
+:  _Vi|~Search_
+:  _WordRightEnd_
+|  _%_
+:  _Shift_
+:  _Vi|~Search_
+:  _Bracket_
+|  _{_
+:  _Shift_
+:  _Vi|~Search_
+:  _ParagraphUp_
+|  _}_
+:  _Shift_
+:  _Vi|~Search_
+:  _ParagraphDown_
+|  _/_
 :[
-:  _"Vi|~Search"_
-:  _"SearchForward"_
-|  _"?"_
-:  _"Shift"_
-:  _"Vi|~Search"_
-:  _"SearchBackward"_
-|  _"N"_
+:  _Vi|~Search_
+:  _SearchForward_
+|  _?_
+:  _Shift_
+:  _Vi|~Search_
+:  _SearchBackward_
+|  _N_
 :[
-:  _"Vi|~Search"_
-:  _"SearchNext"_
-|  _"N"_
-:  _"Shift"_
-:  _"Vi|~Search"_
-:  _"SearchPrevious"_
+:  _Vi|~Search_
+:  _SearchNext_
+|  _N_
+:  _Shift_
+:  _Vi|~Search_
+:  _SearchPrevious_
 
 
 ## Search Mode
@@ -336,272 +339,272 @@ configuration. See *tankTerm*(5) for full configuration format documentation.
 [[ *key*
 :[ *mods*
 :[ *mode*
-:[ *action*
-|  _"Enter"_
+:< *action*
+|  _Enter_
 :[
-:  _"Search|Vi"_
-:  _"SearchConfirm"_
-|  _"Escape"_
+:  _Search|Vi_
+:  _SearchConfirm_
+|  _Escape_
 :[
-:  _"Search"_
-:  _"SearchCancel"_
-|  _"C"_
-:  _"Control"_
-:  _"Search"_
-:  _"SearchCancel"_
-|  _"U"_
-:  _"Control"_
-:  _"Search"_
-:  _"SearchClear"_
-|  _"W"_
-:  _"Control"_
-:  _"Search"_
-:  _"SearchDeleteWord"_
-|  _"P"_
-:  _"Control"_
-:  _"Search"_
-:  _"SearchHistoryPrevious"_
-|  _"N"_
-:  _"Control"_
-:  _"Search"_
-:  _"SearchHistoryNext"_
-|  _"ArrowUp"_
+:  _Search_
+:  _SearchCancel_
+|  _C_
+:  _Control_
+:  _Search_
+:  _SearchCancel_
+|  _U_
+:  _Control_
+:  _Search_
+:  _SearchClear_
+|  _W_
+:  _Control_
+:  _Search_
+:  _SearchDeleteWord_
+|  _P_
+:  _Control_
+:  _Search_
+:  _SearchHistoryPrevious_
+|  _N_
+:  _Control_
+:  _Search_
+:  _SearchHistoryNext_
+|  _ArrowUp_
 :[
-:  _"Search"_
-:  _"SearchHistoryPrevious"_
-|  _"ArrowDown"_
+:  _Search_
+:  _SearchHistoryPrevious_
+|  _ArrowDown_
 :[
-:  _"Search"_
-:  _"SearchHistoryNext"_
-|  _"Enter"_
+:  _Search_
+:  _SearchHistoryNext_
+|  _Enter_
 :[
-:  _"Search|~Vi"_
-:  _"SearchFocusNext"_
+:  _Search|~Vi_
+:  _SearchFocusNext_
 
 ## Windows, Linux, and BSD only
 
 [[ *key*
 :[ *mods*
 :[ *mode*
-:[ *action*
-|  _"V"_
-:  _"Control|Shift"_
-:  _"~Vi"_
-:  _"Paste"_
-|  _"V"_
-:  _"Control|Shift"_
-:  _"Vi|Search"_
-:  _"Paste"_
-|  _"C"_
-:  _"Control|Shift"_
+:< *action*
+|  _V_
+:  _Control|Shift_
+:  _~Vi_
+:  _Paste_
+|  _V_
+:  _Control|Shift_
+:  _Vi|Search_
+:  _Paste_
+|  _C_
+:  _Control|Shift_
 :[
-:  _"Copy"_
-|  _"F"_
-:  _"Control|Shift"_
-:  _"~Search"_
-:  _"SearchForward"_
-|  _"B"_
-:  _"Control|Shift"_
-:  _"~Search"_
-:  _"SearchBackward"_
-|  _"C"_
-:  _"Control|Shift"_
-:  _"Vi|~Search"_
-:  _"ClearSelection"_
-|  _"Insert"_
-:  _"Shift"_
+:  _Copy_
+|  _F_
+:  _Control|Shift_
+:  _~Search_
+:  _SearchForward_
+|  _B_
+:  _Control|Shift_
+:  _~Search_
+:  _SearchBackward_
+|  _C_
+:  _Control|Shift_
+:  _Vi|~Search_
+:  _ClearSelection_
+|  _Insert_
+:  _Shift_
 :[
-:  _"PasteSelection"_
-|  _"0"_
-:  _"Control"_
+:  _PasteSelection_
+|  _0_
+:  _Control_
 :[
-:  _"ResetFontSize"_
-|  _"="_
-:  _"Control"_
+:  _ResetFontSize_
+|  _=_
+:  _Control_
 :[
-:  _"IncreaseFontSize"_
-|  _"+"_
-:  _"Control"_
+:  _IncreaseFontSize_
+|  _+_
+:  _Control_
 :[
-:  _"IncreaseFontSize"_
-|  _"NumpadAdd"_
-:  _"Control"_
+:  _IncreaseFontSize_
+|  _NumpadAdd_
+:  _Control_
 :[
-:  _"IncreaseFontSize"_
-|  _"-"_
-:  _"Control"_
+:  _IncreaseFontSize_
+|  _-_
+:  _Control_
 :[
-:  _"DecreaseFontSize"_
-|  _"NumpadSubtract"_
-:  _"Control"_
+:  _DecreaseFontSize_
+|  _NumpadSubtract_
+:  _Control_
 :[
-:  _"DecreaseFontSize"_
-|  _"H"_
-:  _"Control|Shift"_
+:  _DecreaseFontSize_
+|  _H_
+:  _Control|Shift_
 :[
-:  _"ToggleHelp"_
+:  _ToggleHelp_
 
 ## Windows only
 
 [[ *key*
 :[ *mods*
 :[ *mode*
-:[ *action*
-|  _"Enter"_
-:  _"Alt"_
+:< *action*
+|  _Enter_
+:  _Alt_
 :[
-:  _"ToggleFullscreen"_
+:  _ToggleFullscreen_
 
 ## macOS only
 
 [[ *key*
 :[ *mods*
 :[ *mode*
-:[ *action* / *chars*
-|  _"K"_
-:  _"Command"_
-:  _"~Vi|~Search"_
+:< *action* / *chars*
+|  _K_
+:  _Command_
+:  _~Vi|~Search_
 :  *chars*: _"\\u000c"_
-|  _"K"_
-:  _"Command"_
-:  _"~Vi|~Search"_
-:  _"ClearHistory"_
-|  _"0"_
-:  _"Command"_
+|  _K_
+:  _Command_
+:  _~Vi|~Search_
+:  _ClearHistory_
+|  _0_
+:  _Command_
 :[
-:  _"ResetFontSize"_
-|  _"="_
-:  _"Command"_
+:  _ResetFontSize_
+|  _=_
+:  _Command_
 :[
-:  _"IncreaseFontSize"_
-|  _"+"_
-:  _"Command"_
+:  _IncreaseFontSize_
+|  _+_
+:  _Command_
 :[
-:  _"IncreaseFontSize"_
-|  _"NumpadAdd"_
-:  _"Command"_
+:  _IncreaseFontSize_
+|  _NumpadAdd_
+:  _Command_
 :[
-:  _"IncreaseFontSize"_
-|  _"-"_
-:  _"Command"_
+:  _IncreaseFontSize_
+|  _-_
+:  _Command_
 :[
-:  _"DecreaseFontSize"_
-|  _"NumpadSubtract"_
-:  _"Command"_
+:  _DecreaseFontSize_
+|  _NumpadSubtract_
+:  _Command_
 :[
-:  _"DecreaseFontSize"_
-|  _"V"_
-:  _"Command"_
-:  _"~Vi"_
-:  _"Paste"_
-|  _"V"_
-:  _"Command"_
-:  _"Vi|Search"_
-:  _"Paste"_
-|  _"C"_
-:  _"Command"_
+:  _DecreaseFontSize_
+|  _V_
+:  _Command_
+:  _~Vi_
+:  _Paste_
+|  _V_
+:  _Command_
+:  _Vi|Search_
+:  _Paste_
+|  _C_
+:  _Command_
 :[
-:  _"Copy"_
-|  _"C"_
-:  _"Command"_
-:  _"Vi|~Search"_
-:  _"ClearSelection"_
-|  _"H"_
-:  _"Command"_
+:  _Copy_
+|  _C_
+:  _Command_
+:  _Vi|~Search_
+:  _ClearSelection_
+|  _H_
+:  _Command_
 :[
-:  _"Hide"_
-|  _"H"_
-:  _"Command|Alt"_
+:  _Hide_
+|  _H_
+:  _Command|Alt_
 :[
-:  _"HideOtherApplications"_
-|  _"H"_
-:  _"Command|Shift"_
+:  _HideOtherApplications_
+|  _H_
+:  _Command|Shift_
 :[
-:  _"ToggleHelp"_
-|  _"M"_
-:  _"Command"_
+:  _ToggleHelp_
+|  _M_
+:  _Command_
 :[
-:  _"Minimize"_
-|  _"Q"_
-:  _"Command"_
+:  _Minimize_
+|  _Q_
+:  _Command_
 :[
-:  _"Quit"_
-|  _"W"_
-:  _"Command"_
+:  _Quit_
+|  _W_
+:  _Command_
 :[
-:  _"Quit"_
-|  _"N"_
-:  _"Command"_
+:  _Quit_
+|  _N_
+:  _Command_
 :[
-:  _"CreateNewWindow"_
-|  _"T"_
-:  _"Command"_
+:  _CreateNewWindow_
+|  _T_
+:  _Command_
 :[
-:  _"CreateNewTab"_
-|  _"F"_
-:  _"Command|Control"_
+:  _CreateNewTab_
+|  _F_
+:  _Command|Control_
 :[
-:  _"ToggleFullscreen"_
-|  _"F"_
-:  _"Command"_
-:  _"~Search"_
-:  _"SearchForward"_
-|  _"B"_
-:  _"Command"_
-:  _"~Search"_
-:  _"SearchBackward"_
-|  _"]"_
-:  _"Command|Shift"_
+:  _ToggleFullscreen_
+|  _F_
+:  _Command_
+:  _~Search_
+:  _SearchForward_
+|  _B_
+:  _Command_
+:  _~Search_
+:  _SearchBackward_
+|  _]_
+:  _Command|Shift_
 :[
-:  _"SelectNextTab"_
-|  _"["_
-:  _"Command|Shift"_
+:  _SelectNextTab_
+|  _[_
+:  _Command|Shift_
 :[
-:  _"SelectPreviousTab"_
-|  _"Tab"_
-:  _"Command"_
+:  _SelectPreviousTab_
+|  _Tab_
+:  _Command_
 :[
-:  _"SelectNextTab"_
-|  _"Tab"_
-:  _"Command|Shift"_
+:  _SelectNextTab_
+|  _Tab_
+:  _Command|Shift_
 :[
-:  _"SelectPreviousTab"_
-|  _"1"_
-:  _"Command"_
+:  _SelectPreviousTab_
+|  _1_
+:  _Command_
 :[
-:  _"SelectTab1"_
-|  _"2"_
-:  _"Command"_
+:  _SelectTab1_
+|  _2_
+:  _Command_
 :[
-:  _"SelectTab2"_
-|  _"3"_
-:  _"Command"_
+:  _SelectTab2_
+|  _3_
+:  _Command_
 :[
-:  _"SelectTab3"_
-|  _"4"_
-:  _"Command"_
+:  _SelectTab3_
+|  _4_
+:  _Command_
 :[
-:  _"SelectTab4"_
-|  _"5"_
-:  _"Command"_
+:  _SelectTab4_
+|  _5_
+:  _Command_
 :[
-:  _"SelectTab5"_
-|  _"6"_
-:  _"Command"_
+:  _SelectTab5_
+|  _6_
+:  _Command_
 :[
-:  _"SelectTab6"_
-|  _"7"_
-:  _"Command"_
+:  _SelectTab6_
+|  _7_
+:  _Command_
 :[
-:  _"SelectTab7"_
-|  _"8"_
-:  _"Command"_
+:  _SelectTab7_
+|  _8_
+:  _Command_
 :[
-:  _"SelectTab8"_
-|  _"9"_
-:  _"Command"_
+:  _SelectTab8_
+|  _9_
+:  _Command_
 :[
-:  _"SelectLastTab"_
+:  _SelectLastTab_
 
 # SEE ALSO
 
