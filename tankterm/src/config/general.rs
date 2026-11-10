@@ -27,6 +27,10 @@ pub struct General {
     /// Offer IPC through a unix socket.
     #[allow(unused)]
     pub ipc_socket: bool,
+
+    /// Reduce motion: no cursor blinking or visual bell animation. Also enabled by a non-empty
+    /// `ACCESSIBLE` or `TANKTERM_ACCESSIBLE`, like Charm's Huh.
+    pub accessible: bool,
 }
 
 impl Default for General {
@@ -36,6 +40,7 @@ impl Default for General {
             ipc_socket: true,
             working_directory: Default::default(),
             import: Default::default(),
+            accessible: Default::default(),
         }
     }
 }

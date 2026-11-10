@@ -37,6 +37,11 @@ impl BellConfig {
     pub fn duration(&self) -> Duration {
         Duration::from_millis(self.duration as u64)
     }
+
+    /// Turn off the visual bell, keeping the command and urgency hints.
+    pub fn disable_visual(&mut self) {
+        self.duration = 0;
+    }
 }
 
 /// `VisualBellAnimations` are modeled after a subset of CSS transitions and Robert

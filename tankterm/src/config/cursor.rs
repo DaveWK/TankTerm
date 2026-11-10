@@ -92,6 +92,14 @@ impl Default for ConfigCursorStyle {
 }
 
 impl ConfigCursorStyle {
+    /// The same cursor shape, never blinking.
+    pub fn without_blinking(self) -> Self {
+        let shape = match self {
+            Self::Shape(shape) | Self::WithBlinking { shape, .. } => shape,
+        };
+        Self::WithBlinking { shape, blinking: CursorBlinking::Never }
+    }
+
     /// Check if blinking is force enabled/disabled.
     pub fn blinking_override(&self) -> Option<bool> {
         match self {
