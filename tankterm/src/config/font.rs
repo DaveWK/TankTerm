@@ -100,7 +100,7 @@ pub struct FontDescription {
 }
 
 /// Default font family.
-pub const DEFAULT_FAMILY: &str = "Iosevka Term Extended";
+pub const DEFAULT_FAMILY: &str = "Iosevka Term";
 
 /// Monospace font that ships with the operating system.
 #[cfg(not(any(target_os = "macos", windows)))]
@@ -194,13 +194,13 @@ mod tests {
     #[test]
     fn default_family_is_iosevka() {
         let font = Font::default();
-        assert_eq!(font.normal().family, "Iosevka Term Extended");
+        assert_eq!(font.normal().family, "Iosevka Term");
         assert_eq!(font.normal().style, None);
 
         // Bold, italic and bold italic inherit the normal family.
-        assert_eq!(font.bold().family, "Iosevka Term Extended");
-        assert_eq!(font.italic().family, "Iosevka Term Extended");
-        assert_eq!(font.bold_italic().family, "Iosevka Term Extended");
+        assert_eq!(font.bold().family, "Iosevka Term");
+        assert_eq!(font.italic().family, "Iosevka Term");
+        assert_eq!(font.bold_italic().family, "Iosevka Term");
     }
 
     #[test]
