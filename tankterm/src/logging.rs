@@ -26,7 +26,7 @@ pub const LOG_TARGET_IPC_CONFIG: &str = "alacritty_log_window_config";
 const TANKTERM_LOG_ENV: &str = "TANKTERM_LOG";
 
 /// Logging target for config error messages.
-pub const LOG_TARGET_CONFIG: &str = "alacritty_config_derive";
+pub const LOG_TARGET_CONFIG: &str = "tankterm_config_derive";
 
 /// Logging target for winit events.
 pub const LOG_TARGET_WINIT: &str = "alacritty_winit_event";
@@ -51,7 +51,7 @@ const ALLOWED_TARGETS: &[&str] = &[
     LOG_TARGET_IPC_CONFIG,
     LOG_TARGET_CONFIG,
     LOG_TARGET_WINIT,
-    "alacritty_config_derive",
+    "tankterm_config_derive",
     "tankterm_terminal",
     env!("CARGO_CRATE_NAME"),
     "crossfont",

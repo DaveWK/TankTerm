@@ -12,8 +12,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use unicode_width::UnicodeWidthChar;
 use winit::keyboard::{Key, ModifiersState};
 
-use alacritty_config::SerdeReplace;
-use alacritty_config_derive::{ConfigDeserialize, SerdeReplace};
+use tankterm_config::SerdeReplace;
+use tankterm_config_derive::{ConfigDeserialize, SerdeReplace};
 use tankterm_terminal::term::Config as TermConfig;
 use tankterm_terminal::term::search::RegexSearch;
 use tankterm_terminal::tty::{Options as PtyOptions, Shell};

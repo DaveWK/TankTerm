@@ -4,10 +4,10 @@ use std::ops::{Deref, DerefMut};
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use alacritty_config::SerdeReplace;
 use clap::{ArgAction, Args, Parser, Subcommand, ValueHint};
 use log::{LevelFilter, error};
 use serde::{Deserialize, Serialize};
+use tankterm_config::SerdeReplace;
 use toml::Value;
 
 use tankterm_terminal::tty::Options as PtyOptions;

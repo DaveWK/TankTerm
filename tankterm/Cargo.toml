@@ -18,12 +18,12 @@ path = "src/main.rs"
 path = "../tankterm_terminal"
 version = "0.26.1-dev"
 
-[dependencies.alacritty_config_derive]
-path = "../alacritty_config_derive"
+[dependencies.tankterm_config_derive]
+path = "../tankterm_config_derive"
 version = "0.2.6-dev"
 
-[dependencies.alacritty_config]
-path = "../alacritty_config"
+[dependencies.tankterm_config]
+path = "../tankterm_config"
 version = "0.2.4-dev"
 
 [dependencies]

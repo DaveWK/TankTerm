@@ -1,7 +1,7 @@
 use serde::{Deserialize, Deserializer, Serialize, de};
 use toml::Value;
 
-use alacritty_config_derive::{ConfigDeserialize, SerdeReplace};
+use tankterm_config_derive::{ConfigDeserialize, SerdeReplace};
 use tankterm_terminal::term::Osc52;
 
 use crate::config::ui_config::{Program, StringVisitor};
