@@ -13,7 +13,7 @@ use tankterm_terminal::term::{self, RenderableContent as TerminalContent, Term, 
 use tankterm_terminal::vte::ansi::{Color, CursorShape, NamedColor};
 
 use crate::config::UiConfig;
-use crate::config::style::CellStyle;
+use crate::config::style::{CellStyle, ElementStyles, TextAttributes};
 use crate::display::color::{CellRgb, DIM_FACTOR, List, Rgb};
 use crate::display::hint::{self, HintState};
 use crate::display::{Display, SizeInfo};
@@ -36,6 +36,9 @@ pub struct RenderableContent<'a> {
     colors: &'a List,
     focused_match: Option<&'a Match>,
     size: &'a SizeInfo,
+
+    /// Element styles for the window's focus state.
+    styles: ElementStyles,
 }
 
 impl<'a> RenderableContent<'a> {
@@ -78,6 +81,7 @@ impl<'a> RenderableContent<'a> {
             colors: &display.colors,
             size: &display.size_info,
             cursor: RenderableCursor::new_hidden(),
+            styles: config.style.resolved().elements(term.is_focused),
             terminal_content,
             focused_match,
             cursor_shape,
@@ -113,7 +117,7 @@ impl<'a> RenderableContent<'a> {
     /// Assemble the information required to render the terminal cursor.
     fn renderable_cursor(&mut self, cell: &RenderableCell) -> RenderableCursor {
         // Cursor colors.
-        let styles = self.config.style.resolved();
+        let styles = self.styles;
         let color = if self.terminal_content.mode.contains(TermMode::VI) {
             styles.vi_mode_cursor
         } else {
@@ -230,7 +234,7 @@ impl RenderableCell {
 
         let display_offset = content.terminal_content.display_offset;
         let viewport_start = Point::new(Line(-(display_offset as i32)), Column(0));
-        let styles = content.config.style.resolved();
+        let styles = content.styles;
         let mut character = cell.c;
         let mut flags = cell.flags;
 
@@ -262,6 +266,11 @@ impl RenderableCell {
             let focused = content.focused_match.is_some_and(|fm| fm.contains(&cell.point));
             let style = if focused { &styles.search_focused_match } else { &styles.search_match };
             Self::apply_style(style, &mut fg, &mut bg, &mut bg_alpha, &mut flags);
+        }
+
+        // Blurred text attributes apply to all content while the window is unfocused.
+        if styles.text != TextAttributes::default() {
+            Self::apply_attributes(styles.text, &mut fg, &mut bg, &mut bg_alpha, &mut flags);
         }
 
         // Apply transparency to all renderable cells if `transparent_background_colors` is set
@@ -307,8 +316,17 @@ impl RenderableCell {
         flags: &mut Flags,
     ) {
         Self::compute_cell_rgb(fg, bg, bg_alpha, style.foreground, style.background);
+        Self::apply_attributes(style.attributes, fg, bg, bg_alpha, flags);
+    }
 
-        let attributes = style.attributes;
+    /// Apply text attributes to the cell.
+    fn apply_attributes(
+        attributes: TextAttributes,
+        fg: &mut Rgb,
+        bg: &mut Rgb,
+        bg_alpha: &mut f32,
+        flags: &mut Flags,
+    ) {
         flags.set(Flags::BOLD, flags.contains(Flags::BOLD) || attributes.bold);
         flags.set(Flags::ITALIC, flags.contains(Flags::ITALIC) || attributes.italic);
         flags.set(Flags::UNDERLINE, flags.contains(Flags::UNDERLINE) || attributes.underline);
@@ -574,8 +592,6 @@ impl Deref for HintMatches<'_> {
 mod tests {
     use super::*;
 
-    use crate::config::style::TextAttributes;
-
     fn style(attributes: TextAttributes) -> CellStyle {
         CellStyle {
             foreground: CellRgb::Rgb(Rgb::new(0x10, 0x20, 0x30)),
@@ -628,6 +644,19 @@ mod tests {
 
         assert_eq!(fg, Rgb::new(0xa0, 0xb0, 0xc0));
         assert_eq!(bg, Rgb::new(0x10, 0x20, 0x30));
+    }
+
+    #[test]
+    fn blurred_text_attributes_apply_without_colors() {
+        let (mut fg, mut bg, mut alpha, mut flags) =
+            (Rgb::new(100, 100, 100), Rgb::new(2, 2, 2), 0.0, Flags::empty());
+        let attributes = TextAttributes { faint: true, italic: true, ..Default::default() };
+
+        RenderableCell::apply_attributes(attributes, &mut fg, &mut bg, &mut alpha, &mut flags);
+
+        assert_eq!(fg, Rgb::new(100, 100, 100) * DIM_FACTOR);
+        assert_eq!(bg, Rgb::new(2, 2, 2));
+        assert!(flags.contains(Flags::ITALIC));
     }
 
     #[test]
