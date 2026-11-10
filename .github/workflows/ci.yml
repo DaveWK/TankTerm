@@ -35,3 +35,10 @@ jobs:
         run: rustup update && rustup target add x86_64-apple-darwin
       - name: Build
         run: cargo build --target=x86_64-apple-darwin
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shellcheck
+        run: |
+          git ls-files -z '*.sh' '*.bash' | xargs -0 shellcheck

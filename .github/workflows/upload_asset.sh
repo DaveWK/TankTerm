@@ -46,21 +46,18 @@ if [ -z "$upload_url" ]; then
     echo "No release found."
     echo "Creating new release..."
 
-    # Create new release.
-    response=$(
+    # Create new release, aborting if it could not be created.
+    if ! response=$(
         curl -f \
             --http1.1 \
             -X POST \
             -H "Authorization: Bearer $bearer" \
             -d "{\"tag_name\":\"$tag\",\"draft\":true}" \
             "https://api.github.com/repos/$repo/releases" \
-            2> /dev/null\
-    )
-
-    # Abort if the release could not be created.
-    if [ $? -ne 0 ]; then
+            2> /dev/null
+    ); then
         printf "\e[31mError: Unable to create new release.\e[0m\n"
-        exit 1;
+        exit 1
     fi
 
     # Extract upload URL from new release.
