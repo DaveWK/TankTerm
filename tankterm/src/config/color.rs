@@ -5,7 +5,7 @@ use tankterm_config_derive::ConfigDeserialize;
 
 use crate::display::color::{CellRgb, Rgb};
 
-#[derive(ConfigDeserialize, Serialize, Clone, Debug, Default, PartialEq, Eq)]
+#[derive(ConfigDeserialize, Serialize, Clone, Debug, PartialEq, Eq)]
 pub struct Colors {
     pub primary: PrimaryColors,
     pub cursor: InvertedCellColors,
@@ -21,6 +21,42 @@ pub struct Colors {
     pub transparent_background_colors: bool,
     pub draw_bold_text_with_bright_colors: bool,
     footer_bar: BarColors,
+}
+
+/// Black background used by the default "green screen" color scheme.
+const BLACK: Rgb = Rgb::new(0x00, 0x00, 0x00);
+
+/// Default foreground: classic green screen phosphor green.
+const PHOSPHOR_GREEN: Rgb = Rgb::new(0x00, 0xff, 0x00);
+
+impl Default for Colors {
+    fn default() -> Self {
+        Self {
+            primary: Default::default(),
+            cursor: InvertedCellColors {
+                foreground: CellRgb::Rgb(BLACK),
+                background: CellRgb::Rgb(PHOSPHOR_GREEN),
+            },
+            vi_mode_cursor: InvertedCellColors {
+                foreground: CellRgb::Rgb(BLACK),
+                background: CellRgb::Rgb(Rgb::new(0x66, 0xff, 0x66)),
+            },
+            selection: InvertedCellColors {
+                foreground: CellRgb::Rgb(BLACK),
+                background: CellRgb::Rgb(Rgb::new(0x00, 0x80, 0x00)),
+            },
+            normal: Default::default(),
+            bright: Default::default(),
+            dim: Default::default(),
+            indexed_colors: Default::default(),
+            search: Default::default(),
+            line_indicator: Default::default(),
+            hints: Default::default(),
+            transparent_background_colors: Default::default(),
+            draw_bold_text_with_bright_colors: Default::default(),
+            footer_bar: Default::default(),
+        }
+    }
 }
 
 impl Colors {
@@ -54,8 +90,8 @@ pub struct HintStartColors {
 impl Default for HintStartColors {
     fn default() -> Self {
         Self {
-            foreground: CellRgb::Rgb(Rgb::new(0x18, 0x18, 0x18)),
-            background: CellRgb::Rgb(Rgb::new(0xf4, 0xbf, 0x75)),
+            foreground: CellRgb::Rgb(BLACK),
+            background: CellRgb::Rgb(Rgb::new(0xf4, 0xd3, 0x5e)),
         }
     }
 }
@@ -69,8 +105,8 @@ pub struct HintEndColors {
 impl Default for HintEndColors {
     fn default() -> Self {
         Self {
-            foreground: CellRgb::Rgb(Rgb::new(0x18, 0x18, 0x18)),
-            background: CellRgb::Rgb(Rgb::new(0xac, 0x42, 0x42)),
+            foreground: CellRgb::Rgb(BLACK),
+            background: CellRgb::Rgb(Rgb::new(0xff, 0x4d, 0x5a)),
         }
     }
 }
@@ -140,8 +176,8 @@ pub struct FocusedMatchColors {
 impl Default for FocusedMatchColors {
     fn default() -> Self {
         Self {
-            background: CellRgb::Rgb(Rgb::new(0xf4, 0xbf, 0x75)),
-            foreground: CellRgb::Rgb(Rgb::new(0x18, 0x18, 0x18)),
+            background: CellRgb::Rgb(Rgb::new(0xf4, 0xd3, 0x5e)),
+            foreground: CellRgb::Rgb(BLACK),
         }
     }
 }
@@ -155,8 +191,8 @@ pub struct MatchColors {
 impl Default for MatchColors {
     fn default() -> Self {
         Self {
-            background: CellRgb::Rgb(Rgb::new(0xac, 0x42, 0x42)),
-            foreground: CellRgb::Rgb(Rgb::new(0x18, 0x18, 0x18)),
+            background: CellRgb::Rgb(Rgb::new(0x00, 0xaa, 0x00)),
+            foreground: CellRgb::Rgb(BLACK),
         }
     }
 }
@@ -178,9 +214,9 @@ pub struct PrimaryColors {
 impl Default for PrimaryColors {
     fn default() -> Self {
         PrimaryColors {
-            background: Rgb::new(0x18, 0x18, 0x18),
-            foreground: Rgb::new(0xd8, 0xd8, 0xd8),
-            bright_foreground: Default::default(),
+            background: BLACK,
+            foreground: PHOSPHOR_GREEN,
+            bright_foreground: Some(Rgb::new(0xf1, 0xff, 0xf5)),
             dim_foreground: Default::default(),
         }
     }
@@ -201,14 +237,14 @@ pub struct NormalColors {
 impl Default for NormalColors {
     fn default() -> Self {
         NormalColors {
-            black: Rgb::new(0x18, 0x18, 0x18),
-            red: Rgb::new(0xac, 0x42, 0x42),
-            green: Rgb::new(0x90, 0xa9, 0x59),
-            yellow: Rgb::new(0xf4, 0xbf, 0x75),
-            blue: Rgb::new(0x6a, 0x9f, 0xb5),
-            magenta: Rgb::new(0xaa, 0x75, 0x9f),
-            cyan: Rgb::new(0x75, 0xb5, 0xaa),
-            white: Rgb::new(0xd8, 0xd8, 0xd8),
+            black: Rgb::new(0x00, 0x00, 0x00),
+            red: Rgb::new(0xff, 0x4d, 0x5a),
+            green: Rgb::new(0x00, 0xaa, 0x00),
+            yellow: Rgb::new(0xf4, 0xd3, 0x5e),
+            blue: Rgb::new(0x4d, 0xb8, 0xff),
+            magenta: Rgb::new(0xd6, 0x87, 0xff),
+            cyan: Rgb::new(0x35, 0xe6, 0xd0),
+            white: Rgb::new(0xd8, 0xff, 0xe7),
         }
     }
 }
@@ -227,18 +263,16 @@ pub struct BrightColors {
 
 impl Default for BrightColors {
     fn default() -> Self {
-        // Generated with oklab by multiplying brightness by 1.12 and then adjusting numbers
-        // to make them look "nicer". Yellow color was generated the same way, however the first
-        // srgb representable color was picked.
+        // Brighter variants of the "green screen" palette.
         BrightColors {
-            black: Rgb::new(0x6b, 0x6b, 0x6b),
-            red: Rgb::new(0xc5, 0x55, 0x55),
-            green: Rgb::new(0xaa, 0xc4, 0x74),
-            yellow: Rgb::new(0xfe, 0xca, 0x88),
-            blue: Rgb::new(0x82, 0xb8, 0xc8),
-            magenta: Rgb::new(0xc2, 0x8c, 0xb8),
-            cyan: Rgb::new(0x93, 0xd3, 0xc3),
-            white: Rgb::new(0xf8, 0xf8, 0xf8),
+            black: Rgb::new(0x40, 0x60, 0x4d),
+            red: Rgb::new(0xff, 0x7a, 0x83),
+            green: Rgb::new(0x66, 0xff, 0x66),
+            yellow: Rgb::new(0xff, 0xe7, 0x8a),
+            blue: Rgb::new(0x8a, 0xd1, 0xff),
+            magenta: Rgb::new(0xe9, 0xb3, 0xff),
+            cyan: Rgb::new(0x8a, 0xff, 0xf0),
+            white: Rgb::new(0xf1, 0xff, 0xf5),
         }
     }
 }
@@ -257,16 +291,104 @@ pub struct DimColors {
 
 impl Default for DimColors {
     fn default() -> Self {
-        // Generated with builtin TankTerm's color dimming function.
+        // Used for any field missing from a configured `[colors.dim]`. Without that table, dim
+        // colors are computed from the normal ones instead.
         DimColors {
-            black: Rgb::new(0x0f, 0x0f, 0x0f),
-            red: Rgb::new(0x71, 0x2b, 0x2b),
-            green: Rgb::new(0x5f, 0x6f, 0x3a),
-            yellow: Rgb::new(0xa1, 0x7e, 0x4d),
-            blue: Rgb::new(0x45, 0x68, 0x77),
-            magenta: Rgb::new(0x70, 0x4d, 0x68),
-            cyan: Rgb::new(0x4d, 0x77, 0x70),
-            white: Rgb::new(0x8e, 0x8e, 0x8e),
+            black: Rgb::new(0x07, 0x11, 0x0b),
+            red: Rgb::new(0xa8, 0x2f, 0x3a),
+            green: Rgb::new(0x00, 0x55, 0x00),
+            yellow: Rgb::new(0xa6, 0x8d, 0x3b),
+            blue: Rgb::new(0x2a, 0x6e, 0x99),
+            magenta: Rgb::new(0x80, 0x4c, 0x99),
+            cyan: Rgb::new(0x21, 0x8f, 0x82),
+            white: Rgb::new(0x7f, 0xaf, 0x91),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::config::UiConfig;
+
+    fn rgb(r: u8, g: u8, b: u8) -> Rgb {
+        Rgb::new(r, g, b)
+    }
+
+    #[test]
+    fn default_scheme_is_green_on_black() {
+        let colors = Colors::default();
+
+        assert_eq!(colors.primary.background, rgb(0x00, 0x00, 0x00));
+        assert_eq!(colors.primary.foreground, rgb(0x00, 0xff, 0x00));
+        assert_eq!(colors.cursor.background, CellRgb::Rgb(rgb(0x00, 0xff, 0x00)));
+        assert_eq!(colors.cursor.foreground, CellRgb::Rgb(rgb(0x00, 0x00, 0x00)));
+        assert_eq!(colors.vi_mode_cursor.background, CellRgb::Rgb(rgb(0x66, 0xff, 0x66)));
+        assert_eq!(colors.selection.background, CellRgb::Rgb(rgb(0x00, 0x80, 0x00)));
+        assert_eq!(colors.selection.foreground, CellRgb::Rgb(rgb(0x00, 0x00, 0x00)));
+        assert_eq!(colors.normal.green, rgb(0x00, 0xaa, 0x00));
+        assert_eq!(colors.bright.green, rgb(0x66, 0xff, 0x66));
+        assert_eq!(colors.search.matches.background, CellRgb::Rgb(rgb(0x00, 0xaa, 0x00)));
+
+        // Dim colors are derived from the normal colors unless configured.
+        assert_eq!(colors.dim, None);
+        assert_eq!(colors.primary.dim_foreground, None);
+    }
+
+    #[test]
+    fn default_scheme_is_readable() {
+        // Every default foreground must differ from the black background.
+        let colors = Colors::default();
+        let background = colors.primary.background;
+        let normal = &colors.normal;
+        let bright = &colors.bright;
+
+        for color in [
+            colors.primary.foreground,
+            normal.red,
+            normal.green,
+            normal.yellow,
+            normal.blue,
+            normal.magenta,
+            normal.cyan,
+            normal.white,
+            bright.black,
+            bright.red,
+            bright.green,
+            bright.yellow,
+            bright.blue,
+            bright.magenta,
+            bright.cyan,
+            bright.white,
+        ] {
+            assert_ne!(color, background);
+        }
+    }
+
+    #[test]
+    fn configured_colors_override_defaults() {
+        let config: UiConfig = toml::from_str(
+            "[colors.primary]\nforeground = '#ffffff'\n\n[colors.normal]\nred = '#123456'\n",
+        )
+        .unwrap();
+        let colors = &config.colors;
+
+        assert_eq!(colors.primary.foreground, rgb(0xff, 0xff, 0xff));
+        assert_eq!(colors.normal.red, rgb(0x12, 0x34, 0x56));
+
+        // Unset fields keep the green screen defaults.
+        assert_eq!(colors.primary.background, rgb(0x00, 0x00, 0x00));
+        assert_eq!(colors.normal.green, rgb(0x00, 0xaa, 0x00));
+        assert_eq!(colors.selection, Colors::default().selection);
+    }
+
+    #[test]
+    fn partial_dim_table_uses_default_dims() {
+        let config: UiConfig = toml::from_str("[colors.dim]\nred = '#010203'\n").unwrap();
+        let dim = config.colors.dim.unwrap();
+
+        assert_eq!(dim.red, rgb(0x01, 0x02, 0x03));
+        assert_eq!(dim.green, rgb(0x00, 0x55, 0x00));
     }
 }
