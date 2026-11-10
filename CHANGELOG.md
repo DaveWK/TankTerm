@@ -24,6 +24,9 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 
 ### Added
 
+- Key help like Charm's Bubbles: `ToggleHelp` (`Ctrl+Shift+H`, `Cmd+Shift+H` on macOS) shows the key
+    bindings as a single line or in columns, with `help` descriptions on bindings and
+    `[style.help_*]` blocks
 - Themes in the style of Glamour and Huh: `theme = "<name or path>"`, `--theme` or `TANKTERM_THEME`,
     with built-in `green_screen`, `charm`, `dracula`, `catppuccin` and `base16` themes
 - Colors can be named: ANSI names like `"bright_red"` and CharmTone names like `"charple"`

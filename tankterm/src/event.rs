@@ -1412,6 +1412,14 @@ impl<'a, N: Notify + 'a, T: EventListener> input::ActionContext<T> for ActionCon
 
     /// Toggle the vi mode status.
     #[inline]
+    fn toggle_help(&mut self) {
+        // Cycle hidden, short and full help; the display reserves lines for it on update.
+        self.display.help = self.display.help.next();
+        self.display.pending_update.dirty = true;
+        self.display.damage_tracker.frame().mark_fully_damaged();
+        *self.dirty = true;
+    }
+
     fn toggle_vi_mode(&mut self) {
         let was_in_vi_mode = self.terminal.mode().contains(TermMode::VI);
         if was_in_vi_mode {

@@ -41,6 +41,11 @@ pub struct Binding<T> {
     ///
     /// For example, this might be a key like "G", or a mouse button.
     pub trigger: T,
+
+    /// Description shown in the key help, like Bubbles' `key.WithHelp`.
+    ///
+    /// Without one, the action's default description is used, if it has one.
+    pub help: Option<String>,
 }
 
 /// Bindings that are triggered by a keyboard key.
@@ -238,6 +243,9 @@ pub enum Action {
     /// Toggle vi mode.
     ToggleViMode,
 
+    /// Cycle the key help between hidden, short and full, like Bubbles' help view.
+    ToggleHelp,
+
     /// Allow receiving char input.
     ReceiveChar,
 
@@ -400,6 +408,7 @@ macro_rules! bindings {
                 mode: _mode,
                 notmode: _notmode,
                 action: $action.into(),
+                help: None,
             });
         )*
 
@@ -558,6 +567,7 @@ fn common_keybindings() -> Vec<KeyBinding> {
         "-",    ModifiersState::CONTROL;                                                                 Action::DecreaseFontSize;
         "+" => KeyLocation::Numpad, ModifiersState::CONTROL;                                             Action::IncreaseFontSize;
         "-" => KeyLocation::Numpad, ModifiersState::CONTROL;                                             Action::DecreaseFontSize;
+        "h",    ModifiersState::CONTROL | ModifiersState::SHIFT;                                         Action::ToggleHelp;
     )
 }
 
@@ -615,6 +625,7 @@ pub fn platform_key_bindings() -> Vec<KeyBinding> {
         "w",    ModifiersState::SUPER;                                         Action::Quit;
         "f",    ModifiersState::SUPER, ~BindingMode::SEARCH;                   Action::SearchForward;
         "b",    ModifiersState::SUPER, ~BindingMode::SEARCH;                   Action::SearchBackward;
+        "h",    ModifiersState::SUPER   | ModifiersState::SHIFT;               Action::ToggleHelp;
         "+" => KeyLocation::Numpad, ModifiersState::SUPER;                     Action::IncreaseFontSize;
         "-" => KeyLocation::Numpad, ModifiersState::SUPER;                     Action::DecreaseFontSize;
     )
@@ -909,6 +920,7 @@ struct RawBinding {
     mode: BindingMode,
     notmode: BindingMode,
     action: Action,
+    help: Option<String>,
 }
 
 impl RawBinding {
@@ -920,6 +932,7 @@ impl RawBinding {
                 action: self.action,
                 mode: self.mode,
                 notmode: self.notmode,
+                help: self.help,
             })
         } else {
             Err(Box::new(self))
@@ -934,6 +947,7 @@ impl RawBinding {
                 action: self.action,
                 mode: self.mode,
                 notmode: self.notmode,
+                help: self.help,
             })
         } else {
             Err(Box::new(self))
@@ -946,7 +960,8 @@ impl<'a> Deserialize<'a> for RawBinding {
     where
         D: Deserializer<'a>,
     {
-        const FIELDS: &[&str] = &["key", "mods", "mode", "action", "chars", "mouse", "command"];
+        const FIELDS: &[&str] =
+            &["key", "mods", "mode", "action", "chars", "mouse", "command", "help"];
 
         enum Field {
             Key,
@@ -956,6 +971,7 @@ impl<'a> Deserialize<'a> for RawBinding {
             Chars,
             Mouse,
             Command,
+            Help,
         }
 
         impl<'a> Deserialize<'a> for Field {
@@ -984,6 +1000,7 @@ impl<'a> Deserialize<'a> for RawBinding {
                             "chars" => Ok(Field::Chars),
                             "mouse" => Ok(Field::Mouse),
                             "command" => Ok(Field::Command),
+                            "help" => Ok(Field::Help),
                             _ => Err(E::unknown_field(value, FIELDS)),
                         }
                     }
@@ -1013,6 +1030,7 @@ impl<'a> Deserialize<'a> for RawBinding {
                 let mut not_mode: Option<BindingMode> = None;
                 let mut mouse: Option<MouseEvent> = None;
                 let mut command: Option<Program> = None;
+                let mut help: Option<String> = None;
 
                 use de::Error;
 
@@ -1115,6 +1133,13 @@ impl<'a> Deserialize<'a> for RawBinding {
 
                             command = Some(map.next_value::<Program>()?);
                         },
+                        Field::Help => {
+                            if help.is_some() {
+                                return Err(<V::Error as Error>::duplicate_field("help"));
+                            }
+
+                            help = Some(map.next_value::<String>()?);
+                        },
                     }
                 }
 
@@ -1148,7 +1173,7 @@ impl<'a> Deserialize<'a> for RawBinding {
                     return Err(V::Error::custom("bindings require mouse button or key"));
                 }
 
-                Ok(RawBinding { mode, notmode: not_mode, action, key, mouse, mods })
+                Ok(RawBinding { mode, notmode: not_mode, action, key, mouse, mods, help })
             }
         }
 
@@ -1260,6 +1285,7 @@ mod tests {
                 mode: BindingMode::empty(),
                 notmode: BindingMode::empty(),
                 trigger: Default::default(),
+                help: None,
             }
         }
     }

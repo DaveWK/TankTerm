@@ -1,12 +1,12 @@
 //! The display subsystem including window management, font rasterization, and
 //! GPU drawing.
 
-use std::cmp;
 use std::fmt::{self, Formatter};
 use std::mem::{self, ManuallyDrop};
 use std::num::NonZeroU32;
 use std::ops::Deref;
 use std::time::{Duration, Instant};
+use std::{cmp, iter};
 
 use glutin::config::GetGlConfig;
 use glutin::context::{NotCurrentContext, PossiblyCurrentContext};
@@ -47,6 +47,7 @@ use crate::display::color::{List, Rgb};
 use crate::display::content::{RenderableContent, RenderableCursor};
 use crate::display::cursor::IntoRects;
 use crate::display::damage::{DamageTracker, damage_y_to_viewport_y};
+use crate::display::help::{HelpMode, HelpPart};
 use crate::display::hint::{HintMatch, HintState};
 use crate::display::meter::Meter;
 use crate::display::window::Window;
@@ -61,6 +62,7 @@ pub mod charmtone;
 pub mod color;
 pub mod content;
 pub mod cursor;
+pub mod help;
 pub mod hint;
 pub mod window;
 
@@ -384,6 +386,9 @@ pub struct Display {
 
     pub size_info: SizeInfo,
 
+    /// Key help shown at the bottom of the window.
+    pub help: HelpMode,
+
     /// Hint highlighted by the mouse.
     pub highlighted_hint: Option<HintMatch>,
     /// Frames since hint highlight was created.
@@ -584,6 +589,7 @@ impl Display {
             cursor_hidden: Default::default(),
             meter: Default::default(),
             ime: Default::default(),
+            help: Default::default(),
         })
     }
 
@@ -748,7 +754,8 @@ impl Display {
         let search_active = search_state.history_index.is_some();
         let message_bar_lines = message_buffer.message().map_or(0, |m| m.text(&new_size).len());
         let search_lines = usize::from(search_active);
-        new_size.reserve_lines(message_bar_lines + search_lines);
+        let help_lines = help::lines(config, self.help, new_size.columns()).len();
+        new_size.reserve_lines(message_bar_lines + search_lines + help_lines);
 
         // Update resize increments.
         if config.window.resize_increments {
@@ -1062,6 +1069,11 @@ impl Display {
             // Draw rectangles.
             self.renderer.draw_rects(&size_info, &metrics, rects);
         }
+
+        // Draw the key help below the search and message bars.
+        let search_lines = usize::from(search_state.regex().is_some());
+        let message_lines = message_buffer.message().map_or(0, |m| m.text(&size_info).len());
+        self.draw_help(config, size_info.screen_lines() + search_lines + message_lines);
 
         self.draw_render_timer(config);
 
@@ -1378,6 +1390,48 @@ impl Display {
             &self.size_info,
             &mut self.glyph_cache,
         );
+    }
+
+    /// Draw the key help, starting at `start_line`.
+    fn draw_help(&mut self, config: &UiConfig, start_line: usize) {
+        let num_cols = self.size_info.columns();
+        let styles = config.style.resolved();
+
+        for (index, line) in help::lines(config, self.help, num_cols).into_iter().enumerate() {
+            let point_line = start_line + index;
+
+            // The help can change without terminal content changing, so always redraw it.
+            let damage = LineDamageBounds::new(point_line, 0, num_cols);
+            self.damage_tracker.frame().damage_line(damage);
+            self.damage_tracker.next_frame().damage_line(damage);
+
+            let mut column = 0;
+            let segments = line.into_iter().chain(iter::once((String::new(), HelpPart::Separator)));
+            for (mut text, part) in segments {
+                let style = match part {
+                    HelpPart::Key => styles.help_key,
+                    HelpPart::Description => styles.help_desc,
+                    HelpPart::Separator => styles.help_separator,
+                };
+
+                // Fill the rest of the line, so the background covers it.
+                if text.is_empty() {
+                    text = " ".repeat(num_cols.saturating_sub(column));
+                }
+
+                let width = text.chars().count();
+                let point = Point::new(point_line, Column(column));
+                self.renderer.draw_string(
+                    point,
+                    style.foreground,
+                    style.background,
+                    text.chars(),
+                    &self.size_info,
+                    &mut self.glyph_cache,
+                );
+                column += width;
+            }
+        }
     }
 
     /// Draw render timer.

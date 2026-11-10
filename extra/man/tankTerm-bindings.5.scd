@@ -436,6 +436,10 @@ configuration. See *tankTerm*(5) for full configuration format documentation.
 :  _"Control"_
 :[
 :  _"DecreaseFontSize"_
+|  _"H"_
+:  _"Control|Shift"_
+:[
+:  _"ToggleHelp"_
 
 ## Windows only
 
@@ -510,6 +514,10 @@ configuration. See *tankTerm*(5) for full configuration format documentation.
 :  _"Command|Alt"_
 :[
 :  _"HideOtherApplications"_
+|  _"H"_
+:  _"Command|Shift"_
+:[
+:  _"ToggleHelp"_
 |  _"M"_
 :  _"Command"_
 :[
