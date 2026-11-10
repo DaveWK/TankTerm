@@ -13,11 +13,8 @@ use std::time::Instant;
 use std::{env, process};
 
 use log::{Level, LevelFilter};
-use winit::event_loop::EventLoopProxy;
 
 use crate::cli::Options;
-use crate::event::{Event, EventType};
-use crate::message_bar::{Message, MessageType};
 
 /// Logging target for IPC config error messages.
 pub const LOG_TARGET_IPC_CONFIG: &str = "alacritty_log_window_config";
@@ -58,13 +55,10 @@ const ALLOWED_TARGETS: &[&str] = &[
 ];
 
 /// Initialize the logger to its defaults.
-pub fn initialize(
-    options: &Options,
-    event_proxy: EventLoopProxy<Event>,
-) -> Result<Option<PathBuf>, log::SetLoggerError> {
+pub fn initialize(options: &Options) -> Result<Option<PathBuf>, log::SetLoggerError> {
     log::set_max_level(options.log_level());
 
-    let logger = Logger::new(event_proxy);
+    let logger = Logger::new();
     let path = logger.file_path();
     log::set_boxed_logger(Box::new(logger))?;
 
@@ -74,53 +68,20 @@ pub fn initialize(
 pub struct Logger {
     logfile: Mutex<OnDemandLogFile>,
     stdout: Mutex<LineWriter<Stdout>>,
-    event_proxy: Mutex<EventLoopProxy<Event>>,
     start: Instant,
 }
 
 impl Logger {
-    fn new(event_proxy: EventLoopProxy<Event>) -> Self {
+    fn new() -> Self {
         let logfile = Mutex::new(OnDemandLogFile::new());
         let stdout = Mutex::new(LineWriter::new(io::stdout()));
 
-        Logger { logfile, stdout, event_proxy: Mutex::new(event_proxy), start: Instant::now() }
+        Logger { logfile, stdout, start: Instant::now() }
     }
 
     fn file_path(&self) -> Option<PathBuf> {
         let logfile_lock = self.logfile.lock().ok()?;
         Some(logfile_lock.path().clone())
-    }
-
-    /// Log a record to the message bar.
-    fn message_bar_log(&self, record: &log::Record<'_>, logfile_path: &str) {
-        let message_type = match record.level() {
-            Level::Error => MessageType::Error,
-            Level::Warn => MessageType::Warning,
-            _ => return,
-        };
-
-        let event_proxy = match self.event_proxy.lock() {
-            Ok(event_proxy) => event_proxy,
-            Err(_) => return,
-        };
-
-        #[cfg(not(windows))]
-        let env_var = format!("${TANKTERM_LOG_ENV}");
-        #[cfg(windows)]
-        let env_var = format!("%{}%", TANKTERM_LOG_ENV);
-
-        let message = format!(
-            "[{}] {}\nSee log at {} ({})",
-            record.level(),
-            record.args(),
-            logfile_path,
-            env_var,
-        );
-
-        let mut message = Message::new(message, message_type);
-        message.set_target(record.target().to_owned());
-
-        let _ = event_proxy.send_event(Event::new(EventType::Message(message), None));
     }
 }
 
@@ -142,12 +103,9 @@ impl log::Log for Logger {
         // Create log message for the given `record` and `target`.
         let message = create_log_message(record, target, self.start);
 
+        // Write to logfile.
         if let Ok(mut logfile) = self.logfile.lock() {
-            // Write to logfile.
             let _ = logfile.write_all(message.as_ref());
-
-            // Log relevant entries to message bar.
-            self.message_bar_log(record, &logfile.path.to_string_lossy());
         }
 
         // Write to stdout.

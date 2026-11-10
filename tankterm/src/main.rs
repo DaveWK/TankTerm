@@ -1,4 +1,4 @@
-//! TankTerm - The GPU Enhanced Terminal.
+//! TankTerm - A fast, cross-platform terminal emulator.
 
 #![warn(rust_2018_idioms, future_incompatible)]
 #![deny(clippy::all, clippy::if_not_else, clippy::enum_glob_use)]
@@ -16,55 +16,41 @@ use std::error::Error;
 use std::fmt::Write as _;
 use std::io::{self, Write};
 use std::path::PathBuf;
+use std::sync::Mutex;
 use std::{env, fs};
 
+use iced::{Task, window};
 use log::info;
 #[cfg(windows)]
 use windows_sys::Win32::System::Console::{ATTACH_PARENT_PROCESS, AttachConsole, FreeConsole};
-use winit::event_loop::EventLoop;
-#[cfg(all(feature = "x11", not(any(target_os = "macos", windows))))]
-use winit::raw_window_handle::{HasDisplayHandle, RawDisplayHandle};
 
 use tankterm_terminal::tty;
 
+mod app;
 mod cli;
-mod clipboard;
+// Most configuration options belong to the previous OpenGL front end and aren't read by the iced
+// front end yet, but are still parsed so existing config files keep loading without errors.
+#[allow(dead_code, unused_imports)]
 mod config;
-mod daemon;
 mod display;
-mod event;
-mod input;
 mod logging;
 #[cfg(target_os = "macos")]
 mod macos;
-mod message_bar;
 mod migrate;
 #[cfg(windows)]
 mod panic;
-#[cfg(unix)]
-mod polling;
-mod renderer;
-mod scheduler;
-mod string;
-mod window_context;
+mod term_settings;
 
-mod gl {
-    #![allow(clippy::all, unsafe_op_in_unsafe_fn)]
-    include!(concat!(env!("OUT_DIR"), "/gl_bindings.rs"));
-}
-
-#[cfg(unix)]
-use crate::cli::MessageOptions;
-#[cfg(not(any(target_os = "macos", windows)))]
-use crate::cli::SocketMessage;
+use crate::app::App;
 use crate::cli::{Options, Subcommands};
 use crate::config::UiConfig;
-use crate::config::monitor::ConfigMonitor;
-use crate::event::{Event, Processor};
 #[cfg(target_os = "macos")]
 use crate::macos::locale;
-#[cfg(unix)]
-use crate::polling::{IoListener, ipc};
+
+/// Window icon, used on X11. Wayland and macOS take the icon from the desktop entry or bundle,
+/// and Windows from the executable's resources.
+#[cfg(all(feature = "x11", not(any(target_os = "macos", windows))))]
+const WINDOW_ICON: &[u8] = include_bytes!("../extra/logo/compat/alacritty-term.png");
 
 fn main() -> Result<(), Box<dyn Error>> {
     #[cfg(windows)]
@@ -83,7 +69,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     match options.subcommands {
         #[cfg(unix)]
-        Some(Subcommands::Msg(options)) => msg(options)?,
+        Some(Subcommands::Msg(_)) => {
+            return Err("`tankTerm msg` is not supported by the iced front end yet".into());
+        },
         Some(Subcommands::Migrate(options)) => migrate::migrate(options),
         None => tankterm(options)?,
     }
@@ -91,73 +79,37 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-/// `msg` subcommand entrypoint.
-#[cfg(unix)]
-#[allow(unused_mut)]
-fn msg(mut options: MessageOptions) -> Result<(), Box<dyn Error>> {
-    #[cfg(not(any(target_os = "macos", windows)))]
-    if let SocketMessage::CreateWindow(window_options) = &mut options.message {
-        window_options.activation_token =
-            env::var("XDG_ACTIVATION_TOKEN").or_else(|_| env::var("DESKTOP_STARTUP_ID")).ok();
-    }
-    ipc::send_message(options.socket, options.message).map_err(|err| err.into())
-}
-
 /// Temporary files stored for TankTerm.
 ///
 /// This stores temporary files to automate their destruction through its `Drop` implementation.
 struct TemporaryFiles {
-    #[cfg(unix)]
-    socket_path: Option<PathBuf>,
     log_file: Option<PathBuf>,
 }
 
 impl Drop for TemporaryFiles {
     fn drop(&mut self) {
-        // Clean up the IPC socket file.
-        #[cfg(unix)]
-        if let Some(socket_path) = self.socket_path.as_deref() {
-            let _ = fs::remove_file(socket_path);
-        }
-
         // Clean up logfile.
-        if let Some(log_file) = &self.log_file {
-            if fs::remove_file(log_file).is_ok() {
-                let _ = writeln!(io::stdout(), "Deleted log file at \"{}\"", log_file.display());
-            }
+        if let Some(log_file) = &self.log_file
+            && fs::remove_file(log_file).is_ok()
+        {
+            let _ = writeln!(io::stdout(), "Deleted log file at \"{}\"", log_file.display());
         }
     }
 }
 
 /// Run main TankTerm entrypoint.
 ///
-/// Creates a window, the terminal state, PTY, I/O event loop, input processor,
-/// config change monitor, and runs the main display loop.
+/// Loads the configuration, spawns the shell and runs the iced application until the shell exits
+/// or the window is closed.
 fn tankterm(mut options: Options) -> Result<(), Box<dyn Error>> {
-    // Setup winit event loop.
-    let window_event_loop = EventLoop::<Event>::with_user_event().build()?;
-
     // Initialize the logger as soon as possible as to capture output from other subsystems.
-    let log_file = logging::initialize(&options, window_event_loop.create_proxy())
-        .expect("Unable to initialize logger");
+    let log_file = logging::initialize(&options).expect("Unable to initialize logger");
 
     info!("Welcome to TankTerm");
     info!("Version {}", env!("VERSION"));
 
-    #[cfg(all(feature = "x11", not(any(target_os = "macos", windows))))]
-    info!(
-        "Running on {}",
-        if matches!(
-            window_event_loop.display_handle().unwrap().as_raw(),
-            RawDisplayHandle::Wayland(_)
-        ) {
-            "Wayland"
-        } else {
-            "X11"
-        }
-    );
-    #[cfg(not(any(feature = "x11", target_os = "macos", windows)))]
-    info!("Running on Wayland");
+    unsupported_options(&options)
+        .map_err(|option| format!("{option} is not supported by the iced front end yet"))?;
 
     // Load configuration file.
     let config = config::load(&mut options);
@@ -168,11 +120,6 @@ fn tankterm(mut options: Options) -> Result<(), Box<dyn Error>> {
 
     // Set tty environment variables.
     tty::setup_env();
-
-    // Set env vars from config.
-    for (key, value) in config.env.iter() {
-        unsafe { env::set_var(key, value) };
-    }
 
     // Switch to home directory.
     #[cfg(target_os = "macos")]
@@ -185,49 +132,26 @@ fn tankterm(mut options: Options) -> Result<(), Box<dyn Error>> {
     #[cfg(target_os = "macos")]
     macos::disable_autofill();
 
-    // Spawn the Unix I/O event polling thread.
-    #[cfg(unix)]
-    let socket_path = match IoListener::spawn(&config, &options, window_event_loop.create_proxy()) {
-        Ok(handle) => handle.ipc_socket_path,
-        Err(err) if options.daemon => return Err(err.into()),
-        Err(err) => {
-            log::warn!("Unable to create socket: {err:?}");
-            None
-        },
-    };
-
     // Setup automatic RAII cleanup for our files.
-    let log_cleanup = log_file.filter(|_| !config.debug.persistent_logging);
-    let _files = TemporaryFiles {
-        #[cfg(unix)]
-        socket_path,
-        log_file: log_cleanup,
+    let _files = TemporaryFiles { log_file: log_file.filter(|_| !config.debug.persistent_logging) };
+
+    // Spawn the shell before starting iced, so failing to launch it is reported as an error.
+    let title = term_settings::window_title(&config, &options);
+    let settings = term_settings::settings(&config, &options);
+    let app = App::new(title, config.window.dynamic_title, settings)?;
+
+    // iced takes a reusable boot function, but the application is only booted once.
+    let app = Mutex::new(Some(app));
+    let boot = move || {
+        let app = app.lock().unwrap().take().expect("application booted twice");
+        (app, Task::none())
     };
 
-    // Event processor.
-    let mut processor = Processor::new(config, options, &window_event_loop);
-
-    // Start event loop and block until shutdown.
-    let result = processor.run(window_event_loop);
-
-    // `Processor` must be dropped before calling `FreeConsole`.
-    //
-    // This is needed for ConPTY backend. Otherwise a deadlock can occur.
-    // The cause:
-    //   - Drop for ConPTY will deadlock if the conout pipe has already been dropped
-    //   - ConPTY is dropped when the last of processor and window context are dropped, because both
-    //     of them own an Arc<ConPTY>
-    //
-    // The fix is to ensure that processor is dropped first. That way, when window context (i.e.
-    // PTY) is dropped, it can ensure ConPTY is dropped before the conout pipe in the PTY drop
-    // order.
-    //
-    // FIXME: Change PTY API to enforce the correct drop order with the typesystem.
-
-    // Terminate the config monitor.
-    if let Some(config_monitor) = processor.config_monitor.take() {
-        config_monitor.shutdown();
-    }
+    let result = iced::application(boot, App::update, App::view)
+        .title(App::title)
+        .subscription(App::subscription)
+        .window(window_settings(&config, &options))
+        .run();
 
     // Without explicitly detaching the console cmd won't redraw it's prompt.
     #[cfg(windows)]
@@ -237,7 +161,56 @@ fn tankterm(mut options: Options) -> Result<(), Box<dyn Error>> {
 
     info!("Goodbye");
 
-    result
+    result.map_err(Into::into)
+}
+
+/// Return the first CLI option the iced front end can't honor.
+fn unsupported_options(options: &Options) -> Result<(), &'static str> {
+    #[cfg(unix)]
+    if options.socket.is_some() {
+        return Err("--socket");
+    }
+
+    if options.daemon {
+        Err("--daemon")
+    } else if options.embed.is_some() {
+        Err("--embed")
+    } else if options.print_events {
+        Err("--print-events")
+    } else if options.ref_test {
+        Err("--ref-test")
+    } else if options.window_options.terminal_options.hold {
+        Err("--hold")
+    } else {
+        Ok(())
+    }
+}
+
+/// Settings for the main window.
+#[allow(unused_variables)]
+fn window_settings(config: &UiConfig, options: &Options) -> window::Settings {
+    window::Settings {
+        #[cfg(all(feature = "x11", not(any(target_os = "macos", windows))))]
+        icon: window_icon(),
+        #[cfg(not(any(target_os = "macos", windows)))]
+        platform_specific: window::settings::PlatformSpecific {
+            application_id: term_settings::window_class(config, options),
+            ..Default::default()
+        },
+        ..Default::default()
+    }
+}
+
+/// Decode the embedded window icon.
+#[cfg(all(feature = "x11", not(any(target_os = "macos", windows))))]
+fn window_icon() -> Option<window::Icon> {
+    let mut decoder = png::Decoder::new(io::Cursor::new(WINDOW_ICON));
+    decoder.set_transformations(png::Transformations::normalize_to_color8());
+    let mut reader = decoder.read_info().ok()?;
+    let mut buf = vec![0; reader.output_buffer_size()?];
+    let info = reader.next_frame(&mut buf).ok()?;
+    buf.truncate(info.buffer_size());
+    window::icon::from_rgba(buf, info.width, info.height).ok()
 }
 
 fn log_config_path(config: &UiConfig) {
@@ -251,4 +224,36 @@ fn log_config_path(config: &UiConfig) {
     }
 
     info!("{msg}");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use clap::Parser;
+
+    fn options(args: &[&str]) -> Options {
+        Options::try_parse_from(["tankTerm"].iter().chain(args)).unwrap()
+    }
+
+    #[test]
+    fn supported_options_are_accepted() {
+        let options = options(&["--title", "x", "-e", "sh", "-c", "true"]);
+        assert_eq!(unsupported_options(&options), Ok(()));
+    }
+
+    #[test]
+    fn unsupported_options_are_rejected() {
+        assert_eq!(unsupported_options(&options(&["--daemon"])), Err("--daemon"));
+        assert_eq!(unsupported_options(&options(&["--hold"])), Err("--hold"));
+        assert_eq!(unsupported_options(&options(&["--print-events"])), Err("--print-events"));
+        #[cfg(unix)]
+        assert_eq!(unsupported_options(&options(&["--socket", "/tmp/s"])), Err("--socket"));
+    }
+
+    #[cfg(all(feature = "x11", not(any(target_os = "macos", windows))))]
+    #[test]
+    fn window_icon_decodes() {
+        assert!(window_icon().is_some());
+    }
 }

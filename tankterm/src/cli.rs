@@ -2,7 +2,6 @@ use std::cmp::max;
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 use std::path::PathBuf;
-use std::rc::Rc;
 
 use alacritty_config::SerdeReplace;
 use clap::{ArgAction, Args, Parser, Subcommand, ValueHint};
@@ -393,20 +392,6 @@ impl ParsedOptions {
                 Ok(_) => i += 1,
             }
         }
-    }
-
-    /// Apply CLI config overrides to a CoW config.
-    pub fn override_config_rc(&mut self, config: Rc<UiConfig>) -> Rc<UiConfig> {
-        // Skip clone without write requirement.
-        if self.config_options.is_empty() {
-            return config;
-        }
-
-        // Override cloned config.
-        let mut config = (*config).clone();
-        self.override_config(&mut config);
-
-        Rc::new(config)
     }
 }
 

@@ -9,7 +9,7 @@ resolver = "2"
 
 [workspace.package]
 edition = "2024"
-rust-version = "1.85.0"
+rust-version = "1.88.0"
 
 [profile.release]
 lto = "thin"
@@ -20,6 +20,7 @@ incremental = false
 toml = "1.2.1"
 toml_edit = "0.25.19"
 
-# TODO: Validation of fix for #6978. Remove before next release and use released `x11-clipboard`.
-[patch.crates-io]
-x11-clipboard = { git = "https://github.com/quininer/x11-clipboard.git", rev = "19ab2163cf0bd0db607e827a5214571990307866" }
+# iced_term depends on tankterm_terminal from this repository; use the local copy so there is only
+# one terminal crate in the build.
+[patch."https://github.com/DaveWK/TankTerm"]
+tankterm_terminal = { path = "tankterm_terminal" }

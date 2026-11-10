@@ -17,6 +17,7 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 - Renamed the desktop entry to `TankTerm.desktop` and the AppStream ID to `io.github.davewk.TankTerm`
 - Renamed the macOS app bundle to `TankTerm.app` with bundle ID `io.github.davewk.TankTerm`
 - New Windows installer upgrade code, so the TankTerm installer no longer replaces Alacritty
+- Minimum Rust version has been bumped to 1.88.0
 - Fixed `alacritty-escapes(7)` manpage missing from macOS install
 - Added the `Open Alacritty here` entry to the right-click context menu for folders on Windows
 
@@ -27,6 +28,15 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 - Default window title and class are now `TankTerm`
 - `ALACRITTY_*` environment variables renamed to `TANKTERM_*`
 - IPC sockets and log files now use the `TankTerm-` prefix and the `tankterm` runtime directory
+- The window and rendering use iced through `iced_term` instead of the OpenGL renderer
+- Config file font, colors, shell, environment, working directory, title and class apply to the
+    iced front end; other config options are ignored for now
+
+### Removed
+
+- IPC (`tankTerm msg`, `--socket`), `--daemon` and live config reload
+- Custom key and mouse bindings, hints, vi mode, search and the message bar
+- `--embed`, `--hold`, `--print-events` and `--ref-test`
 
 ### Fixed
 

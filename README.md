@@ -33,6 +33,25 @@ The software is considered to be at a **beta** level of readiness; there are
 a few missing features and bugs to be fixed, but it is already used by many as
 a daily driver.
 
+### iced front end
+
+TankTerm's window and rendering now use the [iced](https://iced.rs) GUI toolkit
+through [iced_term](https://github.com/DaveWK/iced_term), replacing Alacritty's
+OpenGL front end. The terminal itself (escape sequences, the grid and the PTY)
+is still the `tankterm_terminal` crate. The font, colors, shell, environment,
+working directory, window title and class are read from your configuration.
+
+This front end is new and doesn't support everything the OpenGL one did yet:
+
+- IPC (`tankTerm msg`, `--socket`) and `--daemon`
+- Live config reload
+- Custom key and mouse bindings, hints, vi mode and search
+- Most `[window]`, `[cursor]`, `[mouse]`, `[bell]` and `[scrolling]` options
+- `--embed`, `--hold`, `--print-events` and `--ref-test`
+
+Command line options that aren't supported yet fail with an error; config
+options that aren't supported yet are ignored.
+
 ## Features
 
 You can find an overview over the features available in TankTerm [here](./docs/features.md).
@@ -53,7 +72,8 @@ and install it can be found [here](INSTALL.md).
 
 ### Requirements
 
-- At least OpenGL ES 2.0
+- A GPU supported by [wgpu](https://wgpu.rs) (Vulkan, Metal, DirectX 12 or
+  OpenGL ES 3); iced falls back to software rendering otherwise
 - [Windows] ConPTY support (Windows 10 version 1809 or higher)
 
 ## Configuration
