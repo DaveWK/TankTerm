@@ -1998,6 +1998,12 @@ impl input::Processor<EventProxy, ActionContext<'_, Notifier, EventProxy>> {
                             *self.ctx.dirty = true;
                         }
 
+                        // Blurred styles can change any cell, so redraw everything.
+                        if self.ctx.config.style.resolved().blur_changes_content() {
+                            self.ctx.display.damage_tracker.frame().mark_fully_damaged();
+                            *self.ctx.dirty = true;
+                        }
+
                         // Reset the urgency hint when gaining focus.
                         if is_focused {
                             self.ctx.window().set_urgent(false);

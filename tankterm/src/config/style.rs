@@ -45,10 +45,29 @@ pub struct StyleConfig {
     pub help_desc: Style,
     pub help_separator: Style,
 
+    /// Changes to the styles while the window doesn't have focus.
+    pub blurred: BlurredStyleConfig,
+
     /// Effective styles, resolved by [`StyleConfig::resolve`] whenever the configuration changes.
     #[config(skip)]
     #[serde(skip_serializing)]
     resolved: Resolved,
+}
+
+/// The `[style.blurred]` table: like Huh's blurred styles, every style starts as a copy of the
+/// focused one, and these properties are changed on top.
+#[derive(ConfigDeserialize, Serialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct BlurredStyleConfig {
+    /// Text attributes applied to all terminal content, like `faint = true`.
+    pub text: Style,
+
+    pub cursor: Style,
+    pub vi_mode_cursor: Style,
+    pub selection: Style,
+    pub search_match: Style,
+    pub search_focused_match: Style,
+    pub hint_start: Style,
+    pub hint_end: Style,
 }
 
 /// Storage for the resolved styles, which can't be set from the configuration itself.
@@ -80,7 +99,7 @@ impl StyleConfig {
         let defs = &self.defs;
         let style = |style: &Style| resolve_inheritance(style, defs, &mut Vec::new());
 
-        self.resolved = Resolved(Some(Styles {
+        let mut styles = Styles {
             cursor: CellStyle::new(&style(&self.cursor), &colors.cursor, defaults::CURSOR),
             vi_mode_cursor: CellStyle::new(
                 &style(&self.vi_mode_cursor),
@@ -122,7 +141,26 @@ impl StyleConfig {
                 colors,
                 defaults::HELP_SEPARATOR,
             ),
-        }));
+            blurred: ElementStyles::default(),
+        };
+
+        // Like Huh, the blurred styles start as copies of the focused ones.
+        let blurred = &self.blurred;
+        let focused = styles.elements(true);
+        styles.blurred = ElementStyles {
+            text: style(&blurred.text).attributes(),
+            cursor: focused.cursor.blurred(&style(&blurred.cursor)),
+            vi_mode_cursor: focused.vi_mode_cursor.blurred(&style(&blurred.vi_mode_cursor)),
+            selection: focused.selection.blurred(&style(&blurred.selection)),
+            search_match: focused.search_match.blurred(&style(&blurred.search_match)),
+            search_focused_match: focused
+                .search_focused_match
+                .blurred(&style(&blurred.search_focused_match)),
+            hint_start: focused.hint_start.blurred(&style(&blurred.hint_start)),
+            hint_end: focused.hint_end.blurred(&style(&blurred.hint_end)),
+        };
+
+        self.resolved = Resolved(Some(styles));
     }
 
     /// Effective styles of every element.
@@ -252,7 +290,7 @@ pub struct TextAttributes {
 }
 
 /// Effective style of an element drawn on terminal cells.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct CellStyle {
     pub foreground: CellRgb,
     pub background: CellRgb,
@@ -260,6 +298,23 @@ pub struct CellStyle {
 }
 
 impl CellStyle {
+    /// This style with the properties `blurred` sets changed.
+    fn blurred(&self, blurred: &Style) -> Self {
+        let attributes = &self.attributes;
+        Self {
+            foreground: blurred.foreground.unwrap_or(self.foreground),
+            background: blurred.background.unwrap_or(self.background),
+            attributes: TextAttributes {
+                bold: blurred.bold.unwrap_or(attributes.bold),
+                italic: blurred.italic.unwrap_or(attributes.italic),
+                faint: blurred.faint.unwrap_or(attributes.faint),
+                underline: blurred.underline.unwrap_or(attributes.underline),
+                strikethrough: blurred.strikethrough.unwrap_or(attributes.strikethrough),
+                reverse: blurred.reverse.unwrap_or(attributes.reverse),
+            },
+        }
+    }
+
     fn new(style: &Style, colors: &CellColors, default: (CellRgb, CellRgb)) -> Self {
         Self {
             foreground: style.foreground.or(colors.foreground).unwrap_or(default.0),
@@ -323,6 +378,48 @@ pub struct Styles {
     pub help_key: BarStyle,
     pub help_desc: BarStyle,
     pub help_separator: BarStyle,
+
+    /// Element styles while the window doesn't have focus.
+    pub blurred: ElementStyles,
+}
+
+impl Styles {
+    /// Styles of the elements drawn on terminal cells, for a focused or unfocused window.
+    pub fn elements(&self, focused: bool) -> ElementStyles {
+        if !focused {
+            return self.blurred;
+        }
+
+        ElementStyles {
+            text: TextAttributes::default(),
+            cursor: self.cursor,
+            vi_mode_cursor: self.vi_mode_cursor,
+            selection: self.selection,
+            search_match: self.search_match,
+            search_focused_match: self.search_focused_match,
+            hint_start: self.hint_start,
+            hint_end: self.hint_end,
+        }
+    }
+
+    /// Whether losing or gaining focus changes how terminal content is drawn.
+    pub fn blur_changes_content(&self) -> bool {
+        self.elements(false) != self.elements(true)
+    }
+}
+
+/// Styles of the elements drawn on terminal cells.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ElementStyles {
+    /// Text attributes applied to all terminal content.
+    pub text: TextAttributes,
+    pub cursor: CellStyle,
+    pub vi_mode_cursor: CellStyle,
+    pub selection: CellStyle,
+    pub search_match: CellStyle,
+    pub search_focused_match: CellStyle,
+    pub hint_start: CellStyle,
+    pub hint_end: CellStyle,
 }
 
 /// Default colors of each element, matching the green screen color scheme.
@@ -547,6 +644,53 @@ mod tests {
 
         assert_eq!(key.foreground, Rgb::new(0x6b, 0x50, 0xff));
         assert_eq!(key.background, Rgb::new(0x20, 0x1f, 0x26));
+    }
+
+    #[test]
+    fn blurred_defaults_to_focused() {
+        let styles = *load("").style.resolved();
+
+        assert_eq!(styles.elements(false), styles.elements(true));
+        assert!(!styles.blur_changes_content());
+    }
+
+    #[test]
+    fn blurred_changes_only_set_properties() {
+        let config = load(
+            "[style.selection]\nbackground = '#111111'\nbold = true\n\n\
+             [style.blurred.selection]\nbackground = '#222222'\n",
+        );
+        let styles = config.style.resolved();
+        let (focused, blurred) = (styles.elements(true), styles.elements(false));
+
+        assert_eq!(focused.selection.background, rgb(0x11, 0x11, 0x11));
+        assert_eq!(blurred.selection.background, rgb(0x22, 0x22, 0x22));
+        // Copied from the focused style.
+        assert_eq!(blurred.selection.foreground, focused.selection.foreground);
+        assert!(blurred.selection.attributes.bold);
+        // Other elements are unchanged.
+        assert_eq!(blurred.cursor, focused.cursor);
+        assert!(styles.blur_changes_content());
+    }
+
+    #[test]
+    fn blurred_text_attributes() {
+        let config = load("[style.blurred.text]\nfaint = true\n");
+        let styles = config.style.resolved();
+
+        assert!(styles.elements(false).text.faint);
+        assert_eq!(styles.elements(true).text, TextAttributes::default());
+    }
+
+    #[test]
+    fn blurred_styles_inherit() {
+        let config = load(
+            "[style.defs.dim]\nfaint = true\nitalic = true\n\n\
+             [style.blurred.cursor]\ninherit = 'dim'\n",
+        );
+        let cursor = config.style.resolved().elements(false).cursor;
+
+        assert!(cursor.attributes.faint && cursor.attributes.italic);
     }
 
     #[test]

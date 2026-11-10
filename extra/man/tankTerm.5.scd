@@ -603,6 +603,18 @@ Each property of an element is taken from, in order:
 		They default to the grays of Bubbles' help view, lighter on dark
 		backgrounds, on the primary background.
 
+*blurred*
+
+	Changes to the styles while the window doesn't have focus, like Huh's
+	blurred styles. The *[style.blurred.<element>]* blocks for _cursor_,
+	_vi\_mode\_cursor_, _selection_, _search\_match_, _search\_focused\_match_,
+	_hint\_start_ and _hint\_end_ start as copies of the focused styles, and
+	only the properties they set change. *[style.blurred.text]* applies its text
+	attributes, like _faint = true_, to all terminal content.
+
+	By default, nothing changes when the window loses focus, apart from
+	_cursor.unfocused\_hollow_.
+
 *defs*
 
 	Named styles to inherit from, defined as *[style.defs.<name>]* tables with the
