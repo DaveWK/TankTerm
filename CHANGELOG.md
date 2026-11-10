@@ -17,12 +17,12 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 - Renamed the desktop entry to `TankTerm.desktop` and the AppStream ID to `io.github.davewk.TankTerm`
 - Renamed the macOS app bundle to `TankTerm.app` with bundle ID `io.github.davewk.TankTerm`
 - New Windows installer upgrade code, so the TankTerm installer no longer replaces Alacritty
-- Minimum Rust version has been bumped to 1.88.0
 - Renamed the `alacritty_config` and `alacritty_config_derive` crates to `tankterm_config` and
     `tankterm_config_derive`
 - Fixed `alacritty-escapes(7)` manpage missing from macOS install
 - Build manpages with `extra/man/scdoc.sh`, which keeps groff from splitting names across lines
 - Added the `Open Alacritty here` entry to the right-click context menu for folders on Windows
+- Minimum Rust version has been bumped to 1.95.0
 
 ### Added
 
