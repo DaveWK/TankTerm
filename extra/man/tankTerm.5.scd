@@ -598,6 +598,11 @@ Each property of an element is taken from, in order:
 		indicator. Only colors apply; _CellForeground_ and _CellBackground_ refer
 		to the primary colors.
 
+	*help_key*, *help_desc*, *help_separator*
+		Keys, descriptions and separators of the key help. Only colors apply.
+		They default to the grays of Bubbles' help view, lighter on dark
+		backgrounds, on the primary background.
+
 *defs*
 
 	Named styles to inherit from, defined as *[style.defs.<name>]* tables with the
@@ -940,6 +945,12 @@ _https://docs.rs/winit/latest/winit/keyboard/enum.Key.html#variant.Dead_
 
 		Writes the specified string to the terminal.
 
+	*help* = _"<string>"_
+
+		Description shown for this binding in the key help (see _ToggleHelp_),
+		like Bubbles' _key.WithHelp_. Common actions have a default description;
+		bindings without one aren't listed.
+
 	*action*
 
 		*ReceiveChar*
@@ -994,6 +1005,9 @@ _https://docs.rs/winit/latest/winit/keyboard/enum.Key.html#variant.Dead_
 			Clear active selection.
 		*ToggleViMode*
 			Toggle vi mode.
+		*ToggleHelp*
+			Cycle the key help between hidden, a single line and full columns, like
+			Charm's Bubbles help view. It's generated from the key bindings.
 		*SearchForward*
 			Start a forward buffer search.
 		*SearchBackward*

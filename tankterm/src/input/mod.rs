@@ -127,6 +127,7 @@ pub trait ActionContext<T: EventListener> {
     fn search_active(&self) -> bool;
     fn on_typing_start(&mut self) {}
     fn toggle_vi_mode(&mut self) {}
+    fn toggle_help(&mut self) {}
     fn inline_search_state(&mut self) -> &mut InlineSearchState;
     fn start_inline_search(&mut self, _direction: Direction, _stop_short: bool) {}
     fn inline_search_next(&mut self) {}
@@ -179,6 +180,7 @@ impl<T: EventListener> Execute<T> for Action {
                 ctx.on_typing_start();
                 ctx.toggle_vi_mode()
             },
+            Action::ToggleHelp => ctx.toggle_help(),
             action @ (Action::ViMotion(_) | Action::Vi(_))
                 if !ctx.terminal().mode().contains(TermMode::VI) =>
             {
@@ -1177,9 +1179,14 @@ mod tests {
         pub modifiers: Modifiers,
         config: &'a UiConfig,
         inline_search_state: &'a mut InlineSearchState,
+        help_toggles: usize,
     }
 
     impl<T: EventListener> super::ActionContext<T> for ActionContext<'_, T> {
+        fn toggle_help(&mut self) {
+            self.help_toggles += 1;
+        }
+
         fn search_next(
             &mut self,
             _origin: Point,
@@ -1325,6 +1332,7 @@ mod tests {
                     message_buffer: &mut message_buffer,
                     inline_search_state: &mut inline_search_state,
                     config: &cfg,
+                    help_toggles: 0,
                 };
 
                 let mut processor = Processor::new(context);
@@ -1496,7 +1504,7 @@ mod tests {
 
     test_process_binding! {
         name: process_binding_nomode_shiftmod_require_shift,
-        binding: Binding { trigger: KEY, mods: ModifiersState::SHIFT, action: Action::from("\x1b[1;2D"), mode: BindingMode::empty(), notmode: BindingMode::empty() },
+        binding: Binding { trigger: KEY, help: None, mods: ModifiersState::SHIFT, action: Action::from("\x1b[1;2D"), mode: BindingMode::empty(), notmode: BindingMode::empty() },
         triggers: true,
         mode: BindingMode::empty(),
         mods: ModifiersState::SHIFT,
@@ -1504,7 +1512,7 @@ mod tests {
 
     test_process_binding! {
         name: process_binding_nomode_nomod_require_shift,
-        binding: Binding { trigger: KEY, mods: ModifiersState::SHIFT, action: Action::from("\x1b[1;2D"), mode: BindingMode::empty(), notmode: BindingMode::empty() },
+        binding: Binding { trigger: KEY, help: None, mods: ModifiersState::SHIFT, action: Action::from("\x1b[1;2D"), mode: BindingMode::empty(), notmode: BindingMode::empty() },
         triggers: false,
         mode: BindingMode::empty(),
         mods: ModifiersState::empty(),
@@ -1512,7 +1520,7 @@ mod tests {
 
     test_process_binding! {
         name: process_binding_nomode_controlmod,
-        binding: Binding { trigger: KEY, mods: ModifiersState::CONTROL, action: Action::from("\x1b[1;5D"), mode: BindingMode::empty(), notmode: BindingMode::empty() },
+        binding: Binding { trigger: KEY, help: None, mods: ModifiersState::CONTROL, action: Action::from("\x1b[1;5D"), mode: BindingMode::empty(), notmode: BindingMode::empty() },
         triggers: true,
         mode: BindingMode::empty(),
         mods: ModifiersState::CONTROL,
@@ -1520,7 +1528,7 @@ mod tests {
 
     test_process_binding! {
         name: process_binding_nomode_nomod_require_not_appcursor,
-        binding: Binding { trigger: KEY, mods: ModifiersState::empty(), action: Action::from("\x1b[D"), mode: BindingMode::empty(), notmode: BindingMode::APP_CURSOR },
+        binding: Binding { trigger: KEY, help: None, mods: ModifiersState::empty(), action: Action::from("\x1b[D"), mode: BindingMode::empty(), notmode: BindingMode::APP_CURSOR },
         triggers: true,
         mode: BindingMode::empty(),
         mods: ModifiersState::empty(),
@@ -1528,7 +1536,7 @@ mod tests {
 
     test_process_binding! {
         name: process_binding_appcursormode_nomod_require_appcursor,
-        binding: Binding { trigger: KEY, mods: ModifiersState::empty(), action: Action::from("\x1bOD"), mode: BindingMode::APP_CURSOR, notmode: BindingMode::empty() },
+        binding: Binding { trigger: KEY, help: None, mods: ModifiersState::empty(), action: Action::from("\x1bOD"), mode: BindingMode::APP_CURSOR, notmode: BindingMode::empty() },
         triggers: true,
         mode: BindingMode::APP_CURSOR,
         mods: ModifiersState::empty(),
@@ -1536,7 +1544,7 @@ mod tests {
 
     test_process_binding! {
         name: process_binding_nomode_nomod_require_appcursor,
-        binding: Binding { trigger: KEY, mods: ModifiersState::empty(), action: Action::from("\x1bOD"), mode: BindingMode::APP_CURSOR, notmode: BindingMode::empty() },
+        binding: Binding { trigger: KEY, help: None, mods: ModifiersState::empty(), action: Action::from("\x1bOD"), mode: BindingMode::APP_CURSOR, notmode: BindingMode::empty() },
         triggers: false,
         mode: BindingMode::empty(),
         mods: ModifiersState::empty(),
@@ -1544,7 +1552,7 @@ mod tests {
 
     test_process_binding! {
         name: process_binding_appcursormode_appkeypadmode_nomod_require_appcursor,
-        binding: Binding { trigger: KEY, mods: ModifiersState::empty(), action: Action::from("\x1bOD"), mode: BindingMode::APP_CURSOR, notmode: BindingMode::empty() },
+        binding: Binding { trigger: KEY, help: None, mods: ModifiersState::empty(), action: Action::from("\x1bOD"), mode: BindingMode::APP_CURSOR, notmode: BindingMode::empty() },
         triggers: true,
         mode: BindingMode::APP_CURSOR | BindingMode::APP_KEYPAD,
         mods: ModifiersState::empty(),
@@ -1552,9 +1560,37 @@ mod tests {
 
     test_process_binding! {
         name: process_binding_fail_with_extra_mods,
-        binding: Binding { trigger: KEY, mods: ModifiersState::SUPER, action: Action::from("arst"), mode: BindingMode::empty(), notmode: BindingMode::empty() },
+        binding: Binding { trigger: KEY, help: None, mods: ModifiersState::SUPER, action: Action::from("arst"), mode: BindingMode::empty(), notmode: BindingMode::empty() },
         triggers: false,
         mode: BindingMode::empty(),
         mods: ModifiersState::ALT | ModifiersState::SUPER,
+    }
+
+    #[test]
+    fn toggle_help_action() {
+        let mut clipboard = Clipboard::new_nop();
+        let cfg = UiConfig::default();
+        let size = SizeInfo::new(21.0, 51.0, 3.0, 3.0, WindowPadding::default(), false);
+        let mut terminal = Term::new(cfg.term_options(), &size, MockEventProxy);
+        let mut mouse = Mouse::default();
+        let mut inline_search_state = InlineSearchState::default();
+        let mut message_buffer = MessageBuffer::default();
+
+        let mut context = ActionContext {
+            terminal: &mut terminal,
+            mouse: &mut mouse,
+            size_info: &size,
+            clipboard: &mut clipboard,
+            modifiers: Default::default(),
+            message_buffer: &mut message_buffer,
+            inline_search_state: &mut inline_search_state,
+            config: &cfg,
+            help_toggles: 0,
+        };
+
+        Action::ToggleHelp.execute(&mut context);
+        Action::ToggleHelp.execute(&mut context);
+
+        assert_eq!(context.help_toggles, 2);
     }
 }

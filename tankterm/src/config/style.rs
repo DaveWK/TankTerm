@@ -23,7 +23,7 @@ use tankterm_config::SerdeReplace;
 use tankterm_config_derive::{ConfigDeserialize, SerdeReplace};
 
 use crate::config::color::{BarColors, CellColors, Colors};
-use crate::display::color::{CellRgb, Rgb};
+use crate::display::color::{CellRgb, ColorContext, Rgb};
 use crate::logging::LOG_TARGET_CONFIG;
 
 /// The `[style]` table.
@@ -41,6 +41,9 @@ pub struct StyleConfig {
     pub hint_end: Style,
     pub footer_bar: Style,
     pub line_indicator: Style,
+    pub help_key: Style,
+    pub help_desc: Style,
+    pub help_separator: Style,
 
     /// Effective styles, resolved by [`StyleConfig::resolve`] whenever the configuration changes.
     #[config(skip)]
@@ -111,6 +114,13 @@ impl StyleConfig {
                 &style(&self.line_indicator),
                 &colors.line_indicator,
                 colors,
+            ),
+            help_key: BarStyle::help(&style(&self.help_key), colors, defaults::HELP_KEY),
+            help_desc: BarStyle::help(&style(&self.help_desc), colors, defaults::HELP_DESC),
+            help_separator: BarStyle::help(
+                &style(&self.help_separator),
+                colors,
+                defaults::HELP_SEPARATOR,
             ),
         }));
     }
@@ -281,6 +291,21 @@ impl BarStyle {
             background: background.unwrap_or(primary.foreground),
         }
     }
+
+    /// Style for part of the key help, on the primary background like Bubbles' help view.
+    ///
+    /// `default` is the (light, dark) foreground, picked by the color scheme like Bubbles'
+    /// `DefaultStyles(isDark)`.
+    fn help(style: &Style, colors: &Colors, default: (Rgb, Rgb)) -> Self {
+        let primary = &colors.primary;
+        let rgb = |color: CellRgb| color.color(primary.foreground, primary.background);
+        let fallback = if ColorContext::from_colors(colors).dark { default.1 } else { default.0 };
+
+        Self {
+            foreground: style.foreground.map(rgb).unwrap_or(fallback),
+            background: style.background.map(rgb).unwrap_or(primary.background),
+        }
+    }
 }
 
 /// Effective styles of every element.
@@ -295,6 +320,9 @@ pub struct Styles {
     pub hint_end: CellStyle,
     pub footer_bar: BarStyle,
     pub line_indicator: BarStyle,
+    pub help_key: BarStyle,
+    pub help_desc: BarStyle,
+    pub help_separator: BarStyle,
 }
 
 /// Default colors of each element, matching the green screen color scheme.
@@ -314,6 +342,11 @@ mod defaults {
     pub const SEARCH_FOCUSED_MATCH: (CellRgb, CellRgb) = (BLACK, rgb(0xf4, 0xd3, 0x5e));
     pub const HINT_START: (CellRgb, CellRgb) = (BLACK, rgb(0xf4, 0xd3, 0x5e));
     pub const HINT_END: (CellRgb, CellRgb) = (BLACK, rgb(0xff, 0x4d, 0x5a));
+
+    /// Key help foregrounds on light and dark backgrounds, from Bubbles' help view.
+    pub const HELP_KEY: (Rgb, Rgb) = (Rgb::new(0x90, 0x90, 0x90), Rgb::new(0x62, 0x62, 0x62));
+    pub const HELP_DESC: (Rgb, Rgb) = (Rgb::new(0xb2, 0xb2, 0xb2), Rgb::new(0x4a, 0x4a, 0x4a));
+    pub const HELP_SEPARATOR: (Rgb, Rgb) = (Rgb::new(0xda, 0xda, 0xda), Rgb::new(0x3c, 0x3c, 0x3c));
 }
 
 #[cfg(test)]
@@ -494,6 +527,26 @@ mod tests {
         overrides.override_config(&mut config);
 
         assert!(config.style.resolved().selection.attributes.bold);
+    }
+
+    #[test]
+    fn help_defaults_follow_color_scheme() {
+        let dark = load("");
+        assert_eq!(dark.style.resolved().help_key.foreground, Rgb::new(0x62, 0x62, 0x62));
+        assert_eq!(dark.style.resolved().help_desc.background, Rgb::new(0, 0, 0));
+
+        let light = load("[colors]\nmode = 'light'\n");
+        assert_eq!(light.style.resolved().help_key.foreground, Rgb::new(0x90, 0x90, 0x90));
+        assert_eq!(light.style.resolved().help_separator.foreground, Rgb::new(0xda, 0xda, 0xda));
+    }
+
+    #[test]
+    fn help_styles_are_configurable() {
+        let config = load("[style.help_key]\nforeground = 'charple'\nbackground = 'pepper'\n");
+        let key = config.style.resolved().help_key;
+
+        assert_eq!(key.foreground, Rgb::new(0x6b, 0x50, 0xff));
+        assert_eq!(key.background, Rgb::new(0x20, 0x1f, 0x26));
     }
 
     #[test]

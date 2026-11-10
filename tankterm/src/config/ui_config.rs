@@ -505,6 +505,7 @@ impl HintBinding {
             mode: self.mode.mode,
             notmode: self.mode.not_mode,
             action: Action::Hint(hint.clone()),
+            help: None,
         })
     }
 }
