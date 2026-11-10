@@ -1,6 +1,6 @@
-# Contributing to Alacritty
+# Contributing to TankTerm
 
-Thank you for your interest in contributing to Alacritty!
+Thank you for your interest in contributing to TankTerm!
 
 Table of Contents:
 
@@ -16,22 +16,22 @@ Table of Contents:
 
 ## Feature Requests
 
-Feature requests should be reported in the [issue tracker](https://github.com/DaveWK/alacritty/issues). To reduce the
+Feature requests should be reported in the [issue tracker](https://github.com/DaveWK/TankTerm/issues). To reduce the
 number of duplicates, please make sure to check the existing issues first.
 
 ## Bug Reports
 
-Bug reports should be reported in the [issue tracker](https://github.com/DaveWK/alacritty/issues).
+Bug reports should be reported in the [issue tracker](https://github.com/DaveWK/TankTerm/issues).
 
-If a bug was not present in a previous version of Alacritty, providing the exact commit which
+If a bug was not present in a previous version of TankTerm, providing the exact commit which
 introduced the regression helps out a lot.
 
 ## Patches / Pull Requests
 
-All patches have to be sent on GitHub as [pull requests](https://github.com/DaveWK/alacritty/pulls).
+All patches have to be sent on GitHub as [pull requests](https://github.com/DaveWK/TankTerm/pulls).
 
-You can find the minimum supported Rust version in Alacritty's manifest file
-(`cat alacritty/Cargo.toml | grep "rust-version"`). Alacritty **must** always
+You can find the minimum supported Rust version in TankTerm's manifest file
+(`cat alacritty/Cargo.toml | grep "rust-version"`). TankTerm **must** always
 build with the MSRV and bumping it should be avoided if possible.
 
 Since `alacritty_terminal`'s version always tracks the next release, make sure that the version is
@@ -40,7 +40,7 @@ bumped according to semver when necessary.
 ### Testing
 
 To make sure no regressions were introduced, all tests should be run before sending a pull request.
-The following command can be run to test Alacritty:
+The following command can be run to test TankTerm:
 
 ```
 cargo test
@@ -48,10 +48,10 @@ cargo test
 
 Additionally if there's any functionality included which would lend itself to additional testing,
 new tests should be added. These can either be in the form of Rust tests using the `#[test]`
-annotation, or Alacritty's ref tests.
+annotation, or TankTerm's ref tests.
 
 To record a new ref test, a release version of the patched binary should be created and run with the
-`--ref-test` flag. After closing the Alacritty window, or killing it (`exit` and `^D` do not work),
+`--ref-test` flag. After closing the TankTerm window, or killing it (`exit` and `^D` do not work),
 some new files should have been generated in the working directory. Those can then be copied to the
 `./tests/ref/NEW_TEST_NAME` directory and the test can be enabled by editing the `ref_tests!` macro
 in the `./tests/ref.rs` file. When fixing a bug, it should be checked that the ref test does not
@@ -59,15 +59,15 @@ complete correctly with the unpatched version, to make sure the test case is cov
 
 ### Performance
 
-If changes could affect throughput or latency of Alacritty, these aspects should be benchmarked to
+If changes could affect throughput or latency of TankTerm, these aspects should be benchmarked to
 prevent potential regressions. Since there are often big performance differences between Rust's
 nightly releases, it's advised to perform these tests on the latest Rust stable release.
 
-Alacritty mainly uses the [vtebench](https://github.com/alacritty/vtebench) tool for testing Alacritty's
+TankTerm mainly uses the [vtebench](https://github.com/alacritty/vtebench) tool for testing TankTerm's
 performance. Instructions on how to use it can be found in its
 [README](https://github.com/alacritty/vtebench/blob/master/README.md).
 
-Latency is another important factor for Alacritty. On X11, Windows, and macOS the
+Latency is another important factor for TankTerm. On X11, Windows, and macOS the
 [typometer](https://github.com/pavelfatin/typometer) tool allows measuring keyboard latency.
 
 ### Documentation
@@ -77,21 +77,21 @@ the general `rustfmt` rules can be followed for formatting.
 
 If any change has been made to the `config.rs` file, it should also be documented in the man pages.
 
-Changes compared to the latest Alacritty release which have a direct effect on the user (opposed to
+Changes compared to the latest TankTerm release which have a direct effect on the user (opposed to
 things like code refactorings or documentation/tests) additionally need to be documented in the
 `CHANGELOG.md`. When a notable change is made to `alacritty_terminal`, it should be documented in
 `alacritty_terminal/CHANGELOG.md` as well. The existing entries should be used as a style guideline.
 The change log should be used to document changes from a user-perspective, instead of explaining the
-technical background (like commit messages) More information about Alacritty's change log format can
+technical background (like commit messages) More information about TankTerm's change log format can
 be found [here](https://keepachangelog.com).
 
 ### Style
 
-All Alacritty changes are automatically verified by CI to conform to its rustfmt guidelines. If a CI
+All TankTerm changes are automatically verified by CI to conform to its rustfmt guidelines. If a CI
 build is failing because of formatting issues, you can install rustfmt using `rustup component add
 rustfmt` and then format all code using `cargo fmt`.
 
-Unless otherwise specified, Alacritty follows the Rust compiler's style guidelines:
+Unless otherwise specified, TankTerm follows the Rust compiler's style guidelines:
 
 https://rust-lang.github.io/api-guidelines
 
@@ -114,4 +114,4 @@ Pull requests where the author can't explain the changes may be closed.
 # Contact
 
 If there are any outstanding questions about contributing, they can be asked on the
-[issue tracker](https://github.com/DaveWK/alacritty/issues).
+[issue tracker](https://github.com/DaveWK/TankTerm/issues).

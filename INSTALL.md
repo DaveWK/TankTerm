@@ -6,7 +6,7 @@ If you're just interested in the Alacritty binary and you don't need the
 install it directly through cargo:
 
 ```sh
-cargo install --git https://github.com/DaveWK/alacritty alacritty
+cargo install --git https://github.com/DaveWK/TankTerm alacritty
 ```
 
 Note that you will still need to install the dependencies for your OS of choice.
@@ -53,8 +53,8 @@ Please refer to the [Dependencies](#dependencies) section.
 Before compiling Alacritty, you'll have to first clone the source code:
 
 ```sh
-git clone https://github.com/DaveWK/alacritty.git
-cd alacritty
+git clone https://github.com/DaveWK/TankTerm.git
+cd TankTerm
 ```
 
 ### Install the Rust compiler with `rustup`
