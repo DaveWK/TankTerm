@@ -96,8 +96,8 @@ impl Spring {
     }
 }
 
-/// `VisualBellAnimations` are modeled after a subset of CSS transitions and Robert
-/// Penner's Easing Functions.
+/// `BellAnimation`s are modeled after a subset of CSS transitions, Robert Penner's Easing
+/// Functions and Charm Harmonica's springs.
 #[derive(ConfigDeserialize, Serialize, Default, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BellAnimation {
     // CSS animation.

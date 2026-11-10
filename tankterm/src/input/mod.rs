@@ -744,7 +744,7 @@ impl<T: EventListener, A: ActionContext<T>> Processor<T, A> {
                     },
                     TouchPhase::Moved => {
                         // When the angle between (x, 0) and (x, y) is lower than ~25 degrees
-                        // (cosine is larger that 0.9) we consider this scrolling as horizontal.
+                        // (cosine is larger than 0.9) we consider this scrolling as horizontal.
                         if lpos.x.abs() / lpos.x.hypot(lpos.y) > 0.9 {
                             lpos.y = 0.;
                         } else {

@@ -207,7 +207,7 @@ pub fn viewport_y_to_damage_y(size_info: &SizeInfo, y: i32, height: i32) -> i32 
     size_info.height() as i32 - y - height
 }
 
-/// Convert viewport `y` coordinate to [`Rect`] damage coordinate.
+/// Convert [`Rect`] damage coordinate to viewport `y` coordinate.
 pub fn damage_y_to_viewport_y(size_info: &SizeInfo, rect: &Rect) -> i32 {
     size_info.height() as i32 - rect.y - rect.height
 }
@@ -355,7 +355,7 @@ mod tests {
     #[test]
     fn damage_line_outside_viewport() {
         // A small window with a large cell size can leave a damaged line below
-        // what fits in the viewport. Its rect sits off the top of the screen.
+        // what fits in the viewport. Its rect sits below the bottom edge of the window.
         let size_info: SizeInfo<u32> =
             SizeInfo::new(100., 100., 10., 40., WindowPadding::default(), true).into();
 

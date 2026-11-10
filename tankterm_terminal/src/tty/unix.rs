@@ -44,7 +44,7 @@ macro_rules! die {
 /// Really only needed on BSD, but should be fine elsewhere.
 fn set_controlling_terminal(fd: c_int) -> Result<()> {
     let res = unsafe {
-        // TIOSCTTY changes based on platform and the `ioctl` call is different
+        // TIOCSCTTY changes based on platform and the `ioctl` call is different
         // based on architecture (32/64). So a generic cast is used to make sure
         // there are no issues. To allow such a generic cast the clippy warning
         // is disabled.
@@ -68,7 +68,7 @@ struct Passwd<'a> {
 ///
 /// If `buf` is changed while `Passwd` is alive, bad thing will almost certainly happen.
 fn get_pw_entry(buf: &mut [i8; 1024]) -> Result<Passwd<'_>> {
-    // Create zeroed passwd struct.
+    // Create uninitialized passwd struct; getpwuid_r fills it in.
     let mut entry: MaybeUninit<libc::passwd> = MaybeUninit::uninit();
 
     let mut res: *mut libc::passwd = ptr::null_mut();
@@ -124,7 +124,7 @@ struct ShellUser {
 }
 
 impl ShellUser {
-    /// look for shell, username, longname, and home dir in the respective environment variables
+    /// Look for shell, username and home dir in the respective environment variables
     /// before falling back on looking into `passwd`.
     fn from_env() -> Result<Self> {
         let (user, home, shell) = match (env::var("USER"), env::var("HOME"), env::var("SHELL")) {

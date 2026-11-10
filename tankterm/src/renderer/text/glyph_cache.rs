@@ -41,8 +41,7 @@ pub struct Glyph {
 
 /// Naïve glyph cache.
 ///
-/// Currently only keyed by `char`, and thus not possible to hold different
-/// representations of the same code point.
+/// Keyed by [`GlyphKey`], so each font face and size has its own entry per character.
 pub struct GlyphCache {
     /// Cache of buffered glyphs.
     cache: HashMap<GlyphKey, Glyph, RandomState>,
@@ -193,10 +192,8 @@ impl GlyphCache {
     /// If the glyph has never been loaded before, it will be rasterized and inserted into the
     /// cache.
     ///
-    /// # Errors
-    ///
-    /// This will fail when the glyph could not be rasterized. Usually this is due to the glyph
-    /// not being present in any font.
+    /// If the glyph can't be rasterized, usually because no font has it, the missing-glyph box is
+    /// used when `show_missing` is set, or an empty glyph otherwise.
     pub fn get<L>(&mut self, glyph_key: GlyphKey, loader: &mut L, show_missing: bool) -> Glyph
     where
         L: LoadGlyph + ?Sized,
@@ -247,6 +244,7 @@ impl GlyphCache {
     /// Load glyph into the atlas.
     ///
     /// This will apply all transforms defined for the glyph cache to the rasterized glyph before
+    /// inserting it into the atlas.
     pub fn load_glyph<L>(&self, loader: &mut L, mut glyph: RasterizedGlyph) -> Glyph
     where
         L: LoadGlyph + ?Sized,
@@ -278,10 +276,10 @@ impl GlyphCache {
 
     /// Update the inner font size.
     ///
-    /// NOTE: To reload the renderers's fonts [`Self::reset_glyph_cache`] should be called
+    /// NOTE: To reload the renderer's fonts [`Self::reset_glyph_cache`] should be called
     /// afterwards.
     pub fn update_font_size(&mut self, font: &Font) -> Result<(), crossfont::Error> {
-        // Update dpi scaling.
+        // Update font and glyph offsets.
         self.font_offset = font.offset;
         self.glyph_offset = font.glyph_offset;
 

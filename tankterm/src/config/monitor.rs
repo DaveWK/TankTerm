@@ -56,7 +56,6 @@ impl ConfigMonitor {
             }
         }
 
-        // The Duration argument is a debouncing period.
         let (tx, rx) = mpsc::channel();
         let mut watcher = match RecommendedWatcher::new(
             tx.clone(),
@@ -172,7 +171,14 @@ impl ConfigMonitor {
     /// This checks the supplied list of files against the monitored files to determine if a
     /// restart is necessary.
     pub fn needs_restart(&self, files: &[PathBuf]) -> bool {
-        Self::hash_paths(files).is_none_or(|hash| Some(hash) == self.watched_hash)
+        Self::paths_changed(self.watched_hash, files)
+    }
+
+    /// Check if `files` differ from the files whose hash is `watched_hash`.
+    ///
+    /// Lists too long to hash always count as changed.
+    fn paths_changed(watched_hash: Option<u64>, files: &[PathBuf]) -> bool {
+        Self::hash_paths(files).is_none_or(|hash| Some(hash) != watched_hash)
     }
 
     /// Generate the hash for a list of paths.
@@ -194,5 +200,38 @@ impl ConfigMonitor {
         let mut hasher = DefaultHasher::new();
         Hash::hash_slice(&sorted_files, &mut hasher);
         Some(hasher.finish())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn paths(names: &[&str]) -> Vec<PathBuf> {
+        names.iter().map(PathBuf::from).collect()
+    }
+
+    #[test]
+    fn unchanged_paths_dont_restart() {
+        let watched = ConfigMonitor::hash_paths(&paths(&["/a.toml", "/b.toml"]));
+
+        assert!(!ConfigMonitor::paths_changed(watched, &paths(&["/a.toml", "/b.toml"])));
+        assert!(!ConfigMonitor::paths_changed(watched, &paths(&["/b.toml", "/a.toml"])));
+    }
+
+    #[test]
+    fn changed_paths_restart() {
+        let watched = ConfigMonitor::hash_paths(&paths(&["/a.toml"]));
+
+        assert!(ConfigMonitor::paths_changed(watched, &paths(&["/a.toml", "/import.toml"])));
+        assert!(ConfigMonitor::paths_changed(watched, &paths(&[])));
+    }
+
+    #[test]
+    fn too_many_paths_restart() {
+        let files: Vec<_> = (0..1025).map(|i| PathBuf::from(format!("/{i}.toml"))).collect();
+        let watched = ConfigMonitor::hash_paths(&files);
+
+        assert!(ConfigMonitor::paths_changed(watched, &files));
     }
 }

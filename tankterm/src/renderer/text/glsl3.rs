@@ -404,7 +404,7 @@ impl Batch {
 
 /// Text drawing program.
 ///
-/// Uniforms are prefixed with "u", and vertex attributes are prefixed with "a".
+/// Uniform location fields are prefixed with `u_`.
 #[derive(Debug)]
 pub struct TextShaderProgram {
     /// Shader program.

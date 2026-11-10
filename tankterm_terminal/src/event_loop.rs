@@ -125,7 +125,7 @@ where
                 Ok(got) => unprocessed += got,
                 Err(err) => match err.kind() {
                     ErrorKind::Interrupted | ErrorKind::WouldBlock => {
-                        // Go back to mio if we're caught up on parsing and the PTY would block.
+                        // Return to polling if we're caught up on parsing and the PTY would block.
                         if unprocessed == 0 {
                             break;
                         }
@@ -215,7 +215,7 @@ where
             let poll_opts = PollMode::Level;
             let mut interest = PollingEvent::readable(0);
 
-            // Register TTY through EventedRW interface.
+            // Register TTY through EventedReadWrite interface.
             if let Err(err) = unsafe { self.pty.register(&self.poll, interest, poll_opts) } {
                 error!("Event loop registration error: {err}");
                 return (self, state);

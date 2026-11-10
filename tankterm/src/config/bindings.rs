@@ -28,7 +28,7 @@ pub struct Binding<T> {
     /// Modifier keys required to activate binding.
     pub mods: ModifiersState,
 
-    /// String to send to PTY if mods and mode match.
+    /// Action to perform when the trigger, mods and mode match.
     pub action: Action,
 
     /// Binding mode required to activate binding.

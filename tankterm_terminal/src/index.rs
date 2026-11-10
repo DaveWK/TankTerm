@@ -1,6 +1,5 @@
 //! Line and Column newtypes for strongly typed tty/grid/terminal APIs.
 
-/// Indexing types and implementations for Grid and Line.
 use std::cmp::{Ord, Ordering, max, min};
 use std::fmt;
 use std::ops::{Add, AddAssign, Deref, Sub, SubAssign};

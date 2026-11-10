@@ -87,7 +87,7 @@ fn match_arms<T>(fields: &Punctuated<Field, T>) -> Result<TokenStream2, syn::Err
         let ident = field.ident.as_ref().expect("unreachable tuple struct");
         let literal = ident.to_string();
 
-        // Check if #[config(flattened)] attribute is present.
+        // Check if #[config(flatten)] attribute is present.
         let flatten = field
             .attrs
             .iter()

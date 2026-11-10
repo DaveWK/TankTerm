@@ -99,22 +99,14 @@ pub enum SelectionType {
 
 /// Describes a region of a 2-dimensional area.
 ///
-/// Used to track a text selection. There are four supported modes, each with its own constructor:
-/// [`simple`], [`block`], [`semantic`], and [`lines`]. The [`simple`] mode precisely tracks which
-/// cells are selected without any expansion. [`block`] will select rectangular regions.
-/// [`semantic`] mode expands the initial selection to the nearest semantic escape char in either
-/// direction. [`lines`] will always select entire lines.
+/// Used to track a text selection. [`Selection::new`] takes one of four [`SelectionType`]s:
+/// [`Simple`](SelectionType::Simple) precisely tracks which cells are selected without any
+/// expansion, [`Block`](SelectionType::Block) selects rectangular regions,
+/// [`Semantic`](SelectionType::Semantic) expands the selection to the nearest semantic escape char
+/// in either direction, and [`Lines`](SelectionType::Lines) always selects entire lines.
 ///
-/// Calls to [`update`] operate different based on the selection kind. The [`simple`] and [`block`]
-/// mode do nothing special, simply track points and sides. [`semantic`] will continue to expand
-/// out to semantic boundaries as the selection point changes. Similarly, [`lines`] will always
-/// expand the new point to encompass entire lines.
-///
-/// [`simple`]: enum.Selection.html#method.simple
-/// [`block`]: enum.Selection.html#method.block
-/// [`semantic`]: enum.Selection.html#method.semantic
-/// [`lines`]: enum.Selection.html#method.lines
-/// [`update`]: enum.Selection.html#method.update
+/// Calls to [`Selection::update`] only track points and sides; the expansion for semantic and line
+/// selections is applied when the selection is converted to a range.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Selection {
     pub ty: SelectionType,

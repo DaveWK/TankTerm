@@ -347,7 +347,7 @@ impl RectRenderer {
                 gl::UseProgram(program.id());
                 program.update_uniforms(size_info, metrics);
 
-                // Upload accumulated undercurl vertices.
+                // Upload accumulated vertices for this rect kind.
                 gl::BufferData(
                     gl::ARRAY_BUFFER,
                     (vertices.len() * mem::size_of::<Vertex>()) as isize,
@@ -420,7 +420,7 @@ pub struct RectShaderProgram {
     /// Terminal padding.
     u_padding_x: Option<GLint>,
 
-    /// A padding from the bottom of the screen to viewport.
+    /// Offset of the cell grid from the bottom of the window, modulo the cell height.
     u_padding_y: Option<GLint>,
 
     /// Underline position.

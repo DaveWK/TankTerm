@@ -8,7 +8,7 @@ attribute vec2 glyphCoords;
 attribute vec2 uv;
 
 // Text foreground rgb packed together with cell flags. textColor.a
-// are the bitflags; consult RenderingGlyphFlags in renderer/mod.rs
+// are the bitflags; consult RenderingGlyphFlags in renderer/text/mod.rs
 // for the possible values.
 attribute vec4 textColor;
 

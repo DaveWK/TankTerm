@@ -10,10 +10,8 @@ use crate::config::ui_config::Delta;
 
 /// Font config.
 ///
-/// Defaults are provided at the level of this struct per platform, but not per
-/// field in this struct. It might be nice in the future to have defaults for
-/// each value independently. Alternatively, maybe erroring when the user
-/// doesn't provide complete config is Ok.
+/// The default family is [`DEFAULT_FAMILY`] on every platform; if it can't be loaded, the
+/// platform's monospace font ([`FontDescription::system`]) is used.
 #[derive(ConfigDeserialize, Serialize, Debug, Clone, PartialEq, Eq)]
 pub struct Font {
     /// Extra spacing per character.

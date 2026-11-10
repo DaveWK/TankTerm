@@ -11,13 +11,13 @@ pub const COUNT: usize = 269;
 /// | -------- | ----------------- |
 /// | 0..16    | Named ANSI colors |
 /// | 16..232  | Color cube        |
-/// | 233..256 | Grayscale ramp    |
+/// | 232..256 | Grayscale ramp    |
 /// | 256      | Foreground        |
 /// | 257      | Background        |
 /// | 258      | Cursor            |
 /// | 259..267 | Dim colors        |
 /// | 267      | Bright foreground |
-/// | 268      | Dim background    |
+/// | 268      | Dim foreground    |
 #[derive(Copy, Clone)]
 pub struct Colors([Option<Rgb>; COUNT]);
 

@@ -130,8 +130,8 @@ pub fn load(options: &mut Options) -> UiConfig {
         .or_else(|| installed_config("yml"));
 
     // Load the config using the following fallback behavior:
-    //  - Config path + CLI overrides
-    //  - CLI overrides
+    //  - Config path + theme + CLI overrides
+    //  - Theme + CLI overrides
     //  - Default
     let theme = options.theme.clone();
     let overrides = cli_overrides(options);

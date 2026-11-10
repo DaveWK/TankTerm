@@ -95,10 +95,10 @@ impl<'de> Deserialize<'de> for ColorIndex {
         let index = u8::deserialize(deserializer)?;
 
         if index < 16 {
-            Err(SerdeError::custom(
-                "Config error: indexed_color's index is {}, but a value bigger than 15 was \
+            Err(SerdeError::custom(format!(
+                "Config error: indexed_color's index is {index}, but a value bigger than 15 was \
                  expected; ignoring setting",
-            ))
+            )))
         } else {
             Ok(Self(index))
         }

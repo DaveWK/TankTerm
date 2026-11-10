@@ -210,26 +210,21 @@ fn tankterm(mut options: Options) -> Result<(), Box<dyn Error>> {
     // Start event loop and block until shutdown.
     let result = processor.run(window_event_loop);
 
-    // `Processor` must be dropped before calling `FreeConsole`.
-    //
-    // This is needed for ConPTY backend. Otherwise a deadlock can occur.
-    // The cause:
-    //   - Drop for ConPTY will deadlock if the conout pipe has already been dropped
-    //   - ConPTY is dropped when the last of processor and window context are dropped, because both
-    //     of them own an Arc<ConPTY>
-    //
-    // The fix is to ensure that processor is dropped first. That way, when window context (i.e.
-    // PTY) is dropped, it can ensure ConPTY is dropped before the conout pipe in the PTY drop
-    // order.
-    //
-    // FIXME: Change PTY API to enforce the correct drop order with the typesystem.
-
     // Terminate the config monitor.
     if let Some(config_monitor) = processor.config_monitor.take() {
         config_monitor.shutdown();
     }
 
-    // Without explicitly detaching the console cmd won't redraw it's prompt.
+    // `Processor` must be dropped before calling `FreeConsole`.
+    //
+    // This is needed for ConPTY backend. Otherwise a deadlock can occur, since dropping ConPTY
+    // blocks until its conout pipe is drained. Dropping the processor drops every window, and each
+    // window shuts down its PTY, which closes ConPTY before the conout pipe.
+    //
+    // FIXME: Change PTY API to enforce the correct drop order with the typesystem.
+    drop(processor);
+
+    // Without explicitly detaching the console cmd won't redraw its prompt.
     #[cfg(windows)]
     unsafe {
         FreeConsole();

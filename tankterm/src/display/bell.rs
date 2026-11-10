@@ -24,7 +24,7 @@ impl VisualBell {
         self.intensity_at_instant(now)
     }
 
-    /// Get the currently intensity of the visual bell. The bell's intensity
+    /// Get the current intensity of the visual bell. The bell's intensity
     /// ramps down from 1.0 to 0.0 at a rate determined by the bell's duration.
     pub fn intensity(&self) -> f64 {
         self.intensity_at_instant(Instant::now())

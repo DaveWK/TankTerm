@@ -8,7 +8,7 @@ layout(location = 1) in vec4 glyph;
 layout(location = 2) in vec4 uv;
 
 // Text foreground rgb packed together with cell flags. textColor.a
-// are the bitflags; consult RenderingGlyphFlags in renderer/mod.rs
+// are the bitflags; consult RenderingGlyphFlags in renderer/text/mod.rs
 // for the possible values.
 layout(location = 3) in vec4 textColor;
 

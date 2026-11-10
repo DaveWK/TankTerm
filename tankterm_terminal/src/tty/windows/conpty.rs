@@ -28,8 +28,12 @@ use crate::tty::windows::{Pty, cmdline, win32_string};
 
 const PIPE_CAPACITY: usize = crate::event_loop::READ_BUFFER_SIZE;
 
-/// Load the pseudoconsole API from conpty.dll if possible, otherwise use the
-/// standard Windows API.
+type CreatePseudoConsoleFn =
+    unsafe extern "system" fn(COORD, HANDLE, HANDLE, u32, *mut HPCON) -> HRESULT;
+type ResizePseudoConsoleFn = unsafe extern "system" fn(HPCON, COORD) -> HRESULT;
+type ClosePseudoConsoleFn = unsafe extern "system" fn(HPCON);
+
+/// The pseudoconsole API, loaded from conpty.dll if possible, otherwise the standard Windows API.
 ///
 /// The conpty.dll from the Windows Terminal project
 /// supports loading OpenConsole.exe, which offers many improvements and
@@ -37,11 +41,6 @@ const PIPE_CAPACITY: usize = crate::event_loop::READ_BUFFER_SIZE;
 ///
 /// The conpty.dll and OpenConsole.exe files will be searched in PATH and in
 /// the directory where TankTerm's executable is located.
-type CreatePseudoConsoleFn =
-    unsafe extern "system" fn(COORD, HANDLE, HANDLE, u32, *mut HPCON) -> HRESULT;
-type ResizePseudoConsoleFn = unsafe extern "system" fn(HPCON, COORD) -> HRESULT;
-type ClosePseudoConsoleFn = unsafe extern "system" fn(HPCON);
-
 struct ConptyApi {
     create: CreatePseudoConsoleFn,
     resize: ResizePseudoConsoleFn,
@@ -99,7 +98,7 @@ impl Drop for Conpty {
         // XXX: This will block until the conout pipe is drained. Will cause a deadlock if the
         // conout pipe has already been dropped by this point.
         //
-        // See PR #3084 and https://docs.microsoft.com/en-us/windows/console/closepseudoconsole.
+        // See alacritty/alacritty#3084 and https://docs.microsoft.com/en-us/windows/console/closepseudoconsole.
         unsafe { (self.api.close)(self.handle) }
     }
 }
@@ -160,16 +159,8 @@ pub fn new(config: &Options, window_size: WindowSize) -> Result<Pty> {
 
     let mut attr_list: Box<[u8]> = vec![0; size].into_boxed_slice();
 
-    // Set startup info's attribute list & initialize it
-    //
-    // Lint failure is spurious; it's because winapi's definition of PROC_THREAD_ATTRIBUTE_LIST
-    // implies it is one pointer in size (32 or 64 bits) but really this is just a dummy value.
-    // Casting a *mut u8 (pointer to 8 bit type) might therefore not be aligned correctly in
-    // the compiler's eyes.
-    #[allow(clippy::cast_ptr_alignment)]
-    {
-        startup_info_ex.lpAttributeList = attr_list.as_mut_ptr() as _;
-    }
+    // Set startup info's attribute list & initialize it.
+    startup_info_ex.lpAttributeList = attr_list.as_mut_ptr() as _;
 
     unsafe {
         success = InitializeProcThreadAttributeList(
