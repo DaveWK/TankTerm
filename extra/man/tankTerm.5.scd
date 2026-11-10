@@ -496,6 +496,106 @@ Colors are specified using their hexadecimal values with a _#_ prefix: _#RRGGBB_
 
 	Default: _false_
 
+# STYLE
+
+This section documents the *[style]* table of the configuration file. It styles
+the window chrome around the terminal, modeled on Charm's Lip Gloss: every block
+is a style with the properties listed under *Style properties* below.
+
+*preset* = _"green_screen"_ | _"charm"_
+
+	Values for every style property that isn't set explicitly.
+
+	_green\_screen_: phosphor green chrome on black, matching the default colors.
+
+	_charm_: Charm's purple and pink, after the Lip Gloss examples.
+
+	Default: _"green_screen"_
+
+*frame*
+
+	Box around the terminal grid. It's always drawn; _visible_ is ignored.
+
+	Default (_green\_screen_): { border = _"rounded"_, border_foreground = _"#00ff00"_,
+padding = _[0, 1]_, margin = _[0, 1]_ }
+
+*title_bar*
+
+	Header showing the window title.
+
+	Default (_green\_screen_): { bold = _true_, foreground = _"#66ff66"_,
+background = _"#005500"_, padding = _[0, 1]_, align = _"center"_ }
+
+*status_bar*
+
+	Footer showing the shell. Its border and margin wrap the whole footer, while
+	its padding applies to the shell segment.
+
+	Default (_green\_screen_): { foreground = _"#66ff66"_, background = _"#005500"_,
+padding = _[0, 1]_ }
+
+*status_bar_accent*
+
+	Leftmost footer segment.
+
+	Default (_green\_screen_): { bold = _true_, foreground = _"#000000"_,
+background = _"#00ff00"_, padding = _[0, 1]_ }
+
+*status_bar_info*
+
+	Rightmost footer segment, showing the terminal size in columns and lines.
+
+	Default (_green\_screen_): { foreground = _"#000000"_, background = _"#00aa00"_,
+padding = _[0, 1]_ }
+
+	Like Lip Gloss's _Inherit_, the segments take unset text attributes, colors
+	and alignment from _status\_bar_, but never its padding, margin or border.
+
+*Style properties*
+
+	*visible* = _true_ | _false_
+
+		Whether the block is drawn.
+
+	*bold*, *italic*, *faint* = _true_ | _false_
+
+		Text attributes.
+
+	*foreground*, *background* = _"<string>"_
+
+		Text and background colors.
+
+	*padding*, *margin* = _<integer>_ | _[<integer>, ...]_
+
+		Space inside and outside the border, in terminal cells. Like CSS and Lip
+		Gloss, 1 value sets all sides, 2 set vertical and horizontal, 3 set top,
+		horizontal and bottom, and 4 set top, right, bottom and left.
+
+	*border* = _"none"_ | _"hidden"_ | _"normal"_ | _"rounded"_ | _"thick"_ |
+_"double"_ | _"block"_ | _"ascii"_
+
+		Lip Gloss border styles. _hidden_ takes up space without being drawn, and
+		_ascii_ is drawn like _normal_.
+
+	*border_foreground*, *border_background* = _"<string>"_
+
+		Colors of the border line and behind it.
+
+	*align* = _"left"_ | _"center"_ | _"right"_
+
+		Horizontal text alignment.
+
+Example:
+	*[style]*++
+preset = _"charm"_
+
+	*[style.frame]*++
+border = _"double"_++
+padding = _[1, 2]_
+
+	*[style.status_bar]*++
+visible = _false_
+
 # BELL
 
 This section documents the *[bell]* table of the configuration file.

@@ -32,6 +32,7 @@ use crate::config::general::General;
 use crate::config::mouse::Mouse;
 use crate::config::scrolling::Scrolling;
 use crate::config::selection::Selection;
+use crate::config::style::StyleConfig;
 use crate::config::terminal::Terminal;
 use crate::config::window::WindowConfig;
 
@@ -74,6 +75,9 @@ pub struct UiConfig {
 
     /// RGB values for colors.
     pub colors: Colors,
+
+    /// Lip Gloss styles for the window chrome around the terminal.
+    pub style: StyleConfig,
 
     /// Path where config was loaded from.
     #[config(skip)]
