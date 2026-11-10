@@ -1,6 +1,6 @@
 # Print an optspec for argparse to handle cmd's options that are independent of any subcommand.
 function __fish_tankTerm_global_optspecs
-    string join \n print-events ref-test embed= config-file= socket= q v daemon working-directory= hold e/command= T/title= class= o/option= h/help V/version
+    string join \n print-events ref-test embed= config-file= socket= q v daemon theme= working-directory= hold e/command= T/title= class= o/option= h/help V/version
 end
 
 function __fish_tankTerm_needs_command
@@ -27,6 +27,7 @@ end
 complete -c tankTerm -n "__fish_tankTerm_needs_command" -l embed -d 'X11 window ID to embed TankTerm within (decimal or hexadecimal with "0x" prefix)' -r
 complete -c tankTerm -n "__fish_tankTerm_needs_command" -l config-file -d 'Specify alternative configuration file [default: $XDG_CONFIG_HOME/tankterm/tankterm.toml]' -r -F
 complete -c tankTerm -n "__fish_tankTerm_needs_command" -l socket -d 'Path for IPC socket creation' -r -F
+complete -c tankTerm -n "__fish_tankTerm_needs_command" -l theme -d 'Theme to use, by built-in name or file path. Overrides the configuration\'s theme' -r
 complete -c tankTerm -n "__fish_tankTerm_needs_command" -l working-directory -d 'Start the shell in the specified working directory' -r -F
 complete -c tankTerm -n "__fish_tankTerm_needs_command" -s e -l command -d 'Command and args to execute (must be last argument)' -r
 complete -c tankTerm -n "__fish_tankTerm_needs_command" -s T -l title -d 'Defines the window title [default: TankTerm]' -r

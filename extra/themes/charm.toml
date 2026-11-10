@@ -1,0 +1,68 @@
+# Charm: Charm's CharmTone palette, after the Charm themes of Huh and Lip Gloss.
+#
+# Colors are light/dark pairs, picked by `colors.mode` or the background.
+
+[colors.primary]
+background = { light = "soda", dark = "pepper" }
+foreground = { light = "pepper", dark = "butter" }
+
+[colors.normal]
+black = { light = "pepper", dark = "char" }
+red = "sriracha"
+green = "guac"
+yellow = { light = "cumin", dark = "mustard" }
+blue = "malibu"
+magenta = "dolly"
+cyan = "turtle"
+white = { light = "squid", dark = "smoke" }
+
+[colors.bright]
+black = "oyster"
+red = "coral"
+green = "julep"
+yellow = { light = "tang", dark = "zest" }
+blue = "sardine"
+magenta = "blush"
+cyan = "lichen"
+white = { light = "char", dark = "butter" }
+
+# Reusable styles, like Lip Gloss style variables.
+[style.defs.accent]
+foreground = "butter"
+background = "charple"
+
+[style.defs.highlight]
+foreground = "pepper"
+background = "zest"
+
+[style.cursor]
+inherit = "accent"
+
+[style.vi_mode_cursor]
+foreground = "butter"
+background = "hazy"
+
+[style.selection]
+inherit = "accent"
+
+[style.search_match]
+foreground = "butter"
+background = "violet"
+
+[style.search_focused_match]
+inherit = "highlight"
+bold = true
+
+[style.hint_start]
+inherit = "highlight"
+bold = true
+
+[style.hint_end]
+foreground = "pepper"
+background = "dolly"
+
+[style.footer_bar]
+inherit = "accent"
+
+[style.line_indicator]
+inherit = "accent"

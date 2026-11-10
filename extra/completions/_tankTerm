@@ -18,6 +18,7 @@ _tankTerm() {
 '--embed=[X11 window ID to embed TankTerm within (decimal or hexadecimal with "0x" prefix)]:EMBED:_default' \
 '--config-file=[Specify alternative configuration file \[default\: \$XDG_CONFIG_HOME/tankterm/tankterm.toml\]]:CONFIG_FILE:_files' \
 '--socket=[Path for IPC socket creation]:SOCKET:_files' \
+'--theme=[Theme to use, by built-in name or file path. Overrides the configuration'\''s theme]:NAME|PATH:_default' \
 '--working-directory=[Start the shell in the specified working directory]:WORKING_DIRECTORY:_files' \
 '*-e+[Command and args to execute (must be last argument)]:COMMAND:_default' \
 '*--command=[Command and args to execute (must be last argument)]:COMMAND:_default' \
