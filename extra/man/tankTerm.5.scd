@@ -927,7 +927,10 @@ persist         = _false_++
 mouse.enabled   = _true_++
 binding         = { key = _"O"_, mods = _"Control|Shift"_ }++
 regex =
-_"(ipfs:|ipns:|magnet:|mailto:|gemini://|gopher://|https://|http://|news:|file:|git://|ssh:|ftp://)[^\\u0000-\\u001F\\u007F-\\u009F<>\\"\\\\s{-}\\\\^⟨⟩`\\\\\\\\]+"_
+
+		```
+		"(ipfs:|ipns:|magnet:|mailto:|gemini://|gopher://|https://|http://|news:|file:|git://|ssh:|ftp://)[^\\u0000-\\u001F\\u007F-\\u009F<>\\"\\\\s{-}\\\\^⟨⟩`\\\\\\\\]+"
+		```
 
 # KEYBOARD
 
@@ -945,10 +948,10 @@ This section documents the *[keyboard]* table of the configuration file.
 
 		The regular keys like _"A"_, _"0"_, and _"Я"_ can be mapped directly
 		without any special syntax. Full list of named keys like _"F1"_ and the
-		syntax for dead keys can be found here:
+		syntax for dead keys (the _Dead_ variant of _Key_) can be found here:
 
 		_https://docs.rs/winit/latest/winit/keyboard/enum.NamedKey.html_++
-_https://docs.rs/winit/latest/winit/keyboard/enum.Key.html#variant.Dead_
+_https://docs.rs/winit/latest/winit/keyboard/enum.Key.html_
 
 		Numpad keys are prefixed by _Numpad_: _"NumpadEnter"_ | _"NumpadAdd"_ |
 		_"NumpadComma"_ | _"NumpadDecimal"_ | _"NumpadDivide"_ | _"NumpadEquals"_ |

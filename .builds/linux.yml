@@ -9,6 +9,7 @@ packages:
   - libxcb
   - libxkbcommon
   - scdoc
+  - groff
 
 sources:
   - https://github.com/DaveWK/TankTerm
@@ -25,10 +26,11 @@ tasks:
       cargo +nightly fmt -- --check
   - man-pages: |
       cd TankTerm
-      cat extra/man/tankTerm.1.scd | scdoc > /dev/null
-      cat extra/man/tankTerm-msg.1.scd | scdoc > /dev/null
-      cat extra/man/tankTerm.5.scd | scdoc > /dev/null
-      cat extra/man/tankTerm-bindings.5.scd | scdoc > /dev/null
+      for page in extra/man/*.scd; do
+        roff=$(extra/man/scdoc.sh "$page")
+        warnings=$(printf '%s\n' "$roff" | groff -k -t -man -Tutf8 -ww -z 2>&1)
+        [ -z "$warnings" ] || { echo "$page: $warnings"; exit 1; }
+      done
   - test: |
       cd TankTerm
       cargo test
