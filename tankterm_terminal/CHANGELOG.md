@@ -18,6 +18,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - **Crate renamed from `alacritty_terminal` to `tankterm_terminal`**
 - **Child processes receive `TANKTERM_WINDOW_ID` instead of `ALACRITTY_WINDOW_ID`**
+- Ref test recordings are written to `tankterm.recording` instead of `alacritty.recording`
+- Generated hyperlink IDs end in `_tankterm` instead of `_alacritty`
 
 ### Fixed
 
