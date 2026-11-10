@@ -288,7 +288,7 @@ impl WindowContext {
 
         // Update display if either padding options or resize increments were changed.
         let window_config = &old_config.window;
-        if window_config.padding(1.) != self.config.window.padding(1.)
+        if window_config.padding_config() != self.config.window.padding_config()
             || window_config.dynamic_padding != self.config.window.dynamic_padding
             || window_config.resize_increments != self.config.window.resize_increments
         {

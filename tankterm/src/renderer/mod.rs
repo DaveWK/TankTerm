@@ -332,9 +332,10 @@ impl Renderer {
         unsafe {
             gl::Viewport(
                 size.padding_x() as i32,
-                size.padding_y() as i32,
-                size.width() as i32 - 2 * size.padding_x() as i32,
-                size.height() as i32 - 2 * size.padding_y() as i32,
+                // OpenGL's origin is the bottom left corner.
+                size.padding_bottom() as i32,
+                (size.width() - size.padding_x() - size.padding_right()) as i32,
+                (size.height() - size.padding_y() - size.padding_bottom()) as i32,
             );
         }
     }

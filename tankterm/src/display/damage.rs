@@ -302,6 +302,8 @@ fn merge_rects(lhs: Rect, rhs: Rect) -> Rect {
 mod tests {
     use super::*;
 
+    use crate::display::WindowPadding;
+
     #[test]
     fn damage_rect_math() {
         let rect_side = 10;
@@ -313,8 +315,7 @@ mod tests {
             bound as f32,
             cell_size as f32,
             cell_size as f32,
-            2.,
-            2.,
+            WindowPadding::symmetric(2., 2.),
             true,
         )
         .into();
@@ -355,7 +356,8 @@ mod tests {
     fn damage_line_outside_viewport() {
         // A small window with a large cell size can leave a damaged line below
         // what fits in the viewport. Its rect sits off the top of the screen.
-        let size_info: SizeInfo<u32> = SizeInfo::new(100., 100., 10., 40., 0., 0., true).into();
+        let size_info: SizeInfo<u32> =
+            SizeInfo::new(100., 100., 10., 40., WindowPadding::default(), true).into();
 
         // Line 2 wants y = 100 - 3 * 40, which is negative.
         let damage = [LineDamageBounds::new(2, 0, 0)];
@@ -373,7 +375,8 @@ mod tests {
         let y = 40;
         let height = 5;
         let width = 10;
-        let size_info = SizeInfo::new(viewport_height, viewport_height, 5., 5., 0., 0., true);
+        let size_info =
+            SizeInfo::new(viewport_height, viewport_height, 5., 5., WindowPadding::default(), true);
         frame_damage.add_viewport_rect(&size_info, x, y, width, height);
         assert_eq!(frame_damage.rects[0], Rect {
             x,

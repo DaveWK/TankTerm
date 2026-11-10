@@ -1,7 +1,7 @@
 use std::fmt::{self, Formatter};
 
 use log::{error, warn};
-use serde::de::{self, MapAccess, Visitor};
+use serde::de::{self, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
 
 #[cfg(target_os = "macos")]
@@ -12,6 +12,7 @@ use tankterm_config_derive::{ConfigDeserialize, SerdeReplace};
 
 use crate::config::LOG_TARGET_CONFIG;
 use crate::config::ui_config::{Delta, Percentage};
+use crate::display::WindowPadding;
 
 /// Default TankTerm name, used for window title and class.
 pub const DEFAULT_NAME: &str = "TankTerm";
@@ -54,8 +55,8 @@ pub struct WindowConfig {
     /// Resize increments.
     pub resize_increments: bool,
 
-    /// Pixel padding.
-    padding: Delta<u16>,
+    /// Space around the terminal grid.
+    padding: Padding,
 
     /// Initial dimensions.
     dimensions: Dimensions,
@@ -119,11 +120,28 @@ impl WindowConfig {
         }
     }
 
+    /// Padding around the terminal grid, in physical pixels.
     #[inline]
-    pub fn padding(&self, scale_factor: f32) -> (f32, f32) {
-        let padding_x = (f32::from(self.padding.x) * scale_factor).floor();
-        let padding_y = (f32::from(self.padding.y) * scale_factor).floor();
-        (padding_x, padding_y)
+    pub fn padding(&self, scale_factor: f32, cell_width: f32, cell_height: f32) -> WindowPadding {
+        match self.padding {
+            Padding::Pixels(Delta { x, y }) => {
+                let pixels = |value: u16| (f32::from(value) * scale_factor).floor();
+                WindowPadding::symmetric(pixels(x), pixels(y))
+            },
+            // Cells are already in physical pixels.
+            Padding::Cells(Spacing { top, right, bottom, left }) => WindowPadding {
+                top: f32::from(top) * cell_height,
+                right: f32::from(right) * cell_width,
+                bottom: f32::from(bottom) * cell_height,
+                left: f32::from(left) * cell_width,
+            },
+        }
+    }
+
+    /// Configured padding, to detect changes.
+    #[inline]
+    pub fn padding_config(&self) -> Padding {
+        self.padding
     }
 
     #[inline]
@@ -322,5 +340,155 @@ impl From<WindowLevel> for WinitWindowLevel {
             WindowLevel::Normal => WinitWindowLevel::Normal,
             WindowLevel::AlwaysOnTop => WinitWindowLevel::AlwaysOnTop,
         }
+    }
+}
+
+/// Space around the terminal grid.
+#[derive(SerdeReplace, Serialize, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Padding {
+    /// Alacritty's `{ x, y }` form: pixels on the left and right, and on the top and bottom.
+    Pixels(Delta<u16>),
+    /// Lip Gloss and CSS shorthand: 1 to 4 numbers of terminal cells.
+    Cells(Spacing),
+}
+
+impl Default for Padding {
+    fn default() -> Self {
+        Self::Pixels(Delta::default())
+    }
+}
+
+impl<'de> Deserialize<'de> for Padding {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = toml::Value::deserialize(deserializer)?;
+        if value.is_table() {
+            Delta::deserialize(value).map(Self::Pixels).map_err(de::Error::custom)
+        } else {
+            Spacing::deserialize(value).map(Self::Cells).map_err(de::Error::custom)
+        }
+    }
+}
+
+/// Space around the four sides of the grid, in terminal cells.
+///
+/// Like Lip Gloss's `Padding`, it accepts CSS shorthand: a number for all sides, or a list of 1 to
+/// 4 numbers.
+#[derive(Serialize, Default, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Spacing {
+    pub top: u16,
+    pub right: u16,
+    pub bottom: u16,
+    pub left: u16,
+}
+
+impl Spacing {
+    /// Expand CSS shorthand:
+    ///
+    /// - `[all]`
+    /// - `[vertical, horizontal]`
+    /// - `[top, horizontal, bottom]`
+    /// - `[top, right, bottom, left]`
+    pub fn from_shorthand(values: &[u16]) -> Result<Self, String> {
+        let (top, right, bottom, left) = match *values {
+            [all] => (all, all, all, all),
+            [vertical, horizontal] => (vertical, horizontal, vertical, horizontal),
+            [top, horizontal, bottom] => (top, horizontal, bottom, horizontal),
+            [top, right, bottom, left] => (top, right, bottom, left),
+            _ => return Err(format!("expected 1 to 4 values, got {}", values.len())),
+        };
+
+        Ok(Self { top, right, bottom, left })
+    }
+}
+
+impl<'de> Deserialize<'de> for Spacing {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct SpacingVisitor;
+
+        impl<'de> Visitor<'de> for SpacingVisitor {
+            type Value = Spacing;
+
+            fn expecting(&self, f: &mut Formatter<'_>) -> fmt::Result {
+                f.write_str(
+                    "{ x = <pixels>, y = <pixels> }, a number of cells, or a list of 1 to 4 \
+                     numbers of cells like CSS padding",
+                )
+            }
+
+            fn visit_i64<E: de::Error>(self, value: i64) -> Result<Spacing, E> {
+                let value = u16::try_from(value).map_err(E::custom)?;
+                Ok(Spacing { top: value, right: value, bottom: value, left: value })
+            }
+
+            fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Spacing, A::Error> {
+                let mut values = Vec::new();
+                while let Some(value) = seq.next_element::<u16>()? {
+                    values.push(value);
+                }
+                Spacing::from_shorthand(&values).map_err(de::Error::custom)
+            }
+        }
+
+        deserializer.deserialize_any(SpacingVisitor)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::config::UiConfig;
+
+    fn padding(toml: &str) -> Padding {
+        let config: UiConfig = toml::from_str(&format!("[window]\npadding = {toml}\n")).unwrap();
+        config.window.padding
+    }
+
+    fn cells(top: u16, right: u16, bottom: u16, left: u16) -> Padding {
+        Padding::Cells(Spacing { top, right, bottom, left })
+    }
+
+    #[test]
+    fn alacritty_pixel_padding() {
+        assert_eq!(padding("{ x = 3, y = 4 }"), Padding::Pixels(Delta { x: 3, y: 4 }));
+    }
+
+    #[test]
+    fn shorthand_follows_css() {
+        assert_eq!(padding("1"), cells(1, 1, 1, 1));
+        assert_eq!(padding("[1]"), cells(1, 1, 1, 1));
+        assert_eq!(padding("[1, 2]"), cells(1, 2, 1, 2));
+        assert_eq!(padding("[1, 2, 3]"), cells(1, 2, 3, 2));
+        assert_eq!(padding("[1, 2, 3, 4]"), cells(1, 2, 3, 4));
+    }
+
+    #[test]
+    fn invalid_shorthand_keeps_default() {
+        assert_eq!(padding("[1, 2, 3, 4, 5]"), Padding::default());
+        assert_eq!(padding("[]"), Padding::default());
+        assert_eq!(padding("-1"), Padding::default());
+    }
+
+    #[test]
+    fn pixel_padding_scales_with_display() {
+        let window =
+            WindowConfig { padding: Padding::Pixels(Delta { x: 3, y: 5 }), ..Default::default() };
+
+        assert_eq!(window.padding(2.5, 10., 20.), WindowPadding::symmetric(7., 12.));
+    }
+
+    #[test]
+    fn cell_padding_uses_cell_size() {
+        let window = WindowConfig { padding: cells(1, 2, 3, 4), ..Default::default() };
+
+        let padding = window.padding(2., 10., 20.);
+
+        assert_eq!(padding, WindowPadding { top: 20., right: 20., bottom: 60., left: 40. });
     }
 }

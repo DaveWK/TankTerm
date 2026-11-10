@@ -197,21 +197,20 @@ impl LoadGlyph for LoaderApi<'_> {
 }
 
 fn update_projection(u_projection: GLint, size: &SizeInfo) {
-    let width = size.width();
-    let height = size.height();
-    let padding_x = size.padding_x();
-    let padding_y = size.padding_y();
+    // Size of the viewport inside the padding.
+    let width = size.width() - size.padding_x() - size.padding_right();
+    let height = size.height() - size.padding_y() - size.padding_bottom();
 
     // Bounds check.
-    if (width as u32) < (2 * padding_x as u32) || (height as u32) < (2 * padding_y as u32) {
+    if width < 0. || height < 0. {
         return;
     }
 
     // Compute scale and offset factors, from pixel to ndc space. Y is inverted.
-    //   [0, width - 2 * padding_x] to [-1, 1]
-    //   [height - 2 * padding_y, 0] to [-1, 1]
-    let scale_x = 2. / (width - 2. * padding_x);
-    let scale_y = -2. / (height - 2. * padding_y);
+    //   [0, width] to [-1, 1]
+    //   [height, 0] to [-1, 1]
+    let scale_x = 2. / width;
+    let scale_y = -2. / height;
     let offset_x = -1.;
     let offset_y = 1.;
 
