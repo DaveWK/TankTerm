@@ -47,7 +47,7 @@ pub(crate) fn generics_streams<T>(params: &Punctuated<GenericParam, T>) -> Gener
         if let GenericParam::Type(TypeParam { ident, .. }) = generic {
             generics.unconstrained.extend(quote!( #ident , ));
             generics.constrained.extend(quote! {
-                #ident : Default + serde::Deserialize<'de> + alacritty_config::SerdeReplace,
+                #ident : Default + serde::Deserialize<'de> + tankterm_config::SerdeReplace,
             });
             generics.phantoms.extend(quote! {
                 #ident : std::marker::PhantomData < #ident >,

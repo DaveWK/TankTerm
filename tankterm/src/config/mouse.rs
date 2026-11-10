@@ -1,6 +1,6 @@
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use alacritty_config_derive::{ConfigDeserialize, SerdeReplace};
+use tankterm_config_derive::{ConfigDeserialize, SerdeReplace};
 
 use crate::config::bindings::{self, MouseBinding};
 use crate::config::ui_config;

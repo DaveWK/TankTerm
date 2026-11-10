@@ -78,7 +78,7 @@ fn tankterm_xdg_config() {
 }
 
 #[test]
-fn legacy_alacritty_config_used_as_fallback() {
+fn legacy_tankterm_config_used_as_fallback() {
     let env = Env::new();
     let config = env.xdg_config_home.join("alacritty/alacritty.toml");
     env.write_config(&config);

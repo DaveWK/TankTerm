@@ -31,29 +31,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "alacritty_config"
-version = "0.2.4-dev"
-dependencies = [
- "alacritty_config_derive",
- "log",
- "serde",
- "toml",
-]
-
-[[package]]
-name = "alacritty_config_derive"
-version = "0.2.6-dev"
-dependencies = [
- "alacritty_config",
- "log",
- "proc-macro2",
- "quote",
- "serde",
- "syn 3.0.10",
- "toml",
-]
-
-[[package]]
 name = "android-activity"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2017,8 +1994,6 @@ name = "tankterm"
 version = "0.18.0-dev"
 dependencies = [
  "ahash",
- "alacritty_config",
- "alacritty_config_derive",
  "bitflags 2.13.2",
  "clap",
  "clap_complete",
@@ -2042,6 +2017,8 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "signal-hook",
+ "tankterm_config",
+ "tankterm_config_derive",
  "tankterm_terminal",
  "tempfile",
  "toml",
@@ -2050,6 +2027,29 @@ dependencies = [
  "windows-sys 0.61.2",
  "winit",
  "xdg",
+]
+
+[[package]]
+name = "tankterm_config"
+version = "0.2.4-dev"
+dependencies = [
+ "log",
+ "serde",
+ "tankterm_config_derive",
+ "toml",
+]
+
+[[package]]
+name = "tankterm_config_derive"
+version = "0.2.6-dev"
+dependencies = [
+ "log",
+ "proc-macro2",
+ "quote",
+ "serde",
+ "syn 3.0.10",
+ "tankterm_config",
+ "toml",
 ]
 
 [[package]]

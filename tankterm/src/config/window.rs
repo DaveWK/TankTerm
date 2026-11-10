@@ -8,7 +8,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use winit::platform::macos::OptionAsAlt as WinitOptionAsAlt;
 use winit::window::{Fullscreen, Theme as WinitTheme, WindowLevel as WinitWindowLevel};
 
-use alacritty_config_derive::{ConfigDeserialize, SerdeReplace};
+use tankterm_config_derive::{ConfigDeserialize, SerdeReplace};
 
 use crate::config::LOG_TARGET_CONFIG;
 use crate::config::ui_config::{Delta, Percentage};

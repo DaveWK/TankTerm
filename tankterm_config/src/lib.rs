@@ -77,8 +77,8 @@ impl<'de, T: Deserialize<'de>> SerdeReplace for HashMap<String, T> {
 mod tests {
     use super::*;
 
-    use crate as alacritty_config;
-    use alacritty_config_derive::ConfigDeserialize;
+    use crate as tankterm_config;
+    use tankterm_config_derive::ConfigDeserialize;
 
     #[test]
     fn replace_option() {

@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use serde::Serialize;
 
-use alacritty_config_derive::ConfigDeserialize;
+use tankterm_config_derive::ConfigDeserialize;
 
 /// General config section.
 ///

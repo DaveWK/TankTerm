@@ -27,7 +27,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
 
 pub fn derive_direct(ident: Ident, generics: Generics) -> TokenStream2 {
     quote! {
-        impl <#generics> alacritty_config::SerdeReplace for #ident <#generics> {
+        impl <#generics> tankterm_config::SerdeReplace for #ident <#generics> {
             fn replace(&mut self, value: toml::Value) -> Result<(), Box<dyn std::error::Error>> {
                 *self = serde::Deserialize::deserialize(value)?;
 
@@ -51,7 +51,7 @@ pub fn derive_recursive<T>(
 
     quote! {
         #[allow(clippy::extra_unused_lifetimes)]
-        impl <'de, #constrained> alacritty_config::SerdeReplace for #ident <#unconstrained> {
+        impl <'de, #constrained> tankterm_config::SerdeReplace for #ident <#unconstrained> {
             fn replace(&mut self, value: toml::Value) -> Result<(), Box<dyn std::error::Error>> {
                 match value.as_table() {
                     Some(table) => {
@@ -99,7 +99,7 @@ fn match_arms<T>(fields: &Punctuated<Field, T>) -> Result<TokenStream2, syn::Err
             return Err(Error::new(ident.span(), MULTIPLE_FLATTEN_ERROR));
         } else if flatten {
             flattened_arm = Some(quote! {
-                _ => alacritty_config::SerdeReplace::replace(&mut self.#ident, value)?,
+                _ => tankterm_config::SerdeReplace::replace(&mut self.#ident, value)?,
             });
         } else {
             // Extract all `#[config(alias = "...")]` attribute values.
@@ -125,7 +125,7 @@ fn match_arms<T>(fields: &Punctuated<Field, T>) -> Result<TokenStream2, syn::Err
                 .map_err(|msg| Error::new(ident.span(), msg))?;
 
             stream.extend(quote! {
-                    #(#aliases)|* | #literal => alacritty_config::SerdeReplace::replace(&mut
+                    #(#aliases)|* | #literal => tankterm_config::SerdeReplace::replace(&mut
             self.#ident, next_value)?,         });
         }
     }

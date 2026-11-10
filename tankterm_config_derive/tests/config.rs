@@ -3,8 +3,8 @@ use std::sync::{Arc, Mutex, OnceLock};
 use log::{Level, Log, Metadata, Record};
 use serde::Deserialize;
 
-use alacritty_config::SerdeReplace as _;
-use alacritty_config_derive::{ConfigDeserialize, SerdeReplace};
+use tankterm_config::SerdeReplace as _;
+use tankterm_config_derive::{ConfigDeserialize, SerdeReplace};
 
 #[derive(ConfigDeserialize, Debug, PartialEq, Eq)]
 enum TestEnum {

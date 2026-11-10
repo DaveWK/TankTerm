@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use serde::Serialize;
 
-use alacritty_config_derive::ConfigDeserialize;
+use tankterm_config_derive::ConfigDeserialize;
 
 use crate::config::ui_config::Program;
 use crate::display::color::Rgb;

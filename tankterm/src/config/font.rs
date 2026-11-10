@@ -4,7 +4,7 @@ use crossfont::Size as FontSize;
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use alacritty_config_derive::{ConfigDeserialize, SerdeReplace};
+use tankterm_config_derive::{ConfigDeserialize, SerdeReplace};
 
 use crate::config::ui_config::Delta;
 

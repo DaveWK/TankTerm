@@ -1,7 +1,7 @@
 use log::LevelFilter;
 use serde::Serialize;
 
-use alacritty_config_derive::ConfigDeserialize;
+use tankterm_config_derive::ConfigDeserialize;
 
 /// Debugging options.
 #[derive(ConfigDeserialize, Serialize, Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
