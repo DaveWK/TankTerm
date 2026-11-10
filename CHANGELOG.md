@@ -64,6 +64,7 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 
 ### Fixed
 
+- `-o colors.mode=...` not changing which color of light/dark pairs is used
 - Setting only one color of `colors.cursor`, `colors.selection`, search or hint colors no longer
     resets the other one
 - Spurious "Failed to set new owner of XCB selection" warnings on X11

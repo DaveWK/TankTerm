@@ -133,13 +133,15 @@ pub fn load(options: &mut Options) -> UiConfig {
     //  - CLI overrides
     //  - Default
     let theme = options.theme.clone();
+    let overrides = cli_overrides(options);
     let mut config = config_path
         .as_ref()
-        .and_then(|config_path| load_from(config_path, theme.as_deref()).ok())
+        .and_then(|config_path| load_from(config_path, theme.as_deref(), &overrides).ok())
         .unwrap_or_else(|| {
             // Without a usable config file, the theme still applies.
             let empty = Value::Table(Default::default());
-            let mut config = from_value(empty, theme.as_deref(), None).unwrap_or_default();
+            let mut config =
+                from_value(empty, theme.as_deref(), &overrides, None).unwrap_or_default();
             match config_path {
                 Some(config_path) => config.config_paths.push(config_path),
                 None => info!(target: LOG_TARGET_CONFIG, "No config file found; using default"),
@@ -157,7 +159,8 @@ pub fn reload(config_path: &Path, options: &mut Options) -> Result<UiConfig> {
     debug!("Reloading configuration file: {config_path:?}");
 
     // Load config, propagating errors.
-    let mut config = load_from(config_path, options.theme.as_deref())?;
+    let overrides = cli_overrides(options);
+    let mut config = load_from(config_path, options.theme.as_deref(), &overrides)?;
 
     after_loading(&mut config, options);
 
@@ -171,8 +174,8 @@ fn after_loading(config: &mut UiConfig, options: &mut Options) {
 }
 
 /// Load configuration file and log errors.
-fn load_from(path: &Path, theme: Option<&str>) -> Result<UiConfig> {
-    match read_config(path, theme) {
+fn load_from(path: &Path, theme: Option<&str>, overrides: &[Value]) -> Result<UiConfig> {
+    match read_config(path, theme, overrides) {
         Ok(config) => Ok(config),
         Err(Error::Io(io)) if io.kind() == io::ErrorKind::NotFound => {
             error!(target: LOG_TARGET_CONFIG, "Unable to load config {path:?}: File not found");
@@ -187,19 +190,35 @@ fn load_from(path: &Path, theme: Option<&str>) -> Result<UiConfig> {
 
 /// Deserialize configuration file from path.
 ///
-/// `theme` overrides the configuration's own `theme` key.
-fn read_config(path: &Path, theme: Option<&str>) -> Result<UiConfig> {
+/// `theme` overrides the configuration's own `theme` key, and `overrides` are CLI options merged
+/// on top of the file.
+fn read_config(path: &Path, theme: Option<&str>, overrides: &[Value]) -> Result<UiConfig> {
     let mut config_paths = Vec::new();
     let config_value = parse_config(path, &mut config_paths, IMPORT_RECURSION_LIMIT)?;
 
-    let mut config = from_value(config_value, theme, path.parent())?;
+    let mut config = from_value(config_value, theme, overrides, path.parent())?;
     config.config_paths = config_paths;
 
     Ok(config)
 }
 
-/// Deserialize a configuration value, on top of its theme.
-fn from_value(value: Value, theme: Option<&str>, config_dir: Option<&Path>) -> Result<UiConfig> {
+/// CLI `-o` options as configuration values.
+fn cli_overrides(options: &Options) -> Vec<Value> {
+    options.config_options.iter().map(|(_, value)| value.clone()).collect()
+}
+
+/// Deserialize a configuration value, with CLI overrides on top and its theme underneath.
+fn from_value(
+    value: Value,
+    theme: Option<&str>,
+    overrides: &[Value],
+    config_dir: Option<&Path>,
+) -> Result<UiConfig> {
+    // Merge CLI overrides before resolving colors, so options like `colors.mode` affect how
+    // light/dark pairs resolve. They're applied to the typed config again afterwards, which also
+    // reports invalid ones.
+    let value = overrides.iter().cloned().fold(value, serde_utils::merge);
+
     // Layer the theme underneath the configuration; a broken theme is reported and skipped.
     let value = match theme::apply(value.clone(), theme, config_dir) {
         Ok(value) => value,
@@ -466,7 +485,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("tankterm.toml");
         fs::write(&path, content).unwrap();
-        read_config(&path, None).unwrap()
+        read_config(&path, None, &[]).unwrap()
     }
 
     #[test]
@@ -601,6 +620,43 @@ mod tests {
             let config = load_themed("", Some(name));
             assert!(config.colors.primary.background != config.colors.primary.foreground, "{name}");
         }
+    }
+
+    /// Load a config file with CLI `-o` options, through TankTerm's startup path.
+    fn load_with_options(content: &str, cli: &[&str]) -> UiConfig {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("tankterm.toml");
+        fs::write(&path, content).unwrap();
+
+        let mut options = Options::default();
+        options.config_file = Some(path);
+        options.config_options =
+            ParsedOptions::from_options(&cli.iter().map(ToString::to_string).collect::<Vec<_>>());
+        load(&mut options)
+    }
+
+    #[test]
+    fn cli_color_mode_resolves_light_dark_pairs() {
+        use tankterm_terminal::term::ColorScheme;
+
+        let config = load_with_options("theme = 'charm'\n", &["colors.mode = 'light'"]);
+
+        // The pairs resolve to their light colors, consistent with the reported scheme.
+        assert_eq!(config.colors.primary.background, Rgb::new(0xfb, 0xfb, 0xfb));
+        assert_eq!(config.colors.primary.foreground, Rgb::new(0x20, 0x1f, 0x26));
+        assert_eq!(config.color_scheme(), ColorScheme::Light);
+    }
+
+    #[test]
+    fn cli_option_can_select_theme() {
+        let config = load_with_options("", &["theme = 'dracula'"]);
+        assert_eq!(config.colors.primary.background, Rgb::new(0x28, 0x2a, 0x36));
+    }
+
+    #[test]
+    fn invalid_cli_option_keeps_default() {
+        let config = load_with_options("", &["colors.primary.foreground = '300'"]);
+        assert_eq!(config.colors.primary.foreground, Rgb::new(0x00, 0xff, 0x00));
     }
 
     #[test]
