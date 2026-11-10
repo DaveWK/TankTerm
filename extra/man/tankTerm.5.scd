@@ -241,10 +241,10 @@ This section documents the *[font]* table of the configuration file.
 
 *normal* = { family = _"<string>"_, style = _"<string>"_ }
 
-	Default:
-		Linux/BSD: { family = _"monospace"_, style = _"Regular"_ }++
-Windows:   { family = _"Consolas"_,  style = _"Regular"_ }++
-macOS:     { family = _"Menlo"_,     style = _"Regular"_ }
+	Default: { family = _"Iosevka Term Extended"_, style = _"Regular"_ }
+
+	If the font can't be loaded, the system's monospace font is used instead:
+	_"monospace"_ on Linux/BSD, _"Consolas"_ on Windows and _"Menlo"_ on macOS.
 
 *bold* = { family = _"<string>"_, style = _"<string>"_ }
 
