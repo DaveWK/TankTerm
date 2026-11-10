@@ -383,6 +383,9 @@ impl ParsedOptions {
     /// ANSI colors and light/dark pairs in overrides resolve against the configuration's colors.
     pub fn override_config(&mut self, config: &mut UiConfig) {
         ColorContext::from_colors(&config.colors).scope(|| self.override_config_in_context(config));
+
+        // Overrides can change styles and the colors they fall back to.
+        config.style.resolve(&config.colors);
     }
 
     fn override_config_in_context(&mut self, config: &mut UiConfig) {

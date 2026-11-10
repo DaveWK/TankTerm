@@ -928,7 +928,7 @@ impl Display {
 
                 // Add cursor to search bar if IME is not active.
                 if self.ime.preedit().is_none() {
-                    let fg = config.colors.footer_bar_foreground();
+                    let fg = config.style.resolved().footer_bar.foreground;
                     let shape = CursorShape::Underline;
                     let cursor_width = NonZeroU32::new(1).unwrap();
                     let cursor =
@@ -952,7 +952,10 @@ impl Display {
         if self.ime.is_enabled() {
             if let Some(point) = ime_position {
                 let (fg, bg) = if search_state.regex().is_some() {
-                    (config.colors.footer_bar_foreground(), config.colors.footer_bar_background())
+                    (
+                        config.style.resolved().footer_bar.foreground,
+                        config.style.resolved().footer_bar.background,
+                    )
                 } else {
                     (foreground_color, background_color)
                 };
@@ -1289,8 +1292,8 @@ impl Display {
             .take(uris.len())
             .flat_map(|line| term::point_to_viewport(display_offset, Point::new(line, Column(0))));
 
-        let fg = config.colors.footer_bar_foreground();
-        let bg = config.colors.footer_bar_background();
+        let fg = config.style.resolved().footer_bar.foreground;
+        let bg = config.style.resolved().footer_bar.background;
         for (uri, point) in uris.into_iter().zip(uri_lines) {
             // Damage the uri preview.
             let damage = LineDamageBounds::new(point.line, point.column.0, num_cols);
@@ -1312,8 +1315,8 @@ impl Display {
 
         let point = Point::new(self.size_info.screen_lines(), Column(0));
 
-        let fg = config.colors.footer_bar_foreground();
-        let bg = config.colors.footer_bar_background();
+        let fg = config.style.resolved().footer_bar.foreground;
+        let bg = config.style.resolved().footer_bar.background;
 
         self.renderer.draw_string(
             point,
@@ -1365,9 +1368,8 @@ impl Display {
         self.damage_tracker.frame().damage_line(damage);
         self.damage_tracker.next_frame().damage_line(damage);
 
-        let colors = &config.colors;
-        let fg = colors.line_indicator.foreground.unwrap_or(colors.primary.background);
-        let bg = colors.line_indicator.background.unwrap_or(colors.primary.foreground);
+        let line_indicator = config.style.resolved().line_indicator;
+        let (fg, bg) = (line_indicator.foreground, line_indicator.background);
 
         // Do not render anything if it would obscure the vi mode cursor.
         if obstructed_column.is_none_or(|obstructed_column| obstructed_column < column) {

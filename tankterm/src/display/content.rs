@@ -13,6 +13,7 @@ use tankterm_terminal::term::{self, RenderableContent as TerminalContent, Term, 
 use tankterm_terminal::vte::ansi::{Color, CursorShape, NamedColor};
 
 use crate::config::UiConfig;
+use crate::config::style::CellStyle;
 use crate::display::color::{CellRgb, DIM_FACTOR, List, Rgb};
 use crate::display::hint::{self, HintState};
 use crate::display::{Display, SizeInfo};
@@ -112,10 +113,11 @@ impl<'a> RenderableContent<'a> {
     /// Assemble the information required to render the terminal cursor.
     fn renderable_cursor(&mut self, cell: &RenderableCell) -> RenderableCursor {
         // Cursor colors.
+        let styles = self.config.style.resolved();
         let color = if self.terminal_content.mode.contains(TermMode::VI) {
-            self.config.colors.vi_mode_cursor
+            styles.vi_mode_cursor
         } else {
-            self.config.colors.cursor
+            styles.cursor
         };
         let cursor_color = self.terminal_content.colors[NamedColor::Cursor]
             .map_or(color.background, |c| CellRgb::Rgb(Rgb(c)));
@@ -228,7 +230,7 @@ impl RenderableCell {
 
         let display_offset = content.terminal_content.display_offset;
         let viewport_start = Point::new(Line(-(display_offset as i32)), Column(0));
-        let colors = &content.config.colors;
+        let styles = content.config.style.resolved();
         let mut character = cell.c;
         let mut flags = cell.flags;
 
@@ -239,22 +241,16 @@ impl RenderableCell {
             .and_then(|hint| hint.advance(viewport_start, num_cols, cell.point))
         {
             if is_first {
-                let (config_fg, config_bg) =
-                    (colors.hints.start.foreground, colors.hints.start.background);
-                Self::compute_cell_rgb(&mut fg, &mut bg, &mut bg_alpha, config_fg, config_bg);
+                Self::apply_style(&styles.hint_start, &mut fg, &mut bg, &mut bg_alpha, &mut flags);
             } else if c.is_some() {
-                let (config_fg, config_bg) =
-                    (colors.hints.end.foreground, colors.hints.end.background);
-                Self::compute_cell_rgb(&mut fg, &mut bg, &mut bg_alpha, config_fg, config_bg);
+                Self::apply_style(&styles.hint_end, &mut fg, &mut bg, &mut bg_alpha, &mut flags);
             } else {
                 flags.insert(Flags::UNDERLINE);
             }
 
             character = c.unwrap_or(character);
         } else if is_selected {
-            let config_fg = colors.selection.foreground;
-            let config_bg = colors.selection.background;
-            Self::compute_cell_rgb(&mut fg, &mut bg, &mut bg_alpha, config_fg, config_bg);
+            Self::apply_style(&styles.selection, &mut fg, &mut bg, &mut bg_alpha, &mut flags);
 
             if fg == bg && !cell.flags.contains(Flags::HIDDEN) {
                 // Reveal inversed text when fg/bg is the same.
@@ -264,12 +260,8 @@ impl RenderableCell {
             }
         } else if content.search.as_mut().is_some_and(|search| search.advance(cell.point)) {
             let focused = content.focused_match.is_some_and(|fm| fm.contains(&cell.point));
-            let (config_fg, config_bg) = if focused {
-                (colors.search.focused_match.foreground, colors.search.focused_match.background)
-            } else {
-                (colors.search.matches.foreground, colors.search.matches.background)
-            };
-            Self::compute_cell_rgb(&mut fg, &mut bg, &mut bg_alpha, config_fg, config_bg);
+            let style = if focused { &styles.search_focused_match } else { &styles.search_match };
+            Self::apply_style(style, &mut fg, &mut bg, &mut bg_alpha, &mut flags);
         }
 
         // Apply transparency to all renderable cells if `transparent_background_colors` is set
@@ -304,6 +296,33 @@ impl RenderableCell {
             && self.character == ' '
             && self.extra.is_none()
             && !self.flags.intersects(Flags::ALL_UNDERLINES | Flags::STRIKEOUT)
+    }
+
+    /// Apply an element's style to the cell: its colors, then its text attributes.
+    fn apply_style(
+        style: &CellStyle,
+        fg: &mut Rgb,
+        bg: &mut Rgb,
+        bg_alpha: &mut f32,
+        flags: &mut Flags,
+    ) {
+        Self::compute_cell_rgb(fg, bg, bg_alpha, style.foreground, style.background);
+
+        let attributes = style.attributes;
+        flags.set(Flags::BOLD, flags.contains(Flags::BOLD) || attributes.bold);
+        flags.set(Flags::ITALIC, flags.contains(Flags::ITALIC) || attributes.italic);
+        flags.set(Flags::UNDERLINE, flags.contains(Flags::UNDERLINE) || attributes.underline);
+        flags.set(Flags::STRIKEOUT, flags.contains(Flags::STRIKEOUT) || attributes.strikethrough);
+
+        // Faint dims the color directly, since the cell's colors are already resolved.
+        if attributes.faint {
+            *fg = *fg * DIM_FACTOR;
+        }
+
+        if attributes.reverse {
+            mem::swap(fg, bg);
+            *bg_alpha = 1.0;
+        }
     }
 
     /// Apply [`CellRgb`] colors to the cell's colors.
@@ -548,5 +567,75 @@ impl Deref for HintMatches<'_> {
 
     fn deref(&self) -> &Self::Target {
         self.matches.deref()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::config::style::TextAttributes;
+
+    fn style(attributes: TextAttributes) -> CellStyle {
+        CellStyle {
+            foreground: CellRgb::Rgb(Rgb::new(0x10, 0x20, 0x30)),
+            background: CellRgb::Rgb(Rgb::new(0xa0, 0xb0, 0xc0)),
+            attributes,
+        }
+    }
+
+    fn apply(attributes: TextAttributes, flags: Flags) -> (Rgb, Rgb, f32, Flags) {
+        let (mut fg, mut bg, mut alpha, mut flags) =
+            (Rgb::new(1, 1, 1), Rgb::new(2, 2, 2), 0.0, flags);
+        RenderableCell::apply_style(&style(attributes), &mut fg, &mut bg, &mut alpha, &mut flags);
+        (fg, bg, alpha, flags)
+    }
+
+    #[test]
+    fn colors_only() {
+        let (fg, bg, alpha, flags) = apply(TextAttributes::default(), Flags::empty());
+
+        assert_eq!(fg, Rgb::new(0x10, 0x20, 0x30));
+        assert_eq!(bg, Rgb::new(0xa0, 0xb0, 0xc0));
+        assert_eq!(alpha, 1.0);
+        assert_eq!(flags, Flags::empty());
+    }
+
+    #[test]
+    fn attributes_set_flags() {
+        let attributes = TextAttributes {
+            bold: true,
+            italic: true,
+            underline: true,
+            strikethrough: true,
+            ..Default::default()
+        };
+        let (_, _, _, flags) = apply(attributes, Flags::empty());
+
+        assert!(flags.contains(Flags::BOLD | Flags::ITALIC | Flags::UNDERLINE | Flags::STRIKEOUT));
+    }
+
+    #[test]
+    fn cell_flags_are_kept() {
+        let (_, _, _, flags) = apply(TextAttributes::default(), Flags::BOLD | Flags::WIDE_CHAR);
+        assert!(flags.contains(Flags::BOLD | Flags::WIDE_CHAR));
+    }
+
+    #[test]
+    fn reverse_swaps_colors() {
+        let (fg, bg, ..) =
+            apply(TextAttributes { reverse: true, ..Default::default() }, Flags::empty());
+
+        assert_eq!(fg, Rgb::new(0xa0, 0xb0, 0xc0));
+        assert_eq!(bg, Rgb::new(0x10, 0x20, 0x30));
+    }
+
+    #[test]
+    fn faint_dims_foreground() {
+        let (fg, bg, ..) =
+            apply(TextAttributes { faint: true, ..Default::default() }, Flags::empty());
+
+        assert_eq!(fg, Rgb::new(0x10, 0x20, 0x30) * DIM_FACTOR);
+        assert_eq!(bg, Rgb::new(0xa0, 0xb0, 0xc0));
     }
 }

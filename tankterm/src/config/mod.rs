@@ -20,6 +20,7 @@ pub mod monitor;
 pub mod scrolling;
 pub mod selection;
 pub mod serde_utils;
+pub mod style;
 pub mod terminal;
 pub mod ui_config;
 pub mod window;
@@ -161,7 +162,7 @@ pub fn reload(config_path: &Path, options: &mut Options) -> Result<UiConfig> {
 
 /// Modifications after the `UiConfig` object is created.
 fn after_loading(config: &mut UiConfig, options: &mut Options) {
-    // Override config with CLI options.
+    // Override config with CLI options. This also resolves the effective element styles.
     options.override_config(config);
 }
 
@@ -454,8 +455,8 @@ mod tests {
             "[colors.normal]\nred = '#123456'\n\n[colors.cursor]\ncursor = '1'\ntext = '232'\n",
         );
 
-        assert_eq!(config.colors.cursor.background, CellRgb::Rgb(Rgb::new(0x12, 0x34, 0x56)));
-        assert_eq!(config.colors.cursor.foreground, CellRgb::Rgb(Rgb::new(8, 8, 8)));
+        assert_eq!(config.colors.cursor.background, Some(CellRgb::Rgb(Rgb::new(0x12, 0x34, 0x56))));
+        assert_eq!(config.colors.cursor.foreground, Some(CellRgb::Rgb(Rgb::new(8, 8, 8))));
     }
 
     #[test]
@@ -464,10 +465,16 @@ mod tests {
 
         // Default green screen background is black, so the dark variant is used.
         let dark = load_str(pairs);
-        assert_eq!(dark.colors.selection.background, CellRgb::Rgb(Rgb::new(0x22, 0x22, 0x22)));
+        assert_eq!(
+            dark.colors.selection.background,
+            Some(CellRgb::Rgb(Rgb::new(0x22, 0x22, 0x22)))
+        );
 
         let light = load_str(&format!("[colors.primary]\nbackground = '#ffffff'\n\n{pairs}"));
-        assert_eq!(light.colors.selection.background, CellRgb::Rgb(Rgb::new(0xaa, 0xaa, 0xaa)));
+        assert_eq!(
+            light.colors.selection.background,
+            Some(CellRgb::Rgb(Rgb::new(0xaa, 0xaa, 0xaa)))
+        );
     }
 
     #[test]
@@ -500,7 +507,7 @@ mod tests {
 
         overrides.override_config(&mut config);
 
-        assert_eq!(config.colors.cursor.background, CellRgb::Rgb(Rgb::new(0x00, 0xaa, 0x00)));
+        assert_eq!(config.colors.cursor.background, Some(CellRgb::Rgb(Rgb::new(0x00, 0xaa, 0x00))));
     }
 
     #[test]
