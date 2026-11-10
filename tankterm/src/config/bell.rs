@@ -72,7 +72,7 @@ impl Spring {
     /// springs. Invalid settings settle immediately.
     pub fn position(&self, seconds: f64) -> f64 {
         let (frequency, damping) = (f64::from(self.frequency), f64::from(self.damping));
-        if !(frequency > 0. && damping >= 0.) || !frequency.is_finite() || !damping.is_finite() {
+        if !(frequency > 0. && damping >= 0. && frequency.is_finite() && damping.is_finite()) {
             return 1.;
         }
 
