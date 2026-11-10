@@ -27,6 +27,40 @@ On Windows, the config file will be looked for in:
 If none of these exist, the same locations are checked using the _alacritty_
 name instead, so an existing Alacritty configuration keeps working.
 
+# THEME
+
+*theme* = _"<name>"_ | _"<path>"_
+
+	A theme is a configuration file layered underneath yours, like a Glamour
+	style or a Huh theme: it can set colors, light/dark color pairs and *[style]*
+	blocks, and anything your configuration sets takes precedence.
+
+	Built-in themes:
+
+	_green\_screen_
+		TankTerm's defaults: phosphor green on black.
+
+	_charm_
+		Charm's CharmTone palette, with light and dark variants.
+
+	_dracula_
+		Dracula.
+
+	_catppuccin_
+		Catppuccin Mocha when dark, Latte when light.
+
+	_base16_
+		Base16 Default Dark, Alacritty's original colors.
+
+	Any other value is a path to a theme file, relative to the configuration
+	file's directory unless it's absolute or starts with _~/_. The built-in
+	themes are also installed as files in _extra/themes_ to start from.
+
+	The *--theme* flag and _$TANKTERM\_THEME_ take precedence over this setting,
+	in that order. Light/dark pairs in themes follow _colors.mode_.
+
+	Default: _"None"_
+
 # GENERAL
 
 This section documents the *[general]* table of the configuration file.

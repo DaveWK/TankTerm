@@ -67,6 +67,10 @@ pub struct Options {
     #[clap(long)]
     pub daemon: bool,
 
+    /// Theme to use, by built-in name or file path. Overrides the configuration's theme.
+    #[clap(long, env = "TANKTERM_THEME", value_name = "NAME|PATH")]
+    pub theme: Option<String>,
+
     /// CLI options for config overrides.
     #[clap(skip)]
     pub config_options: ParsedOptions,

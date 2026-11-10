@@ -57,6 +57,7 @@ use crate::renderer::{self, GlyphCache, Renderer, platform};
 use crate::scheduler::{Scheduler, TimerId, Topic};
 use crate::string::{ShortenDirection, StrShortener};
 
+pub mod charmtone;
 pub mod color;
 pub mod content;
 pub mod cursor;

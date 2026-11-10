@@ -22,6 +22,7 @@ pub mod selection;
 pub mod serde_utils;
 pub mod style;
 pub mod terminal;
+pub mod theme;
 pub mod ui_config;
 pub mod window;
 
@@ -131,11 +132,14 @@ pub fn load(options: &mut Options) -> UiConfig {
     //  - Config path + CLI overrides
     //  - CLI overrides
     //  - Default
+    let theme = options.theme.clone();
     let mut config = config_path
         .as_ref()
-        .and_then(|config_path| load_from(config_path).ok())
+        .and_then(|config_path| load_from(config_path, theme.as_deref()).ok())
         .unwrap_or_else(|| {
-            let mut config = UiConfig::default();
+            // Without a usable config file, the theme still applies.
+            let empty = Value::Table(Default::default());
+            let mut config = from_value(empty, theme.as_deref(), None).unwrap_or_default();
             match config_path {
                 Some(config_path) => config.config_paths.push(config_path),
                 None => info!(target: LOG_TARGET_CONFIG, "No config file found; using default"),
@@ -153,7 +157,7 @@ pub fn reload(config_path: &Path, options: &mut Options) -> Result<UiConfig> {
     debug!("Reloading configuration file: {config_path:?}");
 
     // Load config, propagating errors.
-    let mut config = load_from(config_path)?;
+    let mut config = load_from(config_path, options.theme.as_deref())?;
 
     after_loading(&mut config, options);
 
@@ -167,8 +171,8 @@ fn after_loading(config: &mut UiConfig, options: &mut Options) {
 }
 
 /// Load configuration file and log errors.
-fn load_from(path: &Path) -> Result<UiConfig> {
-    match read_config(path) {
+fn load_from(path: &Path, theme: Option<&str>) -> Result<UiConfig> {
+    match read_config(path, theme) {
         Ok(config) => Ok(config),
         Err(Error::Io(io)) if io.kind() == io::ErrorKind::NotFound => {
             error!(target: LOG_TARGET_CONFIG, "Unable to load config {path:?}: File not found");
@@ -182,17 +186,33 @@ fn load_from(path: &Path) -> Result<UiConfig> {
 }
 
 /// Deserialize configuration file from path.
-fn read_config(path: &Path) -> Result<UiConfig> {
+///
+/// `theme` overrides the configuration's own `theme` key.
+fn read_config(path: &Path, theme: Option<&str>) -> Result<UiConfig> {
     let mut config_paths = Vec::new();
     let config_value = parse_config(path, &mut config_paths, IMPORT_RECURSION_LIMIT)?;
 
-    // Deserialize to concrete type, resolving ANSI colors and light/dark pairs against the
-    // configured palette and background.
-    let colors = ColorContext::from_value(&config_value);
-    let mut config = colors.scope(|| UiConfig::deserialize(config_value))?;
+    let mut config = from_value(config_value, theme, path.parent())?;
     config.config_paths = config_paths;
 
     Ok(config)
+}
+
+/// Deserialize a configuration value, on top of its theme.
+fn from_value(value: Value, theme: Option<&str>, config_dir: Option<&Path>) -> Result<UiConfig> {
+    // Layer the theme underneath the configuration; a broken theme is reported and skipped.
+    let value = match theme::apply(value.clone(), theme, config_dir) {
+        Ok(value) => value,
+        Err(err) => {
+            error!(target: LOG_TARGET_CONFIG, "Config error: {err}");
+            value
+        },
+    };
+
+    // Deserialize to concrete type, resolving ANSI colors and light/dark pairs against the
+    // configured palette and background.
+    let colors = ColorContext::from_value(&value);
+    Ok(colors.scope(|| UiConfig::deserialize(value))?)
 }
 
 /// Deserialize all configuration files as generic Value.
@@ -446,7 +466,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("tankterm.toml");
         fs::write(&path, content).unwrap();
-        read_config(&path).unwrap()
+        read_config(&path, None).unwrap()
     }
 
     #[test]
@@ -498,6 +518,89 @@ mod tests {
 
         assert_eq!(config.colors.primary.background, Rgb::new(0x10, 0x10, 0x10));
         assert_eq!(config.colors.primary.foreground, Rgb::new(0x00, 0xff, 0x00));
+    }
+
+    /// Load a config file with a `--theme`, through TankTerm's startup path.
+    fn load_themed(content: &str, theme: Option<&str>) -> UiConfig {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("tankterm.toml");
+        fs::write(&path, content).unwrap();
+
+        let mut options = Options::default();
+        options.config_file = Some(path);
+        options.theme = theme.map(ToOwned::to_owned);
+        load(&mut options)
+    }
+
+    #[test]
+    fn charm_theme_dark_and_light() {
+        let dark = load_themed("theme = 'charm'\n", None);
+        assert_eq!(dark.colors.primary.background, Rgb::new(0x20, 0x1f, 0x26));
+        assert_eq!(dark.colors.primary.foreground, Rgb::new(0xff, 0xfa, 0xf1));
+        assert_eq!(dark.colors.normal.magenta, Rgb::new(0xff, 0x60, 0xff));
+
+        let light = load_themed("theme = 'charm'\n[colors]\nmode = 'light'\n", None);
+        assert_eq!(light.colors.primary.background, Rgb::new(0xfb, 0xfb, 0xfb));
+        assert_eq!(light.colors.primary.foreground, Rgb::new(0x20, 0x1f, 0x26));
+    }
+
+    #[test]
+    fn theme_styles_and_inheritance_apply() {
+        let config = load_themed("", Some("charm"));
+        let styles = config.style.resolved();
+
+        // `selection` inherits the theme's `accent` style.
+        assert_eq!(styles.selection.background, CellRgb::Rgb(Rgb::new(0x6b, 0x50, 0xff)));
+        assert!(styles.search_focused_match.attributes.bold);
+    }
+
+    #[test]
+    fn user_settings_override_theme() {
+        let config = load_themed(
+            "theme = 'dracula'\n[colors.primary]\nbackground = \
+             '#000000'\n\n[style.selection]\nbackground = 'red'\n",
+            None,
+        );
+
+        assert_eq!(config.colors.primary.background, Rgb::new(0, 0, 0));
+        assert_eq!(config.colors.primary.foreground, Rgb::new(0xf8, 0xf8, 0xf2));
+        assert_eq!(
+            config.style.resolved().selection.background,
+            CellRgb::Rgb(config.colors.normal.red)
+        );
+    }
+
+    #[test]
+    fn cli_theme_overrides_config_theme() {
+        let config = load_themed("theme = 'dracula'\n", Some("base16"));
+        assert_eq!(config.colors.primary.background, Rgb::new(0x18, 0x18, 0x18));
+    }
+
+    #[test]
+    fn theme_without_config_file() {
+        let mut options = Options::default();
+        options.config_file = Some("/does/not/exist/tankterm.toml".into());
+        options.theme = Some("catppuccin".into());
+
+        let config = load(&mut options);
+
+        assert_eq!(config.colors.primary.background, Rgb::new(0x1e, 0x1e, 0x2e));
+    }
+
+    #[test]
+    fn unknown_theme_keeps_defaults() {
+        let config = load_themed("[colors.primary]\nforeground = '#123456'\n", Some("nope"));
+
+        assert_eq!(config.colors.primary.foreground, Rgb::new(0x12, 0x34, 0x56));
+        assert_eq!(config.colors.primary.background, Rgb::new(0, 0, 0));
+    }
+
+    #[test]
+    fn every_builtin_theme_loads_without_errors() {
+        for name in theme::builtin_names() {
+            let config = load_themed("", Some(name));
+            assert!(config.colors.primary.background != config.colors.primary.foreground, "{name}");
+        }
     }
 
     #[test]
