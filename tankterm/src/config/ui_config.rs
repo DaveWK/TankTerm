@@ -2,9 +2,9 @@ use std::cell::{OnceCell, RefCell};
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::{self, Formatter};
-use std::mem;
 use std::path::PathBuf;
 use std::rc::Rc;
+use std::{env, mem};
 
 use log::{error, warn};
 use serde::de::{DeserializeOwned, Error as SerdeError, MapAccess, Visitor};
@@ -122,7 +122,28 @@ pub struct UiConfig {
     pub ipc_socket: Option<bool>,
 }
 
+/// Whether `ACCESSIBLE` or `TANKTERM_ACCESSIBLE` asks for accessibility, like Charm's Huh.
+pub fn accessible_env() -> bool {
+    ["ACCESSIBLE", "TANKTERM_ACCESSIBLE"]
+        .iter()
+        .any(|name| env::var_os(name).is_some_and(|value| !value.is_empty()))
+}
+
 impl UiConfig {
+    /// Reduce motion when accessibility is enabled, by `general.accessible` or `accessible_env`.
+    ///
+    /// Cursor blinking is turned off, even when applications ask for it, and so is the visual
+    /// bell. This runs after all overrides, so they can't turn motion back on.
+    pub fn apply_accessibility(&mut self, accessible_env: bool) {
+        if !(self.general.accessible || accessible_env) {
+            return;
+        }
+
+        self.cursor.style = self.cursor.style.without_blinking();
+        self.cursor.vi_mode_style = self.cursor.vi_mode_style.map(|style| style.without_blinking());
+        self.bell.disable_visual();
+    }
+
     /// Whether the configured colors are dark or light, as reported to applications.
     pub fn color_scheme(&self) -> ColorScheme {
         if ColorContext::from_colors(&self.colors).dark {

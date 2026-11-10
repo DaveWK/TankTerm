@@ -660,6 +660,57 @@ mod tests {
     }
 
     #[test]
+    fn accessibility_is_off_by_default() {
+        let mut config = load_str(
+            "[bell]\nduration = 100\n\n[cursor.style]\nshape = 'Beam'\nblinking = 'Always'\n",
+        );
+        config.apply_accessibility(false);
+
+        assert_eq!(config.cursor.style.blinking_override(), Some(true));
+        assert!(config.bell.duration() > std::time::Duration::ZERO);
+    }
+
+    #[test]
+    fn accessible_config_reduces_motion() {
+        use crate::config::cursor::{ConfigCursorStyle, CursorShape};
+
+        let config = load_with_options(
+            "[general]\naccessible = true\n\n[cursor]\nvi_mode_style = \
+             'Block'\n\n[cursor.style]\nshape = 'Beam'\nblinking = 'Always'\n",
+            &[],
+        );
+
+        // Blinking is off, even when applications ask for it, and the shape is kept.
+        assert_eq!(config.cursor.style.blinking_override(), Some(false));
+        assert!(matches!(config.cursor.style, ConfigCursorStyle::WithBlinking {
+            shape: CursorShape::Beam,
+            ..
+        }));
+        assert_eq!(config.cursor.vi_mode_style.unwrap().blinking_override(), Some(false));
+        assert_eq!(config.bell.duration(), std::time::Duration::ZERO);
+    }
+
+    #[test]
+    fn accessible_env_reduces_motion() {
+        let mut config = load_str("[bell]\nduration = 100\n");
+        config.apply_accessibility(true);
+
+        assert_eq!(config.cursor.style.blinking_override(), Some(false));
+        assert_eq!(config.bell.duration(), std::time::Duration::ZERO);
+    }
+
+    #[test]
+    fn overrides_cant_turn_motion_back_on() {
+        let config = load_with_options("[general]\naccessible = true\n", &[
+            "cursor.style.blinking = 'Always'",
+            "bell.duration = 200",
+        ]);
+
+        assert_eq!(config.cursor.style.blinking_override(), Some(false));
+        assert_eq!(config.bell.duration(), std::time::Duration::ZERO);
+    }
+
+    #[test]
     fn color_scheme_follows_colors() {
         use tankterm_terminal::term::ColorScheme;
 

@@ -103,6 +103,15 @@ This section documents the *[general]* table of the configuration file.
 
 	Default: _true_
 
+*accessible* = _true_ | _false_
+
+	Reduce motion: the cursor never blinks, even when applications ask for it,
+	and the visual bell is turned off. Like Charm's Huh, a non-empty
+	_$ACCESSIBLE_ or _$TANKTERM\_ACCESSIBLE_ also enables it. Options set
+	through *-o* or IPC can't turn motion back on.
+
+	Default: _false_
+
 # ENV
 
 All key-value pairs in the *[env]* section will be added as environment variables
