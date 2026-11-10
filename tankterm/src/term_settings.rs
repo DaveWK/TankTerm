@@ -4,6 +4,7 @@ use iced::Font;
 use iced::font::Family;
 use iced_term::ColorPalette;
 use iced_term::settings::{BackendSettings, FontSettings, Settings, ThemeSettings};
+use log::warn;
 
 use crate::cli::Options;
 use crate::config::UiConfig;
@@ -40,16 +41,47 @@ fn font_settings(config: &UiConfig) -> FontSettings {
 }
 
 /// Convert a config font description into an iced font.
+///
+/// iced replaces families it can't find with a proportional font, which breaks the terminal grid.
+/// Missing families are replaced with the system monospace font instead, like the OpenGL renderer
+/// did.
 fn font(description: &FontDescription) -> Font {
-    let family = if description.family.eq_ignore_ascii_case("monospace") {
-        Family::Monospace
-    } else {
-        // iced needs a `'static` family name. Fonts are only resolved on startup, so leaking the
-        // name once is fine.
-        Family::Name(Box::leak(description.family.clone().into_boxed_str()))
-    };
+    let family = family(&description.family, family_installed).unwrap_or_else(|| {
+        let system = FontDescription::system();
+        warn!("Font {:?} not found, using {:?} instead", description.family, system.family);
+        family(&system.family, family_installed).unwrap_or(Family::Monospace)
+    });
 
     Font { family, ..Font::MONOSPACE }
+}
+
+/// Resolve a configured family name, or `None` if it isn't installed.
+fn family(name: &str, installed: impl Fn(&str) -> bool) -> Option<Family> {
+    if name.eq_ignore_ascii_case("monospace") {
+        Some(Family::Monospace)
+    } else if installed(name) {
+        // iced needs a `'static` family name. Fonts are only resolved on startup, so leaking the
+        // name once is fine.
+        Some(Family::Name(Box::leak(name.to_owned().into_boxed_str())))
+    } else {
+        None
+    }
+}
+
+/// Check whether iced's text renderer has a font with this family name.
+///
+/// This uses iced's own font database, so it sees the same fonts the renderer will.
+fn family_installed(name: &str) -> bool {
+    let Ok(mut font_system) = iced_graphics::text::font_system().write() else {
+        // Let iced pick on its own if the font database is unavailable.
+        return true;
+    };
+
+    font_system
+        .raw()
+        .db()
+        .faces()
+        .any(|face| face.families.iter().any(|(family, _)| family.eq_ignore_ascii_case(name)))
 }
 
 /// Convert the configured colors into an `iced_term` palette.
@@ -172,9 +204,31 @@ mod tests {
     }
 
     #[test]
-    fn named_family_is_kept() {
-        let description = FontDescription { family: "JetBrains Mono".into(), style: None };
-        assert_eq!(font(&description).family, Family::Name("JetBrains Mono"));
+    fn installed_family_is_kept() {
+        assert_eq!(family("Iosevka Term", |_| true), Some(Family::Name("Iosevka Term")));
+    }
+
+    #[test]
+    fn missing_family_is_none() {
+        assert_eq!(family("Iosevka Term", |_| false), None);
+    }
+
+    #[test]
+    fn missing_font_falls_back_to_monospace_font() {
+        let description = FontDescription { family: "TankTerm Missing Font".into(), style: None };
+        let family = font(&description).family;
+
+        // The fallback is the system font, never a proportional one.
+        let system = FontDescription::system().family;
+        let expected = [Family::Monospace, Family::Name(Box::leak(system.into_boxed_str()))];
+        assert!(expected.contains(&family), "unexpected fallback {family:?}");
+    }
+
+    #[test]
+    fn iced_font_database_is_queried() {
+        // iced always embeds its icon font, so it must be found on every machine.
+        assert!(family_installed("Iced-Icons"));
+        assert!(!family_installed("TankTerm Missing Font"));
     }
 
     #[test]

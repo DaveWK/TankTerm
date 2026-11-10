@@ -3435,6 +3435,7 @@ dependencies = [
  "embed-resource",
  "home",
  "iced",
+ "iced_graphics",
  "iced_term",
  "libc",
  "log",

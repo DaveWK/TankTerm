@@ -32,6 +32,7 @@ clap = { version = "4.2.7", features = ["derive", "env"] }
 crossfont = "0.8.1"
 home = "0.5.5"
 iced = "0.14.0"
+iced_graphics = { version = "0.14.0", default-features = false }
 iced_term = { git = "https://github.com/DaveWK/iced_term", branch = "tankterm" }
 libc = "0.2"
 log = { version = "0.4", features = ["std", "serde"] }
