@@ -5,11 +5,11 @@
 //! log-level is sufficient for the level configured in `cli::Options`.
 
 use std::fs::{File, OpenOptions};
-use std::io::{self, LineWriter, Stdout, Write};
+use std::io::{self, IsTerminal, LineWriter, Stdout, Write};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use std::{env, process};
 
 use log::{Level, LevelFilter};
@@ -68,6 +68,9 @@ pub fn initialize(options: &Options) -> Result<Option<PathBuf>, log::SetLoggerEr
 pub struct Logger {
     logfile: Mutex<OnDemandLogFile>,
     stdout: Mutex<LineWriter<Stdout>>,
+    format: LogFormat,
+    /// Whether stdout gets styled text: it's a terminal and `NO_COLOR` isn't set.
+    styled_stdout: bool,
     start: Instant,
 }
 
@@ -75,8 +78,10 @@ impl Logger {
     fn new() -> Self {
         let logfile = Mutex::new(OnDemandLogFile::new());
         let stdout = Mutex::new(LineWriter::new(io::stdout()));
+        let format = LogFormat::from_env();
+        let styled_stdout = io::stdout().is_terminal() && env::var_os("NO_COLOR").is_none();
 
-        Logger { logfile, stdout, start: Instant::now() }
+        Logger { logfile, stdout, format, styled_stdout, start: Instant::now() }
     }
 
     fn file_path(&self) -> Option<PathBuf> {
@@ -101,42 +106,138 @@ impl log::Log for Logger {
         }
 
         // Create log message for the given `record` and `target`.
-        let message = create_log_message(record, target, self.start);
+        let line = LogLine {
+            elapsed: self.start.elapsed(),
+            level: record.level(),
+            target,
+            message: record.args().to_string(),
+        };
 
         // Write to logfile.
         if let Ok(mut logfile) = self.logfile.lock() {
-            let _ = logfile.write_all(message.as_ref());
+            // Write to logfile, never styled.
+            let _ = logfile.write_all(line.format(self.format, false).as_bytes());
         }
 
         // Write to stdout.
         if let Ok(mut stdout) = self.stdout.lock() {
-            let _ = stdout.write_all(message.as_ref());
+            let _ = stdout.write_all(line.format(self.format, self.styled_stdout).as_bytes());
         }
     }
 
     fn flush(&self) {}
 }
 
-fn create_log_message(record: &log::Record<'_>, target: &str, start: Instant) -> String {
-    let runtime = start.elapsed();
-    let secs = runtime.as_secs();
-    let nanos = runtime.subsec_nanos();
-    let mut message = format!("[{}.{:0>9}s] [{:<5}] [{}] ", secs, nanos, record.level(), target);
+/// Name for the environment variable choosing the log format.
+const TANKTERM_LOG_FORMAT_ENV: &str = "TANKTERM_LOG_FORMAT";
 
-    // Alignment for the lines after the first new line character in the payload. We don't deal
-    // with fullwidth/unicode chars here, so just `message.len()` is sufficient.
-    let alignment = message.len();
+/// Log output formats, like charmbracelet/log's formatters.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+enum LogFormat {
+    #[default]
+    Text,
+    Json,
+    Logfmt,
+}
 
-    // Push lines with added extra padding on the next line, which is trimmed later.
-    let lines = record.args().to_string();
-    for line in lines.split('\n') {
-        let line = format!("{}\n{:width$}", line, "", width = alignment);
-        message.push_str(&line);
+impl LogFormat {
+    /// Format chosen with `TANKTERM_LOG_FORMAT`, defaulting to text.
+    fn from_env() -> Self {
+        env::var(TANKTERM_LOG_FORMAT_ENV).map(|format| Self::parse(&format)).unwrap_or_default()
     }
 
-    // Drop extra trailing alignment.
-    message.truncate(message.len() - alignment);
-    message
+    fn parse(format: &str) -> Self {
+        match format.to_lowercase().as_str() {
+            "json" => Self::Json,
+            "logfmt" => Self::Logfmt,
+            _ => Self::Text,
+        }
+    }
+}
+
+/// A log record ready to be formatted.
+struct LogLine<'a> {
+    elapsed: Duration,
+    level: Level,
+    target: &'a str,
+    message: String,
+}
+
+impl LogLine<'_> {
+    /// Format the line, ending in a newline.
+    ///
+    /// Text follows charmbracelet/log's layout, `<time> <LEVEL> <prefix>: <message>`. When
+    /// `styled`, the level is bold and colored and the prefix and separator are faint, like its
+    /// default styles; JSON and logfmt are never styled.
+    fn format(&self, format: LogFormat, styled: bool) -> String {
+        let time = format!("{}.{:0>9}s", self.elapsed.as_secs(), self.elapsed.subsec_nanos());
+        let level = self.level.as_str().to_lowercase();
+
+        match format {
+            LogFormat::Json => {
+                let line = serde_json::json!({
+                    "time": time,
+                    "level": level,
+                    "prefix": self.target,
+                    "msg": self.message,
+                });
+                format!("{line}\n")
+            },
+            LogFormat::Logfmt => format!(
+                "time={time} level={level} prefix={} msg={}\n",
+                logfmt_value(self.target),
+                logfmt_value(&self.message),
+            ),
+            LogFormat::Text => self.format_text(&time, styled),
+        }
+    }
+
+    fn format_text(&self, time: &str, styled: bool) -> String {
+        let label = format!("{:<5}", self.level.as_str());
+        let (level, prefix, separator) = if styled {
+            (
+                format!("\x1b[{}m{label}\x1b[0m", level_style(self.level)),
+                format!("\x1b[1;2m{}\x1b[0m", self.target),
+                "\x1b[2m:\x1b[0m",
+            )
+        } else {
+            (label, self.target.to_owned(), ":")
+        };
+
+        let mut text = format!("{time} {level} {prefix}{separator} ");
+
+        // Align lines after the first with the start of the message. The escape sequences take
+        // no space, so measure the unstyled header.
+        let alignment = time.len() + 1 + 5 + 1 + self.target.len() + 2;
+        let mut lines = self.message.split('\n');
+        text.push_str(lines.next().unwrap_or_default());
+        for line in lines {
+            text.push('\n');
+            text.push_str(&" ".repeat(alignment));
+            text.push_str(line);
+        }
+        text.push('\n');
+        text
+    }
+}
+
+/// SGR parameters for a level label: bold, with charmbracelet/log's ANSI 256 colors.
+fn level_style(level: Level) -> &'static str {
+    match level {
+        Level::Error => "1;38;5;204",
+        Level::Warn => "1;38;5;192",
+        Level::Info => "1;38;5;86",
+        Level::Debug => "1;38;5;63",
+        // charmbracelet/log has no trace level; show it like debug, but faint.
+        Level::Trace => "1;2;38;5;63",
+    }
+}
+
+/// Quote a logfmt value when it contains spaces, quotes, `=` or isn't printable.
+fn logfmt_value(value: &str) -> String {
+    let plain = !value.is_empty()
+        && value.chars().all(|c| c.is_ascii_graphic() && c != '"' && c != '=' && c != '\\');
+    if plain { value.to_owned() } else { format!("{value:?}") }
 }
 
 /// Check if log messages from a crate should be logged.
@@ -203,5 +304,75 @@ impl Write for OnDemandLogFile {
 
     fn flush(&mut self) -> Result<(), io::Error> {
         self.file()?.flush()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn line(level: Level, message: &str) -> LogLine<'static> {
+        LogLine { elapsed: Duration::new(1, 5), level, target: "tankTerm", message: message.into() }
+    }
+
+    #[test]
+    fn plain_text_follows_charm_layout() {
+        let text = line(Level::Info, "Welcome").format(LogFormat::Text, false);
+        assert_eq!(text, "1.000000005s INFO  tankTerm: Welcome\n");
+    }
+
+    #[test]
+    fn multiline_messages_are_aligned() {
+        let text = line(Level::Warn, "first\nsecond").format(LogFormat::Text, false);
+        let header = "1.000000005s WARN  tankTerm: ";
+        assert_eq!(text, format!("{header}first\n{}second\n", " ".repeat(header.len())));
+    }
+
+    #[test]
+    fn styled_text_uses_charm_level_colors() {
+        let text = line(Level::Error, "boom").format(LogFormat::Text, true);
+
+        assert_eq!(
+            text,
+            "1.000000005s \x1b[1;38;5;204mERROR\x1b[0m \x1b[1;2mtankTerm\x1b[0m\x1b[2m:\x1b[0m \
+             boom\n"
+        );
+        assert!(line(Level::Info, "").format(LogFormat::Text, true).contains("38;5;86m"));
+        assert!(line(Level::Warn, "").format(LogFormat::Text, true).contains("38;5;192m"));
+        assert!(line(Level::Debug, "").format(LogFormat::Text, true).contains("38;5;63m"));
+    }
+
+    #[test]
+    fn json_lines() {
+        let json = line(Level::Info, "has \"quotes\"").format(LogFormat::Json, true);
+        let value: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        assert!(json.ends_with('\n') && !json.contains('\x1b'));
+        assert_eq!(value["level"], "info");
+        assert_eq!(value["prefix"], "tankTerm");
+        assert_eq!(value["msg"], "has \"quotes\"");
+        assert_eq!(value["time"], "1.000000005s");
+    }
+
+    #[test]
+    fn logfmt_lines_quote_when_needed() {
+        assert_eq!(
+            line(Level::Debug, "plain").format(LogFormat::Logfmt, false),
+            "time=1.000000005s level=debug prefix=tankTerm msg=plain\n"
+        );
+        assert_eq!(
+            line(Level::Debug, "two words").format(LogFormat::Logfmt, false),
+            "time=1.000000005s level=debug prefix=tankTerm msg=\"two words\"\n"
+        );
+        assert_eq!(logfmt_value("a=b"), "\"a=b\"");
+        assert_eq!(logfmt_value(""), "\"\"");
+    }
+
+    #[test]
+    fn format_names() {
+        assert_eq!(LogFormat::parse("json"), LogFormat::Json);
+        assert_eq!(LogFormat::parse("LogFmt"), LogFormat::Logfmt);
+        assert_eq!(LogFormat::parse("text"), LogFormat::Text);
+        assert_eq!(LogFormat::parse("unknown"), LogFormat::Text);
     }
 }
