@@ -23,12 +23,6 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 - Fixed `alacritty-escapes(7)` manpage missing from macOS install
 - Added the `Open Alacritty here` entry to the right-click context menu for folders on Windows
 
-### Added
-
-- Window chrome styled like Charm's Lip Gloss: a frame around the terminal, a title bar and a status
-    bar, configured with Lip Gloss style properties in the new `[style]` section
-- `green_screen` and `charm` style presets
-
 ### Changed
 
 - Default config location is now `tankterm/tankterm.toml`; `alacritty` config locations are still

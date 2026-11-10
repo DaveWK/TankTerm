@@ -52,13 +52,6 @@ This front end is new and doesn't support everything the OpenGL one did yet:
 Command line options that aren't supported yet fail with an error; config
 options that aren't supported yet are ignored.
 
-The window chrome is styled after Charm's [Lip Gloss](https://github.com/charmbracelet/lipgloss):
-a bordered, padded frame around the terminal, a title bar and a status bar. Each
-is configured in the `[style]` section with Lip Gloss style properties (padding
-and margin with CSS shorthand, `rounded`/`thick`/`double` borders, colors, bold,
-alignment, ...), on top of the `green_screen` or `charm` preset. See
-`man 5 tankTerm` for details.
-
 ## Features
 
 You can find an overview over the features available in TankTerm [here](./docs/features.md).
