@@ -25,7 +25,7 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 - Default config location is now `tankterm/tankterm.toml`; `alacritty` config locations are still
     used as a fallback
 - Default window title and class are now `TankTerm`
-- Default font is now `Iosevka Term Extended`; if it can't be loaded, the system monospace font is
+- Default font is now `Iosevka Term`; if it can't be loaded, the system monospace font is
     used
 - `ALACRITTY_*` environment variables renamed to `TANKTERM_*`
 - IPC sockets and log files now use the `TankTerm-` prefix and the `tankterm` runtime directory
