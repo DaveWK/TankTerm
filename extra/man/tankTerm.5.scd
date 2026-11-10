@@ -298,7 +298,29 @@ This section documents the *[font]* table of the configuration file.
 
 This section documents the *[colors]* table of the configuration file.
 
-Colors are specified using their hexadecimal values with a _#_ prefix: _#RRGGBB_.
+Like Lip Gloss, colors can be written in any of these forms:
+
+	_"#RRGGBB"_
+		Hexadecimal color.
+
+	_"<0-15>"_
+		ANSI color from the configured _normal_ (0-7) and _bright_ (8-15) colors.
+
+	_"<16-255>"_
+		ANSI 256 color: the 6x6x6 color cube and the gray ramp, unless overridden by
+		_indexed\_colors_.
+
+	{ light = _<color>_, dark = _<color>_ }
+		Light/dark pair. The _dark_ color is used when the background is dark,
+		otherwise the _light_ one; see _mode_.
+
+*mode* = _"Dark"_ | _"Light"_ | _"None"_
+
+	Which color of light/dark pairs to use. When _"None"_, it is _"Dark"_ if the
+	primary background is dark (HSL lightness below 50%, like Lip Gloss's
+	_HasDarkBackground_), and _"Light"_ otherwise.
+
+	Default: _"None"_
 
 *primary*
 

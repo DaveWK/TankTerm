@@ -33,6 +33,7 @@ pub use crate::config::bindings::{
     Action, BindingKey, BindingMode, KeyBinding, MouseAction, MouseEvent, SearchAction, ViAction,
 };
 pub use crate::config::ui_config::UiConfig;
+use crate::display::color::ColorContext;
 use crate::logging::LOG_TARGET_CONFIG;
 
 /// Maximum number of depth for the configuration file imports.
@@ -183,8 +184,10 @@ fn read_config(path: &Path) -> Result<UiConfig> {
     let mut config_paths = Vec::new();
     let config_value = parse_config(path, &mut config_paths, IMPORT_RECURSION_LIMIT)?;
 
-    // Deserialize to concrete type.
-    let mut config = UiConfig::deserialize(config_value)?;
+    // Deserialize to concrete type, resolving ANSI colors and light/dark pairs against the
+    // configured palette and background.
+    let colors = ColorContext::from_value(&config_value);
+    let mut config = colors.scope(|| UiConfig::deserialize(config_value))?;
     config.config_paths = config_paths;
 
     Ok(config)
@@ -428,9 +431,84 @@ pub fn installed_config(suffix: &str) -> Option<PathBuf> {
 mod tests {
     use super::*;
 
+    use crate::cli::ParsedOptions;
+    use crate::display::color::{CellRgb, Rgb};
+
     #[test]
     fn empty_config() {
         toml::from_str::<UiConfig>("").unwrap();
+    }
+
+    /// Load a config file through the same path as TankTerm's startup.
+    fn load_str(content: &str) -> UiConfig {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("tankterm.toml");
+        fs::write(&path, content).unwrap();
+        read_config(&path).unwrap()
+    }
+
+    #[test]
+    fn ansi_colors_resolve_against_configured_palette() {
+        let config = load_str(
+            "[colors.normal]\nred = '#123456'\n\n[colors.cursor]\ncursor = '1'\ntext = '232'\n",
+        );
+
+        assert_eq!(config.colors.cursor.background, CellRgb::Rgb(Rgb::new(0x12, 0x34, 0x56)));
+        assert_eq!(config.colors.cursor.foreground, CellRgb::Rgb(Rgb::new(8, 8, 8)));
+    }
+
+    #[test]
+    fn light_dark_pairs_follow_background() {
+        let pairs = "[colors.selection]\nbackground = { light = '#aaaaaa', dark = '#222222' }\n";
+
+        // Default green screen background is black, so the dark variant is used.
+        let dark = load_str(pairs);
+        assert_eq!(dark.colors.selection.background, CellRgb::Rgb(Rgb::new(0x22, 0x22, 0x22)));
+
+        let light = load_str(&format!("[colors.primary]\nbackground = '#ffffff'\n\n{pairs}"));
+        assert_eq!(light.colors.selection.background, CellRgb::Rgb(Rgb::new(0xaa, 0xaa, 0xaa)));
+    }
+
+    #[test]
+    fn color_mode_overrides_background_detection() {
+        let config = load_str(
+            "[colors]\nmode = 'light'\n\n[colors.primary]\nbackground = { light = '#f1fff5', dark \
+             = '#000000' }\nforeground = { light = '#005500', dark = '#00ff00' }\n",
+        );
+
+        assert_eq!(config.colors.primary.background, Rgb::new(0xf1, 0xff, 0xf5));
+        assert_eq!(config.colors.primary.foreground, Rgb::new(0x00, 0x55, 0x00));
+    }
+
+    #[test]
+    fn light_dark_background_defaults_to_dark() {
+        // Without a mode, the background pair is resolved by the default (black) background.
+        let config = load_str(
+            "[colors.primary]\nbackground = { light = '#f1fff5', dark = '#101010' }\nforeground = \
+             { light = '#005500', dark = '#00ff00' }\n",
+        );
+
+        assert_eq!(config.colors.primary.background, Rgb::new(0x10, 0x10, 0x10));
+        assert_eq!(config.colors.primary.foreground, Rgb::new(0x00, 0xff, 0x00));
+    }
+
+    #[test]
+    fn cli_overrides_use_configured_palette() {
+        let mut config = load_str("[colors.normal]\ngreen = '#00aa00'\n");
+        let mut overrides = ParsedOptions::from_options(&["colors.cursor.cursor = '2'".into()]);
+
+        overrides.override_config(&mut config);
+
+        assert_eq!(config.colors.cursor.background, CellRgb::Rgb(Rgb::new(0x00, 0xaa, 0x00)));
+    }
+
+    #[test]
+    fn invalid_ansi_color_is_reported_not_fatal() {
+        let config = load_str("[colors.primary]\nforeground = '300'\nbackground = '#101010'\n");
+
+        // The invalid value is ignored and the default is kept, without losing the rest.
+        assert_eq!(config.colors.primary.foreground, Rgb::new(0x00, 0xff, 0x00));
+        assert_eq!(config.colors.primary.background, Rgb::new(0x10, 0x10, 0x10));
     }
 
     fn yaml_to_toml(contents: &str) -> String {
