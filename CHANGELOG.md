@@ -21,6 +21,7 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 - Renamed the `alacritty_config` and `alacritty_config_derive` crates to `tankterm_config` and
     `tankterm_config_derive`
 - Fixed `alacritty-escapes(7)` manpage missing from macOS install
+- Build manpages with `extra/man/scdoc.sh`, which keeps groff from splitting names across lines
 - Added the `Open Alacritty here` entry to the right-click context menu for folders on Windows
 
 ### Added
