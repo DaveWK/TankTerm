@@ -306,18 +306,18 @@ Colors are specified using their hexadecimal values with a _#_ prefix: _#RRGGBB_
 
 	*foreground* = _"<string>"_
 
-		Default: _"#d8d8d8"_
+		Default: _"#00ff00"_
 
 	*background* = _"<string>"_
 
-		Default: _"#181818"_
+		Default: _"#000000"_
 
 	*dim_foreground* = _"<string>"_
 
 		If this is not set, the color is automatically calculated based on the
 		foreground color.
 
-		Default: _"#828482"_
+		Default: _"#00a800"_
 
 	*bright_foreground* = _"<string>"_
 
@@ -326,7 +326,7 @@ Colors are specified using their hexadecimal values with a _#_ prefix: _#RRGGBB_
 
 		If this is not set, the normal foreground will be used.
 
-		Default: _"None"_
+		Default: _"#f1fff5"_
 
 *cursor* = { text = _"<string>"_, cursor = _"<string>"_ }
 
@@ -335,7 +335,7 @@ Colors are specified using their hexadecimal values with a _#_ prefix: _#RRGGBB_
 	Allowed values are hexadecimal colors like _#ff00ff_, or
 	_CellForeground_/_CellBackground_, which references the affected cell.
 
-	Default: { text = _"CellBackground"_, cursor = _"CellForeground"_ }
+	Default: { text = _"#000000"_, cursor = _"#00ff00"_ }
 
 *vi_mode_cursor* = { text = _"<string>"_, cursor = _"<string>"_ }
 
@@ -344,7 +344,7 @@ Colors are specified using their hexadecimal values with a _#_ prefix: _#RRGGBB_
 	Allowed values are hexadecimal colors like _#ff00ff_, or
 	_CellForeground_/_CellBackground_, which references the affected cell.
 
-	Default: { text = _"CellBackground"_, cursor = _"CellForeground"_ }
+	Default: { text = _"#000000"_, cursor = _"#66ff66"_ }
 
 *search*
 
@@ -355,11 +355,11 @@ Colors are specified using their hexadecimal values with a _#_ prefix: _#RRGGBB_
 
 	*matches* = { foreground = _"<string>"_, background = _"<string>"_ }
 
-		Default: { foreground = _"#181818"_, background = _"#ac4242"_ }
+		Default: { foreground = _"#000000"_, background = _"#00aa00"_ }
 
 	*focused_match* = { foreground = _"<string>"_, background = _"<string>"_ }
 
-		Default: { foreground = _"#181818"_, background = _"#f4bf75"_ }
+		Default: { foreground = _"#000000"_, background = _"#f4d35e"_ }
 
 *hints*
 
@@ -372,7 +372,7 @@ Colors are specified using their hexadecimal values with a _#_ prefix: _#RRGGBB_
 		Allowed values are hexadecimal colors like _#ff00ff_, or
 		_CellForeground_/_CellBackground_, which references the affected cell.
 
-		Default: { foreground = _"#181818"_, background = _"#f4bf75"_ }
+		Default: { foreground = _"#000000"_, background = _"#f4d35e"_ }
 
 	*end* = { foreground = _"<string>"_, background = _"<string>"_ }
 
@@ -381,7 +381,7 @@ Colors are specified using their hexadecimal values with a _#_ prefix: _#RRGGBB_
 		Allowed values are hexadecimal colors like _#ff00ff_, or
 		_CellForeground_/_CellBackground_, which references the affected cell.
 
-		Default: { foreground = _"#181818"_, background = _"#ac4242"_ }
+		Default: { foreground = _"#000000"_, background = _"#ff4d5a"_ }
 
 *line_indicator* = { foreground = _"<string>"_, background = _"<string>"_ }
 
@@ -397,7 +397,7 @@ Colors are specified using their hexadecimal values with a _#_ prefix: _#RRGGBB_
 	Color used for the footer bar on the bottom, used by search regex input,
 	hyperlink URI preview, etc.
 
-	Default: { foreground = _"#181818"_, background = _"#d8d8d8"_ }
+	Default: { foreground = _"#000000"_, background = _"#00ff00"_ }
 
 *selection* = { text = _"<string>"_, background = _"<string>"_ }
 
@@ -406,73 +406,74 @@ Colors are specified using their hexadecimal values with a _#_ prefix: _#RRGGBB_
 	Allowed values are hexadecimal colors like _#ff00ff_, or
 	_CellForeground_/_CellBackground_, which references the affected cell.
 
-	Default: { text = _"CellBackground"_, background = _"CellForeground"_ }
+	Default: { text = _"#000000"_, background = _"#008000"_ }
 
 *normal*
 
 	This section documents the *[colors.normal]* table of the configuration.
 
 	*black* = _"<string>"_
-		Default: _"#181818"_
+		Default: _"#000000"_
 	*red* = _"<string>"_
-		Default: _"#ac4242"_
+		Default: _"#ff4d5a"_
 	*green* = _"<string>"_
-		Default: _"#90a959"_
+		Default: _"#00aa00"_
 	*yellow* = _"<string>"_
-		Default: _"#f4bf75"_
+		Default: _"#f4d35e"_
 	*blue* = _"<string>"_
-		Default: _"#6a9fb5"_
+		Default: _"#4db8ff"_
 	*magenta* = _"<string>"_
-		Default: _"#aa759f"_
+		Default: _"#d687ff"_
 	*cyan* = _"<string>"_
-		Default: _"#75b5aa"_
+		Default: _"#35e6d0"_
 	*white* = _"<string>"_
-		Default: _"#d8d8d8"_
+		Default: _"#d8ffe7"_
 
 *bright*
 
 	This section documents the *[colors.bright]* table of the configuration.
 
 	*black* = _"<string>"_
-		Default: _"#6b6b6b"_
+		Default: _"#40604d"_
 	*red* = _"<string>"_
-		Default: _"#c55555"_
+		Default: _"#ff7a83"_
 	*green* = _"<string>"_
-		Default: _"#aac474"_
+		Default: _"#66ff66"_
 	*yellow* = _"<string>"_
-		Default: _"#feca88"_
+		Default: _"#ffe78a"_
 	*blue* = _"<string>"_
-		Default: _"#82b8c8"_
+		Default: _"#8ad1ff"_
 	*magenta* = _"<string>"_
-		Default: _"#c28cb8"_
+		Default: _"#e9b3ff"_
 	*cyan* = _"<string>"_
-		Default: _"#93d3c3"_
+		Default: _"#8afff0"_
 	*white* = _"<string>"_
-		Default: _"#f8f8f8"_
+		Default: _"#f1fff5"_
 
 *dim*
 
 	This section documents the *[colors.dim]* table of the configuration.
 
 	If the dim colors are not set, they will be calculated automatically based
-	on the _normal_ colors.
+	on the _normal_ colors. The defaults below are only used for colors missing
+	from a configured *[colors.dim]* table.
 
 	*black* = _"<string>"_
-		Default: _"#0f0f0f"_
+		Default: _"#07110b"_
 	*red* = _"<string>"_
-		Default: _"#712b2b"_
+		Default: _"#a82f3a"_
 	*green* = _"<string>"_
-		Default: _"#5f6f3a"_
+		Default: _"#005500"_
 	*yellow* = _"<string>"_
-		Default: _"#a17e4d"_
+		Default: _"#a68d3b"_
 	*blue* = _"<string>"_
-		Default: _"#456877"_
+		Default: _"#2a6e99"_
 	*magenta* = _"<string>"_
-		Default: _"#704d68"_
+		Default: _"#804c99"_
 	*cyan* = _"<string>"_
-		Default: _"#4d7770"_
+		Default: _"#218f82"_
 	*white* = _"<string>"_
-		Default: _"#8e8e8e"_
+		Default: _"#7faf91"_
 
 *indexed_colors* = [{ index = _<integer>_, color = _"<string>"_ },]
 
