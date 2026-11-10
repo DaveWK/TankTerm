@@ -1180,6 +1180,11 @@ bindings = [++
 
 This section documents the *[debug]* table of the configuration file.
 
+Log lines follow the layout of Charm's log library: _<time> <LEVEL> <prefix>:
+<message>_. On a terminal, the level and prefix are styled unless _$NO\_COLOR_
+is set; log files are never styled. Set _$TANKTERM\_LOG\_FORMAT_ to _json_ or
+_logfmt_ for structured logs.
+
 Debug options are meant to help troubleshoot issues with TankTerm. These can
 change or be removed entirely without warning, so their stability shouldn't be
 relied upon.
