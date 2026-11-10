@@ -26,6 +26,9 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 
 - Colors can be given like in Lip Gloss: ANSI colors (`"5"`, `"201"`) and `{ light, dark }` pairs
 - `colors.mode` to choose the light or dark color of pairs; detected from the background by default
+- `[style]` blocks for the cursor, selection, search matches, hints and bars, with Lip Gloss style
+    properties (colors, bold, italic, faint, underline, strikethrough, reverse)
+- Named styles in `[style.defs]` that other styles can `inherit` from, like Lip Gloss's `Inherit`
 
 ### Changed
 
@@ -41,6 +44,8 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 
 ### Fixed
 
+- Setting only one color of `colors.cursor`, `colors.selection`, search or hint colors no longer
+    resets the other one
 - Spurious "Failed to set new owner of XCB selection" warnings on X11
 - Lacking permissions to launch software sending Apple events
 - Off-by-one in vi mode ParagraphUp action

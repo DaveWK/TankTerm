@@ -5,62 +5,30 @@ use tankterm_config_derive::ConfigDeserialize;
 
 use crate::display::color::{CellRgb, Rgb};
 
-#[derive(ConfigDeserialize, Serialize, Clone, Debug, PartialEq, Eq)]
+/// The `[colors]` table.
+///
+/// The cursor, selection, search, hint, footer bar and line indicator colors here are the
+/// original Alacritty settings. They're still read, but `[style]` blocks take precedence over
+/// them; see [`crate::config::style`].
+#[derive(ConfigDeserialize, Serialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct Colors {
     /// Whether light/dark color pairs use their dark variant. Detected from the primary
     /// background when unset.
     pub mode: Option<ColorMode>,
     pub primary: PrimaryColors,
-    pub cursor: InvertedCellColors,
-    pub vi_mode_cursor: InvertedCellColors,
-    pub selection: InvertedCellColors,
+    pub cursor: CellColors,
+    pub vi_mode_cursor: CellColors,
+    pub selection: CellColors,
     pub normal: NormalColors,
     pub bright: BrightColors,
     pub dim: Option<DimColors>,
     pub indexed_colors: Vec<IndexedColor>,
     pub search: SearchColors,
-    pub line_indicator: LineIndicatorColors,
+    pub line_indicator: BarColors,
     pub hints: HintColors,
     pub transparent_background_colors: bool,
     pub draw_bold_text_with_bright_colors: bool,
-    footer_bar: BarColors,
-}
-
-/// Black background used by the default "green screen" color scheme.
-const BLACK: Rgb = Rgb::new(0x00, 0x00, 0x00);
-
-/// Default foreground: classic green screen phosphor green.
-const PHOSPHOR_GREEN: Rgb = Rgb::new(0x00, 0xff, 0x00);
-
-impl Default for Colors {
-    fn default() -> Self {
-        Self {
-            mode: Default::default(),
-            primary: Default::default(),
-            cursor: InvertedCellColors {
-                foreground: CellRgb::Rgb(BLACK),
-                background: CellRgb::Rgb(PHOSPHOR_GREEN),
-            },
-            vi_mode_cursor: InvertedCellColors {
-                foreground: CellRgb::Rgb(BLACK),
-                background: CellRgb::Rgb(Rgb::new(0x66, 0xff, 0x66)),
-            },
-            selection: InvertedCellColors {
-                foreground: CellRgb::Rgb(BLACK),
-                background: CellRgb::Rgb(Rgb::new(0x00, 0x80, 0x00)),
-            },
-            normal: Default::default(),
-            bright: Default::default(),
-            dim: Default::default(),
-            indexed_colors: Default::default(),
-            search: Default::default(),
-            line_indicator: Default::default(),
-            hints: Default::default(),
-            transparent_background_colors: Default::default(),
-            draw_bold_text_with_bright_colors: Default::default(),
-            footer_bar: Default::default(),
-        }
-    }
+    pub footer_bar: BarColors,
 }
 
 /// Which variant of light/dark color pairs to use.
@@ -70,56 +38,35 @@ pub enum ColorMode {
     Light,
 }
 
-impl Colors {
-    pub fn footer_bar_foreground(&self) -> Rgb {
-        self.footer_bar.foreground.unwrap_or(self.primary.background)
-    }
-
-    pub fn footer_bar_background(&self) -> Rgb {
-        self.footer_bar.background.unwrap_or(self.primary.foreground)
-    }
+/// Text and background colors of an element drawn on terminal cells.
+///
+/// Unset colors fall back to the element's `[style]` defaults, so a partially configured table
+/// keeps the default for the other color.
+#[derive(ConfigDeserialize, Serialize, Debug, Copy, Clone, Default, PartialEq, Eq)]
+pub struct CellColors {
+    #[config(alias = "text")]
+    pub foreground: Option<CellRgb>,
+    #[config(alias = "cursor")]
+    pub background: Option<CellRgb>,
 }
 
-#[derive(ConfigDeserialize, Serialize, Copy, Clone, Default, Debug, PartialEq, Eq)]
-pub struct LineIndicatorColors {
-    pub foreground: Option<Rgb>,
-    pub background: Option<Rgb>,
+#[derive(ConfigDeserialize, Serialize, Debug, Copy, Clone, Default, PartialEq, Eq)]
+pub struct SearchColors {
+    pub focused_match: CellColors,
+    pub matches: CellColors,
 }
 
 #[derive(ConfigDeserialize, Serialize, Default, Copy, Clone, Debug, PartialEq, Eq)]
 pub struct HintColors {
-    pub start: HintStartColors,
-    pub end: HintEndColors,
+    pub start: CellColors,
+    pub end: CellColors,
 }
 
-#[derive(ConfigDeserialize, Serialize, Copy, Clone, Debug, PartialEq, Eq)]
-pub struct HintStartColors {
-    pub foreground: CellRgb,
-    pub background: CellRgb,
-}
-
-impl Default for HintStartColors {
-    fn default() -> Self {
-        Self {
-            foreground: CellRgb::Rgb(BLACK),
-            background: CellRgb::Rgb(Rgb::new(0xf4, 0xd3, 0x5e)),
-        }
-    }
-}
-
-#[derive(ConfigDeserialize, Serialize, Copy, Clone, Debug, PartialEq, Eq)]
-pub struct HintEndColors {
-    pub foreground: CellRgb,
-    pub background: CellRgb,
-}
-
-impl Default for HintEndColors {
-    fn default() -> Self {
-        Self {
-            foreground: CellRgb::Rgb(BLACK),
-            background: CellRgb::Rgb(Rgb::new(0xff, 0x4d, 0x5a)),
-        }
-    }
+/// Colors of a bar drawn across the terminal, like the footer bar.
+#[derive(ConfigDeserialize, Serialize, Debug, Copy, Clone, Default, PartialEq, Eq)]
+pub struct BarColors {
+    pub foreground: Option<Rgb>,
+    pub background: Option<Rgb>,
 }
 
 #[derive(Deserialize, Serialize, Copy, Clone, Default, Debug, PartialEq, Eq)]
@@ -158,62 +105,6 @@ impl<'de> Deserialize<'de> for ColorIndex {
     }
 }
 
-#[derive(ConfigDeserialize, Serialize, Debug, Copy, Clone, PartialEq, Eq)]
-pub struct InvertedCellColors {
-    #[config(alias = "text")]
-    pub foreground: CellRgb,
-    #[config(alias = "cursor")]
-    pub background: CellRgb,
-}
-
-impl Default for InvertedCellColors {
-    fn default() -> Self {
-        Self { foreground: CellRgb::CellBackground, background: CellRgb::CellForeground }
-    }
-}
-
-#[derive(ConfigDeserialize, Serialize, Debug, Copy, Clone, Default, PartialEq, Eq)]
-pub struct SearchColors {
-    pub focused_match: FocusedMatchColors,
-    pub matches: MatchColors,
-}
-
-#[derive(ConfigDeserialize, Serialize, Debug, Copy, Clone, PartialEq, Eq)]
-pub struct FocusedMatchColors {
-    pub foreground: CellRgb,
-    pub background: CellRgb,
-}
-
-impl Default for FocusedMatchColors {
-    fn default() -> Self {
-        Self {
-            background: CellRgb::Rgb(Rgb::new(0xf4, 0xd3, 0x5e)),
-            foreground: CellRgb::Rgb(BLACK),
-        }
-    }
-}
-
-#[derive(ConfigDeserialize, Serialize, Debug, Copy, Clone, PartialEq, Eq)]
-pub struct MatchColors {
-    pub foreground: CellRgb,
-    pub background: CellRgb,
-}
-
-impl Default for MatchColors {
-    fn default() -> Self {
-        Self {
-            background: CellRgb::Rgb(Rgb::new(0x00, 0xaa, 0x00)),
-            foreground: CellRgb::Rgb(BLACK),
-        }
-    }
-}
-
-#[derive(ConfigDeserialize, Serialize, Debug, Copy, Clone, Default, PartialEq, Eq)]
-pub struct BarColors {
-    foreground: Option<Rgb>,
-    background: Option<Rgb>,
-}
-
 #[derive(ConfigDeserialize, Serialize, Clone, Debug, PartialEq, Eq)]
 pub struct PrimaryColors {
     pub foreground: Rgb,
@@ -225,8 +116,8 @@ pub struct PrimaryColors {
 impl Default for PrimaryColors {
     fn default() -> Self {
         PrimaryColors {
-            background: BLACK,
-            foreground: PHOSPHOR_GREEN,
+            background: Rgb::new(0x00, 0x00, 0x00),
+            foreground: Rgb::new(0x00, 0xff, 0x00),
             bright_foreground: Some(Rgb::new(0xf1, 0xff, 0xf5)),
             dim_foreground: Default::default(),
         }
@@ -329,18 +220,21 @@ mod tests {
 
     #[test]
     fn default_scheme_is_green_on_black() {
-        let colors = Colors::default();
+        let config = UiConfig::default();
+        let colors = &config.colors;
+        let styles = config.style.resolved();
 
         assert_eq!(colors.primary.background, rgb(0x00, 0x00, 0x00));
         assert_eq!(colors.primary.foreground, rgb(0x00, 0xff, 0x00));
-        assert_eq!(colors.cursor.background, CellRgb::Rgb(rgb(0x00, 0xff, 0x00)));
-        assert_eq!(colors.cursor.foreground, CellRgb::Rgb(rgb(0x00, 0x00, 0x00)));
-        assert_eq!(colors.vi_mode_cursor.background, CellRgb::Rgb(rgb(0x66, 0xff, 0x66)));
-        assert_eq!(colors.selection.background, CellRgb::Rgb(rgb(0x00, 0x80, 0x00)));
-        assert_eq!(colors.selection.foreground, CellRgb::Rgb(rgb(0x00, 0x00, 0x00)));
+        assert_eq!(styles.cursor.background, CellRgb::Rgb(rgb(0x00, 0xff, 0x00)));
+        assert_eq!(styles.cursor.foreground, CellRgb::Rgb(rgb(0x00, 0x00, 0x00)));
+        assert_eq!(styles.vi_mode_cursor.background, CellRgb::Rgb(rgb(0x66, 0xff, 0x66)));
+        assert_eq!(styles.selection.background, CellRgb::Rgb(rgb(0x00, 0x80, 0x00)));
+        assert_eq!(styles.selection.foreground, CellRgb::Rgb(rgb(0x00, 0x00, 0x00)));
         assert_eq!(colors.normal.green, rgb(0x00, 0xaa, 0x00));
         assert_eq!(colors.bright.green, rgb(0x66, 0xff, 0x66));
-        assert_eq!(colors.search.matches.background, CellRgb::Rgb(rgb(0x00, 0xaa, 0x00)));
+        assert_eq!(styles.search_match.background, CellRgb::Rgb(rgb(0x00, 0xaa, 0x00)));
+        assert_eq!(styles.footer_bar.background, rgb(0x00, 0xff, 0x00));
 
         // Dim colors are derived from the normal colors unless configured.
         assert_eq!(colors.dim, None);
