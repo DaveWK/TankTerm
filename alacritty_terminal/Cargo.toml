@@ -16,7 +16,7 @@ serde = ["dep:serde", "bitflags/serde", "vte/serde"]
 
 [dependencies]
 arrayvec = { version = "0.7.2", features = ["serde"] }
-base64 = "0.22.0"
+base64 = "0.23.1"
 bitflags = "2.4.1"
 log = "0.4"
 parking_lot = "0.12.0"
@@ -38,7 +38,7 @@ signal-hook = "0.4.3"
 [target.'cfg(windows)'.dependencies]
 piper = "0.2.1"
 miow = "0.6.0"
-windows-sys = { version = "0.59.0", features = [
+windows-sys = { version = "0.61.2", features = [
     "Win32_System_Console",
     "Win32_Foundation",
     "Win32_Security",

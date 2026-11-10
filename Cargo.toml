@@ -17,8 +17,8 @@ debug = 1
 incremental = false
 
 [workspace.dependencies]
-toml = "0.9.11"
-toml_edit = "0.24.0"
+toml = "1.2.1"
+toml_edit = "0.25.19"
 
 # TODO: Validation of fix for #6978. Remove before next release and use released `x11-clipboard`.
 [patch.crates-io]

@@ -17,55 +17,55 @@ _alacritty() {
                 cmd="alacritty"
                 ;;
             alacritty,help)
-                cmd="alacritty__help"
+                cmd="alacritty__subcmd__help"
                 ;;
             alacritty,migrate)
-                cmd="alacritty__migrate"
+                cmd="alacritty__subcmd__migrate"
                 ;;
             alacritty,msg)
-                cmd="alacritty__msg"
+                cmd="alacritty__subcmd__msg"
                 ;;
-            alacritty__help,help)
-                cmd="alacritty__help__help"
+            alacritty__subcmd__help,help)
+                cmd="alacritty__subcmd__help__subcmd__help"
                 ;;
-            alacritty__help,migrate)
-                cmd="alacritty__help__migrate"
+            alacritty__subcmd__help,migrate)
+                cmd="alacritty__subcmd__help__subcmd__migrate"
                 ;;
-            alacritty__help,msg)
-                cmd="alacritty__help__msg"
+            alacritty__subcmd__help,msg)
+                cmd="alacritty__subcmd__help__subcmd__msg"
                 ;;
-            alacritty__help__msg,config)
-                cmd="alacritty__help__msg__config"
+            alacritty__subcmd__help__subcmd__msg,config)
+                cmd="alacritty__subcmd__help__subcmd__msg__subcmd__config"
                 ;;
-            alacritty__help__msg,create-window)
-                cmd="alacritty__help__msg__create__window"
+            alacritty__subcmd__help__subcmd__msg,create-window)
+                cmd="alacritty__subcmd__help__subcmd__msg__subcmd__create__subcmd__window"
                 ;;
-            alacritty__help__msg,get-config)
-                cmd="alacritty__help__msg__get__config"
+            alacritty__subcmd__help__subcmd__msg,get-config)
+                cmd="alacritty__subcmd__help__subcmd__msg__subcmd__get__subcmd__config"
                 ;;
-            alacritty__msg,config)
-                cmd="alacritty__msg__config"
+            alacritty__subcmd__msg,config)
+                cmd="alacritty__subcmd__msg__subcmd__config"
                 ;;
-            alacritty__msg,create-window)
-                cmd="alacritty__msg__create__window"
+            alacritty__subcmd__msg,create-window)
+                cmd="alacritty__subcmd__msg__subcmd__create__subcmd__window"
                 ;;
-            alacritty__msg,get-config)
-                cmd="alacritty__msg__get__config"
+            alacritty__subcmd__msg,get-config)
+                cmd="alacritty__subcmd__msg__subcmd__get__subcmd__config"
                 ;;
-            alacritty__msg,help)
-                cmd="alacritty__msg__help"
+            alacritty__subcmd__msg,help)
+                cmd="alacritty__subcmd__msg__subcmd__help"
                 ;;
-            alacritty__msg__help,config)
-                cmd="alacritty__msg__help__config"
+            alacritty__subcmd__msg__subcmd__help,config)
+                cmd="alacritty__subcmd__msg__subcmd__help__subcmd__config"
                 ;;
-            alacritty__msg__help,create-window)
-                cmd="alacritty__msg__help__create__window"
+            alacritty__subcmd__msg__subcmd__help,create-window)
+                cmd="alacritty__subcmd__msg__subcmd__help__subcmd__create__subcmd__window"
                 ;;
-            alacritty__msg__help,get-config)
-                cmd="alacritty__msg__help__get__config"
+            alacritty__subcmd__msg__subcmd__help,get-config)
+                cmd="alacritty__subcmd__msg__subcmd__help__subcmd__get__subcmd__config"
                 ;;
-            alacritty__msg__help,help)
-                cmd="alacritty__msg__help__help"
+            alacritty__subcmd__msg__subcmd__help,help)
+                cmd="alacritty__subcmd__msg__subcmd__help__subcmd__help"
                 ;;
             *)
                 ;;
@@ -164,7 +164,7 @@ _alacritty() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
-        alacritty__help)
+        alacritty__subcmd__help)
             opts="msg migrate help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
@@ -178,7 +178,7 @@ _alacritty() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
-        alacritty__help__help)
+        alacritty__subcmd__help__subcmd__help)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
@@ -192,7 +192,7 @@ _alacritty() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
-        alacritty__help__migrate)
+        alacritty__subcmd__help__subcmd__migrate)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
@@ -206,7 +206,7 @@ _alacritty() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
-        alacritty__help__msg)
+        alacritty__subcmd__help__subcmd__msg)
             opts="create-window config get-config"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
@@ -220,7 +220,7 @@ _alacritty() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
-        alacritty__help__msg__config)
+        alacritty__subcmd__help__subcmd__msg__subcmd__config)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
@@ -234,7 +234,7 @@ _alacritty() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
-        alacritty__help__msg__create__window)
+        alacritty__subcmd__help__subcmd__msg__subcmd__create__subcmd__window)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
@@ -248,7 +248,7 @@ _alacritty() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
-        alacritty__help__msg__get__config)
+        alacritty__subcmd__help__subcmd__msg__subcmd__get__subcmd__config)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
@@ -262,7 +262,7 @@ _alacritty() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
-        alacritty__migrate)
+        alacritty__subcmd__migrate)
             opts="-c -d -i -s -h --config-file --dry-run --skip-imports --skip-renames --silent --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
@@ -306,7 +306,7 @@ _alacritty() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
-        alacritty__msg)
+        alacritty__subcmd__msg)
             opts="-s -h --socket --help create-window config get-config help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
@@ -350,8 +350,8 @@ _alacritty() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
-        alacritty__msg__config)
-            opts="-w -r -h --window-id --reset --help <CONFIG_OPTIONS>..."
+        alacritty__subcmd__msg__subcmd__config)
+            opts="-w -r -h --window-id --reset --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -372,7 +372,7 @@ _alacritty() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
-        alacritty__msg__create__window)
+        alacritty__subcmd__msg__subcmd__create__subcmd__window)
             opts="-e -T -o -h --working-directory --hold --command --title --class --option --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
@@ -429,7 +429,7 @@ _alacritty() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
-        alacritty__msg__get__config)
+        alacritty__subcmd__msg__subcmd__get__subcmd__config)
             opts="-w -h --window-id --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
@@ -451,7 +451,7 @@ _alacritty() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
-        alacritty__msg__help)
+        alacritty__subcmd__msg__subcmd__help)
             opts="create-window config get-config help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
@@ -465,7 +465,7 @@ _alacritty() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
-        alacritty__msg__help__config)
+        alacritty__subcmd__msg__subcmd__help__subcmd__config)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
@@ -479,7 +479,7 @@ _alacritty() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
-        alacritty__msg__help__create__window)
+        alacritty__subcmd__msg__subcmd__help__subcmd__create__subcmd__window)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
@@ -493,7 +493,7 @@ _alacritty() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
-        alacritty__msg__help__get__config)
+        alacritty__subcmd__msg__subcmd__help__subcmd__get__subcmd__config)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
@@ -507,7 +507,7 @@ _alacritty() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
-        alacritty__msg__help__help)
+        alacritty__subcmd__msg__subcmd__help__subcmd__help)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
