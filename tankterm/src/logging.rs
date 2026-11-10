@@ -20,7 +20,7 @@ use crate::event::{Event, EventType};
 use crate::message_bar::{Message, MessageType};
 
 /// Logging target for IPC config error messages.
-pub const LOG_TARGET_IPC_CONFIG: &str = "alacritty_log_window_config";
+pub const LOG_TARGET_IPC_CONFIG: &str = "tankterm_log_window_config";
 
 /// Name for the environment variable containing the log file's path.
 const TANKTERM_LOG_ENV: &str = "TANKTERM_LOG";
@@ -29,7 +29,7 @@ const TANKTERM_LOG_ENV: &str = "TANKTERM_LOG";
 pub const LOG_TARGET_CONFIG: &str = "tankterm_config_derive";
 
 /// Logging target for winit events.
-pub const LOG_TARGET_WINIT: &str = "alacritty_winit_event";
+pub const LOG_TARGET_WINIT: &str = "tankterm_winit_event";
 
 /// Name for the environment variable containing extra logging targets.
 ///
