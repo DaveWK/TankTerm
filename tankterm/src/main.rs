@@ -41,7 +41,7 @@ mod migrate;
 mod panic;
 mod term_settings;
 
-use crate::app::App;
+use crate::app::{App, Layout};
 use crate::cli::{Options, Subcommands};
 use crate::config::UiConfig;
 #[cfg(target_os = "macos")]
@@ -138,7 +138,12 @@ fn tankterm(mut options: Options) -> Result<(), Box<dyn Error>> {
     // Spawn the shell before starting iced, so failing to launch it is reported as an error.
     let title = term_settings::window_title(&config, &options);
     let settings = term_settings::settings(&config, &options);
-    let app = App::new(title, config.window.dynamic_title, settings)?;
+    let cell = term_settings::cell_size(&settings.font);
+    let layout = Layout {
+        padding: term_settings::padding(&config, cell),
+        background: term_settings::background(&config),
+    };
+    let app = App::new(title, config.window.dynamic_title, settings, layout)?;
 
     // iced takes a reusable boot function, but the application is only booted once.
     let app = Mutex::new(Some(app));

@@ -1,7 +1,10 @@
 //! Conversion from the TankTerm configuration to `iced_term` settings.
 
-use iced::Font;
 use iced::font::Family;
+use iced::{Color, Font, Padding, Size};
+use iced_core::alignment::Vertical;
+use iced_core::text::{Alignment, LineHeight, Paragraph as _, Shaping, Text, Wrapping};
+use iced_graphics::text::paragraph::Paragraph;
 use iced_term::ColorPalette;
 use iced_term::settings::{BackendSettings, FontSettings, Settings, ThemeSettings};
 use log::warn;
@@ -82,6 +85,37 @@ fn family_installed(name: &str) -> bool {
         .db()
         .faces()
         .any(|face| face.families.iter().any(|(family, _)| family.eq_ignore_ascii_case(name)))
+}
+
+/// Size of a terminal cell, measured the same way `iced_term` measures its grid.
+pub fn cell_size(font: &FontSettings) -> Size {
+    Paragraph::with_text(Text {
+        content: "m",
+        font: font.font_type,
+        size: iced::Pixels(font.size),
+        align_y: Vertical::Center,
+        align_x: Alignment::Center,
+        shaping: Shaping::Advanced,
+        line_height: LineHeight::Relative(font.scale_factor),
+        bounds: Size::INFINITE,
+        wrapping: Wrapping::Glyph,
+    })
+    .min_bounds()
+}
+
+/// Padding around the terminal, in logical pixels.
+///
+/// iced lays out in logical pixels and applies the display's scale factor itself, so pixel
+/// padding isn't scaled here.
+pub fn padding(config: &UiConfig, cell: Size) -> Padding {
+    let padding = config.window.padding(1., cell.width, cell.height);
+    Padding { top: padding.top, right: padding.right, bottom: padding.bottom, left: padding.left }
+}
+
+/// Background color of the window, shown in the padding.
+pub fn background(config: &UiConfig) -> Color {
+    let background = config.colors.primary.background;
+    Color::from_rgb8(background.r, background.g, background.b)
 }
 
 /// Convert the configured colors into an `iced_term` palette.
@@ -335,6 +369,38 @@ mod tests {
         let backend = backend_settings(&config, &options(&[]), None);
 
         assert_eq!(backend.env.get("TANKTERM_TEST").map(String::as_str), Some("1"));
+    }
+
+    fn config(toml: &str) -> UiConfig {
+        toml::from_str(toml).unwrap()
+    }
+
+    #[test]
+    fn pixel_padding_is_logical() {
+        let config = config("[window]\npadding = { x = 3, y = 5 }\n");
+        let padding = padding(&config, Size::new(10., 20.));
+
+        assert_eq!(padding, Padding { top: 5., right: 3., bottom: 5., left: 3. });
+    }
+
+    #[test]
+    fn cell_padding_uses_cell_size() {
+        let config = config("[window]\npadding = [1, 2, 3, 4]\n");
+        let padding = padding(&config, Size::new(10., 20.));
+
+        assert_eq!(padding, Padding { top: 20., right: 20., bottom: 60., left: 40. });
+    }
+
+    #[test]
+    fn background_is_primary_background() {
+        let config = config("[colors.primary]\nbackground = '#102030'\n");
+        assert_eq!(background(&config), Color::from_rgb8(0x10, 0x20, 0x30));
+    }
+
+    #[test]
+    fn cell_size_is_measured() {
+        let cell = cell_size(&FontSettings::default());
+        assert!(cell.width > 0. && cell.height > cell.width, "unexpected cell {cell:?}");
     }
 
     #[test]

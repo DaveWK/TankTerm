@@ -32,6 +32,7 @@ clap = { version = "4.2.7", features = ["derive", "env"] }
 crossfont = "0.8.1"
 home = "0.5.5"
 iced = "0.14.0"
+iced_core = "0.14.0"
 iced_graphics = { version = "0.14.0", default-features = false }
 iced_term = { git = "https://github.com/DaveWK/iced_term", branch = "tankterm" }
 libc = "0.2"
@@ -47,6 +48,7 @@ winit = { version = "0.30.9", default-features = false, features = ["rwh_06", "s
 
 [dev-dependencies]
 clap_complete = "4.2.3"
+iced_test = "0.14.0"
 
 [target.'cfg(not(windows))'.dependencies]
 xdg = "3.0.0"

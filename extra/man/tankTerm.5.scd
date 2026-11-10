@@ -104,10 +104,19 @@ This section documents the *[window]* table of the configuration file.
 
 	Default: _"None"_
 
-*padding* = { x = _<integer>_, y = _<integer>_ }
+*padding* = { x = _<integer>_, y = _<integer>_ } | _<integer>_ | [_<integer>_, ...]
 
-	Blank space added around the window in pixels. This padding is scaled
-	by DPI and the specified value is always added at both opposing sides.
+	Blank space added around the terminal.
+
+	As a table, the padding is in pixels, scaled by DPI, and the _x_ and _y_
+	values are added on both opposing sides.
+
+	As a number or a list, the padding is in terminal cells and follows the
+	CSS shorthand used by Lip Gloss: 1 value sets all sides, 2 set vertical and
+	horizontal, 3 set top, horizontal and bottom, and 4 set top, right, bottom
+	and left.
+
+	Example: _padding = [1, 2]_
 
 	Default: { x = _0_, y = _0_ }
 
