@@ -5,7 +5,7 @@ use std::str::FromStr;
 use serde::de::{Error as SerdeError, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use alacritty_config_derive::SerdeReplace;
+use tankterm_config_derive::SerdeReplace;
 use tankterm_terminal::vte::ansi::Rgb as VteRgb;
 
 /// Factor for automatic computation of dim colors.

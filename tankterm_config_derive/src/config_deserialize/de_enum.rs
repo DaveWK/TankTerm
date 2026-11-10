@@ -68,7 +68,7 @@ pub fn derive_deserialize(ident: Ident, generics: Generics, data_enum: DataEnum)
         }
     };
 
-    // Automatically implement [`alacritty_config::SerdeReplace`].
+    // Automatically implement [`tankterm_config::SerdeReplace`].
     tokens.extend(serde_replace::derive_direct(ident, generics));
 
     tokens.into()

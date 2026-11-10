@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-use alacritty_config_derive::ConfigDeserialize;
+use tankterm_config_derive::ConfigDeserialize;
 use tankterm_terminal::term::SEMANTIC_ESCAPE_CHARS;
 
 #[derive(ConfigDeserialize, Serialize, Clone, Debug, PartialEq, Eq)]

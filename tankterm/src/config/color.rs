@@ -1,7 +1,7 @@
 use serde::de::Error as SerdeError;
 use serde::{Deserialize, Deserializer, Serialize};
 
-use alacritty_config_derive::ConfigDeserialize;
+use tankterm_config_derive::ConfigDeserialize;
 
 use crate::display::color::{CellRgb, Rgb};
 

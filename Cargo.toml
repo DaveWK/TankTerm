@@ -2,8 +2,8 @@
 members = [
     "tankterm",
     "tankterm_terminal",
-    "alacritty_config",
-    "alacritty_config_derive",
+    "tankterm_config",
+    "tankterm_config_derive",
 ]
 resolver = "2"
 

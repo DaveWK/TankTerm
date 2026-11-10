@@ -75,7 +75,7 @@ pub fn derive_deserialize<T>(
         }
     };
 
-    // Automatically implement [`alacritty_config::SerdeReplace`].
+    // Automatically implement [`tankterm_config::SerdeReplace`].
     tokens.extend(serde_replace::derive_recursive(ident, generics, fields));
 
     tokens.into()

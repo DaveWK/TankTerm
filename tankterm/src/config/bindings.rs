@@ -13,7 +13,7 @@ use winit::keyboard::{
 };
 use winit::platform::scancode::PhysicalKeyExtScancode;
 
-use alacritty_config_derive::{ConfigDeserialize, SerdeReplace};
+use tankterm_config_derive::{ConfigDeserialize, SerdeReplace};
 
 use tankterm_terminal::term::TermMode;
 use tankterm_terminal::vi_mode::ViMotion;
