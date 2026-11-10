@@ -1,0 +1,60 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+   <Package Name="TankTerm" UpgradeCode="5ee0a736-cd5b-40d6-88bd-d21a492e02d0" Language="1033" Codepage="1252" Version="0.18.0-dev" Manufacturer="TankTerm" InstallerVersion="200">
+      <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+      <Icon Id="TankTermIco" SourceFile=".\tankterm\windows\tankterm.ico" />
+      <WixVariable Id="WixUILicenseRtf" Value=".\tankterm\windows\wix\license.rtf" />
+      <Property Id="ARPPRODUCTICON" Value="TankTermIco" />
+      <MediaTemplate EmbedCab="yes" />
+      <ui:WixUI Id="WixUI_Minimal" />
+      <Feature Id="ProductFeature" Title="ConsoleApp" Level="1">
+         <ComponentRef Id="TankTermExe" />
+         <ComponentRef Id="TankTermShortcut" />
+         <ComponentRef Id="ModifyPathEnv" />
+         <ComponentRef Id="ContextMenu" />
+         <ComponentRef Id="ContextMenuFolder" />
+      </Feature>
+      <!-- Application binaries -->
+      <DirectoryRef Id="TankTermProgramFiles">
+         <Component Id="TankTermExe">
+            <File Id="TankTermExeFile" Source=".\target\release\tankTerm.exe" Name="tankTerm.exe" KeyPath="yes" />
+         </Component>
+      </DirectoryRef>
+      <DirectoryRef Id="TankTermProgramMenu">
+         <!-- Application shortcut -->
+         <Component Id="TankTermShortcut" Guid="2091c6c6-efbb-4ff9-8769-d911011613be">
+            <Shortcut Id="TankTermShortcutFile" Name="TankTerm" Description="A cross-platform, GPU-accelerated terminal emulator" Target="[TankTermProgramFiles]tankTerm.exe" />
+            <RemoveFolder Id="TankTermProgramMenu" On="uninstall" />
+            <RegistryValue Root="HKCU" Key="Software\Microsoft\TankTerm" Name="installed" Type="integer" Value="1" KeyPath="yes" />
+         </Component>
+      </DirectoryRef>
+      <DirectoryRef Id="TankTermProgramFiles">
+         <!-- Add to PATH -->
+         <Component Id="ModifyPathEnv" Guid="3e17bf72-99e1-4853-a46a-5022fffb0b81" KeyPath="yes">
+            <Environment Id="PathEnv" Value="[TankTermProgramFiles]" Name="PATH" Permanent="no" Part="first" Action="set" System="yes" />
+         </Component>
+      </DirectoryRef>
+      <StandardDirectory Id="ProgramFiles64Folder">
+         <Directory Id="TankTermProgramFiles" Name="TankTerm" />
+      </StandardDirectory>
+      <StandardDirectory Id="ProgramMenuFolder">
+         <Directory Id="TankTermProgramMenu" Name="TankTerm" />
+      </StandardDirectory>
+      <!-- Add context menu -->
+      <Component Id="ContextMenu" Guid="3aa0a19f-d82e-4da7-91fc-58b094a7f3a9" Directory="TARGETDIR">
+         <RegistryKey Root="HKCU" Key="Software\Classes\Directory\Background\shell\Open TankTerm here\command">
+            <RegistryValue Type="string" Value='[TankTermProgramFiles]tankTerm.exe --working-directory "%v"' KeyPath="yes" />
+         </RegistryKey>
+         <RegistryKey Root="HKCU" Key="Software\Classes\Directory\Background\shell\Open TankTerm here">
+            <RegistryValue Type="string" Name="Icon" Value="[TankTermProgramFiles]tankTerm.exe" />
+         </RegistryKey>
+      </Component>
+      <Component Id="ContextMenuFolder" Guid="f848fe84-73d4-437a-8c24-1653c5c20b2c" Directory="TARGETDIR">
+         <RegistryKey Root="HKCU" Key="Software\Classes\Directory\shell\Open TankTerm here\command">
+            <RegistryValue Type="string" Value='[TankTermProgramFiles]tankTerm.exe --working-directory "%v"' KeyPath="yes" />
+         </RegistryKey>
+         <RegistryKey Root="HKCU" Key="Software\Classes\Directory\shell\Open TankTerm here">
+            <RegistryValue Type="string" Name="Icon" Value="[TankTermProgramFiles]tankTerm.exe" />
+         </RegistryKey>
+      </Component>
+   </Package>
+</Wix>

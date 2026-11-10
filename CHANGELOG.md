@@ -12,8 +12,21 @@ Notable changes to the `alacritty_terminal` crate are documented in its
 
 ### Packaging
 
+- Renamed the project to TankTerm; the binary is now `tankTerm`
+- Renamed manpages and shell completions to match the `tankTerm` command
+- Renamed the desktop entry to `TankTerm.desktop` and the AppStream ID to `io.github.davewk.TankTerm`
+- Renamed the macOS app bundle to `TankTerm.app` with bundle ID `io.github.davewk.TankTerm`
+- New Windows installer upgrade code, so the TankTerm installer no longer replaces Alacritty
 - Fixed `alacritty-escapes(7)` manpage missing from macOS install
 - Added the `Open Alacritty here` entry to the right-click context menu for folders on Windows
+
+### Changed
+
+- Default config location is now `tankterm/tankterm.toml`; `alacritty` config locations are still
+    used as a fallback
+- Default window title and class are now `TankTerm`
+- `ALACRITTY_*` environment variables renamed to `TANKTERM_*`
+- IPC sockets and log files now use the `TankTerm-` prefix and the `tankterm` runtime directory
 
 ### Fixed
 

@@ -13,7 +13,8 @@
 > [CONTRIBUTING.md](./CONTRIBUTING.md#llmai-contributions). Please report problems with TankTerm
 > here, not to the upstream Alacritty project.
 >
-> The binary, configuration files and manual pages are still named `alacritty` for now.
+> The command is `tankTerm`. Existing Alacritty configuration files are still loaded when there is
+> no TankTerm configuration, and TankTerm keeps using the `alacritty` terminfo.
 
 <p align="center">
   <img alt="TankTerm - A fast, cross-platform, OpenGL terminal emulator"
@@ -58,21 +59,25 @@ and install it can be found [here](INSTALL.md).
 ## Configuration
 
 You can find the documentation for TankTerm's configuration in `man 5
-alacritty`, or in [its source](./extra/man/alacritty.5.scd) if you do not have
+tankTerm`, or in [its source](./extra/man/tankTerm.5.scd) if you do not have
 the manpages installed.
 
 TankTerm doesn't create the config file for you, but it looks for one in the
 following locations:
 
-1. `$XDG_CONFIG_HOME/alacritty/alacritty.toml`
-2. `$XDG_CONFIG_HOME/alacritty.toml`
-3. `$HOME/.config/alacritty/alacritty.toml`
-4. `$HOME/.alacritty.toml`
-5. `/etc/alacritty/alacritty.toml`
+1. `$XDG_CONFIG_HOME/tankterm/tankterm.toml`
+2. `$XDG_CONFIG_HOME/tankterm.toml`
+3. `$HOME/.config/tankterm/tankterm.toml`
+4. `$HOME/.tankterm.toml`
+5. `/etc/tankterm/tankterm.toml`
 
 On Windows, the config file will be looked for in:
 
-* `%APPDATA%\alacritty\alacritty.toml`
+* `%APPDATA%\tankterm\tankterm.toml`
+
+If none of these exist, the same locations are checked using the `alacritty`
+name instead (for example `$XDG_CONFIG_HOME/alacritty/alacritty.toml`), so an
+existing Alacritty configuration keeps working.
 
 ## Contributing
 

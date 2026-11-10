@@ -1,0 +1,18 @@
+[Desktop Entry]
+Type=Application
+TryExec=tankTerm
+Exec=tankTerm
+Icon=TankTerm
+Terminal=false
+Categories=System;TerminalEmulator;
+
+Name=TankTerm
+GenericName=Terminal
+Comment=A fast, cross-platform, OpenGL terminal emulator
+StartupNotify=true
+StartupWMClass=TankTerm
+Actions=New;
+
+[Desktop Action New]
+Name=New Terminal
+Exec=tankTerm
