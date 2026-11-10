@@ -76,15 +76,16 @@ cd TankTerm
    ```
 
 TankTerm needs at least the Rust version set as `rust-version` in `Cargo.toml`
-(currently 1.85.0).
+(currently 1.88.0).
 
 ### Dependencies
 
 These are the minimum dependencies required to build TankTerm, please note
 that with some setups additional dependencies might be desired.
 
-If you're running Wayland with an Nvidia GPU, you'll likely want the EGL
-drivers installed too (these are called `libegl1-mesa-dev` on Ubuntu).
+TankTerm renders through [wgpu](https://wgpu.rs), so GPU rendering needs a
+Vulkan, Metal, DirectX 12 or OpenGL ES 3 driver at runtime. Without one, iced
+falls back to slower software rendering.
 
 #### Debian/Ubuntu
 
