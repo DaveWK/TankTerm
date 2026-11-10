@@ -120,7 +120,8 @@ impl WindowConfig {
         }
     }
 
-    /// Padding around the terminal grid, in physical pixels.
+    /// Padding around the terminal grid, in the units of `cell_width` and `cell_height`; pixel
+    /// padding is multiplied by `scale_factor`.
     #[inline]
     pub fn padding(&self, scale_factor: f32, cell_width: f32, cell_height: f32) -> WindowPadding {
         match self.padding {
@@ -128,7 +129,7 @@ impl WindowConfig {
                 let pixels = |value: u16| (f32::from(value) * scale_factor).floor();
                 WindowPadding::symmetric(pixels(x), pixels(y))
             },
-            // Cells are already in physical pixels.
+            // Cells are already in the caller's units.
             Padding::Cells(Spacing { top, right, bottom, left }) => WindowPadding {
                 top: f32::from(top) * cell_height,
                 right: f32::from(right) * cell_width,
