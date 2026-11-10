@@ -190,7 +190,9 @@ impl WindowContext {
         // This object contains all of the state about what's being displayed. It's
         // wrapped in a clonable mutex since both the I/O loop and display need to
         // access it.
-        let terminal = Term::new(config.term_options(), &display.size_info, event_proxy.clone());
+        let mut terminal =
+            Term::new(config.term_options(), &display.size_info, event_proxy.clone());
+        terminal.set_color_scheme(config.color_scheme());
         let terminal = Arc::new(FairMutex::new(terminal));
 
         // Create the PTY.
@@ -265,7 +267,10 @@ impl WindowContext {
         self.config = self.window_config.override_config_rc(self.config.clone());
 
         self.display.update_config(&self.config);
-        self.terminal.lock().set_options(self.config.term_options());
+        let mut terminal = self.terminal.lock();
+        terminal.set_options(self.config.term_options());
+        terminal.set_color_scheme(self.config.color_scheme());
+        drop(terminal);
 
         // Reload cursor if its thickness has changed.
         if (old_config.cursor.thickness() - self.config.cursor.thickness()).abs() > f32::EPSILON {
