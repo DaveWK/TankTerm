@@ -24,6 +24,8 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 
 ### Added
 
+- `general.accessible`, or `ACCESSIBLE`/`TANKTERM_ACCESSIBLE` like Huh, turns off cursor blinking and
+    the visual bell
 - `[style.blurred]` styles for unfocused windows, like Huh's focused and blurred styles
 - Key help like Charm's Bubbles: `ToggleHelp` (`Ctrl+Shift+H`, `Cmd+Shift+H` on macOS) shows the key
     bindings as a single line or in columns, with `help` descriptions on bindings and

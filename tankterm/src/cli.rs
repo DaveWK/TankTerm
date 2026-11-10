@@ -13,7 +13,7 @@ use toml::Value;
 use tankterm_terminal::tty::Options as PtyOptions;
 
 use crate::config::UiConfig;
-use crate::config::ui_config::Program;
+use crate::config::ui_config::{Program, accessible_env};
 use crate::config::window::{Class, Identity};
 use crate::display::color::ColorContext;
 use crate::logging::LOG_TARGET_IPC_CONFIG;
@@ -390,6 +390,9 @@ impl ParsedOptions {
 
         // Overrides can change styles and the colors they fall back to.
         config.style.resolve(&config.colors);
+
+        // Reduced motion wins over anything the overrides set.
+        config.apply_accessibility(accessible_env());
     }
 
     fn override_config_in_context(&mut self, config: &mut UiConfig) {
