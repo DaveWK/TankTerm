@@ -657,8 +657,8 @@ mod tests {
     #[test]
     fn blurred_changes_only_set_properties() {
         let config = load(
-            "[style.selection]\nbackground = '#111111'\nbold = true\n\n\
-             [style.blurred.selection]\nbackground = '#222222'\n",
+            "[style.selection]\nbackground = '#111111'\nbold = \
+             true\n\n[style.blurred.selection]\nbackground = '#222222'\n",
         );
         let styles = config.style.resolved();
         let (focused, blurred) = (styles.elements(true), styles.elements(false));
@@ -685,8 +685,8 @@ mod tests {
     #[test]
     fn blurred_styles_inherit() {
         let config = load(
-            "[style.defs.dim]\nfaint = true\nitalic = true\n\n\
-             [style.blurred.cursor]\ninherit = 'dim'\n",
+            "[style.defs.dim]\nfaint = true\nitalic = true\n\n[style.blurred.cursor]\ninherit = \
+             'dim'\n",
         );
         let cursor = config.style.resolved().elements(false).cursor;
 
