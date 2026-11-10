@@ -54,31 +54,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "alacritty_terminal"
-version = "0.26.1-dev"
-dependencies = [
- "arrayvec",
- "base64",
- "bitflags 2.9.4",
- "home",
- "libc",
- "log",
- "miow",
- "parking_lot",
- "piper",
- "polling",
- "regex-automata",
- "rustix 1.1.2",
- "rustix-openpty",
- "serde",
- "serde_json",
- "signal-hook",
- "unicode-width",
- "vte",
- "windows-sys 0.59.0",
-]
-
-[[package]]
 name = "android-activity"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1873,7 +1848,6 @@ dependencies = [
  "ahash",
  "alacritty_config",
  "alacritty_config_derive",
- "alacritty_terminal",
  "bitflags 2.9.4",
  "clap",
  "clap_complete",
@@ -1897,6 +1871,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "signal-hook",
+ "tankterm_terminal",
  "tempfile",
  "toml",
  "toml_edit 0.24.0+spec-1.1.0",
@@ -1904,6 +1879,31 @@ dependencies = [
  "windows-sys 0.59.0",
  "winit",
  "xdg",
+]
+
+[[package]]
+name = "tankterm_terminal"
+version = "0.26.1-dev"
+dependencies = [
+ "arrayvec",
+ "base64",
+ "bitflags 2.9.4",
+ "home",
+ "libc",
+ "log",
+ "miow",
+ "parking_lot",
+ "piper",
+ "polling",
+ "regex-automata",
+ "rustix 1.1.2",
+ "rustix-openpty",
+ "serde",
+ "serde_json",
+ "signal-hook",
+ "unicode-width",
+ "vte",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

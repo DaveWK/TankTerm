@@ -1,7 +1,7 @@
 [workspace]
 members = [
     "tankterm",
-    "alacritty_terminal",
+    "tankterm_terminal",
     "alacritty_config",
     "alacritty_config_derive",
 ]

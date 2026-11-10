@@ -21,14 +21,14 @@ use winit::event_loop::{ActiveEventLoop, EventLoopProxy};
 use winit::raw_window_handle::HasDisplayHandle;
 use winit::window::WindowId;
 
-use alacritty_terminal::event::Event as TerminalEvent;
-use alacritty_terminal::event_loop::{EventLoop as PtyEventLoop, Msg, Notifier};
-use alacritty_terminal::grid::{Dimensions, Scroll};
-use alacritty_terminal::index::Direction;
-use alacritty_terminal::sync::FairMutex;
-use alacritty_terminal::term::test::TermSize;
-use alacritty_terminal::term::{Term, TermMode};
-use alacritty_terminal::tty;
+use tankterm_terminal::event::Event as TerminalEvent;
+use tankterm_terminal::event_loop::{EventLoop as PtyEventLoop, Msg, Notifier};
+use tankterm_terminal::grid::{Dimensions, Scroll};
+use tankterm_terminal::index::Direction;
+use tankterm_terminal::sync::FairMutex;
+use tankterm_terminal::term::test::TermSize;
+use tankterm_terminal::term::{Term, TermMode};
+use tankterm_terminal::tty;
 
 use crate::cli::{ParsedOptions, WindowOptions};
 use crate::clipboard::Clipboard;

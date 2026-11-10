@@ -25,7 +25,7 @@ use winit::event_loop::EventLoop;
 #[cfg(all(feature = "x11", not(any(target_os = "macos", windows))))]
 use winit::raw_window_handle::{HasDisplayHandle, RawDisplayHandle};
 
-use alacritty_terminal::tty;
+use tankterm_terminal::tty;
 
 mod cli;
 mod clipboard;

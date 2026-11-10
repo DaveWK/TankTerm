@@ -14,9 +14,9 @@ use winit::keyboard::{Key, ModifiersState};
 
 use alacritty_config::SerdeReplace;
 use alacritty_config_derive::{ConfigDeserialize, SerdeReplace};
-use alacritty_terminal::term::Config as TermConfig;
-use alacritty_terminal::term::search::RegexSearch;
-use alacritty_terminal::tty::{Options as PtyOptions, Shell};
+use tankterm_terminal::term::Config as TermConfig;
+use tankterm_terminal::term::search::RegexSearch;
+use tankterm_terminal::tty::{Options as PtyOptions, Shell};
 
 use crate::config::LOG_TARGET_CONFIG;
 use crate::config::bell::BellConfig;
@@ -83,7 +83,7 @@ pub struct UiConfig {
     /// Regex hints for interacting with terminal content.
     pub hints: Hints,
 
-    /// Config for the alacritty_terminal itself.
+    /// Config for the tankterm_terminal itself.
     pub terminal: Terminal,
 
     /// Keyboard configuration.
@@ -695,7 +695,7 @@ impl serde::de::Visitor<'_> for StringVisitor {
 mod tests {
     use super::*;
 
-    use alacritty_terminal::term::test::mock_term;
+    use tankterm_terminal::term::test::mock_term;
 
     use crate::display::hint::visible_regex_match_iter;
 

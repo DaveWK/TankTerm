@@ -39,7 +39,7 @@ use winit::window::{
     WindowAttributes, WindowId,
 };
 
-use alacritty_terminal::index::Point;
+use tankterm_terminal::index::Point;
 
 use crate::cli::WindowOptions;
 use crate::config::UiConfig;
