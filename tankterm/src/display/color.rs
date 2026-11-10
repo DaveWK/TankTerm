@@ -10,6 +10,7 @@ use tankterm_config_derive::SerdeReplace;
 use tankterm_terminal::vte::ansi::Rgb as VteRgb;
 
 use crate::config::color::{ColorMode, Colors};
+use crate::display::charmtone;
 
 /// Factor for automatic computation of dim colors.
 pub const DIM_FACTOR: f32 = 0.66;
@@ -210,6 +211,40 @@ impl ColorContext {
     }
 }
 
+/// Names of the 16 ANSI colors, like Lip Gloss's color constants.
+const ANSI_NAMES: [&str; 16] = [
+    "black",
+    "red",
+    "green",
+    "yellow",
+    "blue",
+    "magenta",
+    "cyan",
+    "white",
+    "brightblack",
+    "brightred",
+    "brightgreen",
+    "brightyellow",
+    "brightblue",
+    "brightmagenta",
+    "brightcyan",
+    "brightwhite",
+];
+
+/// Resolve an ANSI color name, from the configured palette, or a CharmTone color name.
+fn named_color(name: &str) -> Option<Rgb> {
+    let normalized: String = name
+        .chars()
+        .filter(|c| !matches!(c, '_' | '-' | ' '))
+        .flat_map(char::to_lowercase)
+        .collect();
+
+    match ANSI_NAMES.iter().position(|ansi| *ansi == normalized) {
+        Some(index) => Some(ColorContext::current().ansi(index as u8)),
+        None => charmtone::color(name),
+    }
+}
+
 impl<'de> Deserialize<'de> for Rgb {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -244,6 +279,10 @@ impl<'de> Deserialize<'de> for Rgb {
                         .map_err(|_| E::custom(format!("ANSI color {value} is not in 0..=255")));
                 }
 
+                if let Some(rgb) = named_color(value) {
+                    return Ok(rgb);
+                }
+
                 Rgb::from_str(value).map_err(|_| {
                     E::custom(format!("failed to parse color {value}; expected {EXPECTING}"))
                 })
@@ -259,8 +298,9 @@ impl<'de> Deserialize<'de> for Rgb {
             }
         }
 
-        const EXPECTING: &str = "hex color like #ff00ff, ANSI color like \"5\" or \"201\", or { \
-                                 light = <color>, dark = <color> }";
+        const EXPECTING: &str = "hex color like #ff00ff, ANSI color like \"5\", \"201\" or \
+                                 \"bright_red\", CharmTone name like \"charple\", or { light = \
+                                 <color>, dark = <color> }";
 
         // Return an error if the syntax is incorrect.
         let value = toml::Value::deserialize(deserializer)?;
@@ -396,7 +436,7 @@ mod tests {
         assert_eq!(parse("\"#ff00ff\"").unwrap(), Rgb::new(0xff, 0x00, 0xff));
         assert_eq!(parse("\"0x00ff00\"").unwrap(), Rgb::new(0x00, 0xff, 0x00));
         assert!(parse("\"#ff00f\"").is_err());
-        assert!(parse("\"green\"").is_err());
+        assert!(parse("\"#gggggg\"").is_err());
     }
 
     #[test]
@@ -445,6 +485,31 @@ mod tests {
     fn incomplete_light_dark_pairs_are_rejected() {
         assert!(parse("{ light = \"#ffffff\" }").is_err());
         assert!(parse("{ light = \"#ffffff\", dark = \"#000000\", extra = 1 }").is_err());
+    }
+
+    #[test]
+    fn ansi_names_use_palette() {
+        context(true).scope(|| {
+            assert_eq!(parse("\"magenta\"").unwrap(), Rgb::new(0x12, 0x34, 0x56));
+            let bright_red = ColorContext::current().ansi(9);
+            for name in ["bright_red", "bright-red", "BrightRed", "brightred"] {
+                assert_eq!(parse(&format!("\"{name}\"")).unwrap(), bright_red, "{name}");
+            }
+        });
+    }
+
+    #[test]
+    fn charmtone_names() {
+        assert_eq!(parse("\"charple\"").unwrap(), Rgb::new(0x6b, 0x50, 0xff));
+        assert_eq!(parse("\"Dolly\"").unwrap(), Rgb::new(0xff, 0x60, 0xff));
+        assert!(parse("\"not_a_color\"").is_err());
+    }
+
+    #[test]
+    fn names_work_in_light_dark_pairs() {
+        let pair = "{ light = \"pepper\", dark = \"butter\" }";
+        context(true).scope(|| assert_eq!(parse(pair).unwrap(), Rgb::new(0xff, 0xfa, 0xf1)));
+        context(false).scope(|| assert_eq!(parse(pair).unwrap(), Rgb::new(0x20, 0x1f, 0x26)));
     }
 
     #[test]

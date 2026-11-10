@@ -25,6 +25,9 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 
 ### Added
 
+- Themes in the style of Glamour and Huh: `theme = "<name or path>"`, `--theme` or `TANKTERM_THEME`,
+    with built-in `green_screen`, `charm`, `dracula`, `catppuccin` and `base16` themes
+- Colors can be named: ANSI names like `"bright_red"` and CharmTone names like `"charple"`
 - Color scheme reporting: `CSI ? 996 n` queries and mode 2031 notifications tell applications whether
     the colors are dark or light, following `colors.mode` or the background
 - Colors can be given like in Lip Gloss: ANSI colors (`"5"`, `"201"`) and `{ light, dark }` pairs

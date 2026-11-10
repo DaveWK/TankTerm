@@ -74,6 +74,9 @@ pub struct UiConfig {
     /// Bell configuration.
     pub bell: BellConfig,
 
+    /// Theme layered underneath this configuration, by name or path.
+    pub theme: Option<String>,
+
     /// RGB values for colors.
     pub colors: Colors,
 

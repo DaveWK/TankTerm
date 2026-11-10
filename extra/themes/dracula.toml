@@ -1,0 +1,62 @@
+# Dracula, from https://draculatheme.com.
+
+[colors.primary]
+background = "#282a36"
+foreground = "#f8f8f2"
+bright_foreground = "#ffffff"
+
+[colors.normal]
+black = "#21222c"
+red = "#ff5555"
+green = "#50fa7b"
+yellow = "#f1fa8c"
+blue = "#bd93f9"
+magenta = "#ff79c6"
+cyan = "#8be9fd"
+white = "#f8f8f2"
+
+[colors.bright]
+black = "#6272a4"
+red = "#ff6e6e"
+green = "#69ff94"
+yellow = "#ffffa5"
+blue = "#d6acff"
+magenta = "#ff92df"
+cyan = "#a4ffff"
+white = "#ffffff"
+
+[style.cursor]
+foreground = "CellBackground"
+background = "CellForeground"
+
+[style.vi_mode_cursor]
+foreground = "CellBackground"
+background = "CellForeground"
+
+[style.selection]
+foreground = "CellForeground"
+background = "#44475a"
+
+[style.search_match]
+foreground = "#44475a"
+background = "#50fa7b"
+
+[style.search_focused_match]
+foreground = "#44475a"
+background = "#ffb86c"
+
+[style.hint_start]
+foreground = "#282a36"
+background = "#f1fa8c"
+
+[style.hint_end]
+foreground = "#f1fa8c"
+background = "#282a36"
+
+[style.footer_bar]
+foreground = "#f8f8f2"
+background = "#282a36"
+
+[style.line_indicator]
+foreground = "#282a36"
+background = "#bd93f9"

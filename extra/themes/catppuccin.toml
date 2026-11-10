@@ -1,0 +1,63 @@
+# Catppuccin, from https://catppuccin.com: Mocha when dark, Latte when light.
+
+[colors.primary]
+background = { light = "#eff1f5", dark = "#1e1e2e" }
+foreground = { light = "#4c4f69", dark = "#cdd6f4" }
+dim_foreground = { light = "#8c8fa1", dark = "#7f849c" }
+bright_foreground = { light = "#4c4f69", dark = "#cdd6f4" }
+
+[colors.normal]
+black = { light = "#5c5f77", dark = "#45475a" }
+red = { light = "#d20f39", dark = "#f38ba8" }
+green = { light = "#40a02b", dark = "#a6e3a1" }
+yellow = { light = "#df8e1d", dark = "#f9e2af" }
+blue = { light = "#1e66f5", dark = "#89b4fa" }
+magenta = { light = "#ea76cb", dark = "#f5c2e7" }
+cyan = { light = "#179299", dark = "#94e2d5" }
+white = { light = "#acb0be", dark = "#bac2de" }
+
+[colors.bright]
+black = { light = "#6c6f85", dark = "#585b70" }
+red = { light = "#d20f39", dark = "#f38ba8" }
+green = { light = "#40a02b", dark = "#a6e3a1" }
+yellow = { light = "#df8e1d", dark = "#f9e2af" }
+blue = { light = "#1e66f5", dark = "#89b4fa" }
+magenta = { light = "#ea76cb", dark = "#f5c2e7" }
+cyan = { light = "#179299", dark = "#94e2d5" }
+white = { light = "#bcc0cc", dark = "#a6adc8" }
+
+[style.cursor]
+foreground = { light = "#eff1f5", dark = "#1e1e2e" }
+background = { light = "#dc8a78", dark = "#f5e0dc" }
+
+[style.vi_mode_cursor]
+foreground = { light = "#eff1f5", dark = "#1e1e2e" }
+background = { light = "#7287fd", dark = "#b4befe" }
+
+[style.selection]
+foreground = { light = "#eff1f5", dark = "#1e1e2e" }
+background = { light = "#dc8a78", dark = "#f5e0dc" }
+
+[style.search_match]
+foreground = { light = "#eff1f5", dark = "#1e1e2e" }
+background = { light = "#6c6f85", dark = "#a6adc8" }
+
+[style.search_focused_match]
+foreground = { light = "#eff1f5", dark = "#1e1e2e" }
+background = { light = "#40a02b", dark = "#a6e3a1" }
+
+[style.hint_start]
+foreground = { light = "#eff1f5", dark = "#1e1e2e" }
+background = { light = "#df8e1d", dark = "#f9e2af" }
+
+[style.hint_end]
+foreground = { light = "#eff1f5", dark = "#1e1e2e" }
+background = { light = "#6c6f85", dark = "#a6adc8" }
+
+[style.footer_bar]
+foreground = { light = "#eff1f5", dark = "#1e1e2e" }
+background = { light = "#6c6f85", dark = "#a6adc8" }
+
+[style.line_indicator]
+foreground = { light = "#eff1f5", dark = "#1e1e2e" }
+background = { light = "#6c6f85", dark = "#a6adc8" }

@@ -25,6 +25,11 @@ set of features with high performance.
 
 	Do not spawn an initial window.
 
+*--theme* _<name>_ | _<path>_
+
+	Theme to use, by built-in name or file path; see *tankTerm*(5). Overrides
+	the configuration's _theme_ and can also be set with _$TANKTERM\_THEME_.
+
 *--print-events*
 
 	Print all events to STDOUT.

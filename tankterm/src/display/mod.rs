@@ -1,5 +1,6 @@
 //! Display types kept for configuration parsing.
 
+pub mod charmtone;
 pub mod color;
 
 /// Window padding in pixels, which can differ on every side.

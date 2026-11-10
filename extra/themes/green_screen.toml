@@ -1,0 +1,4 @@
+# TankTerm's default theme: phosphor green on black.
+#
+# The defaults are built in, so this theme doesn't change anything. It exists so `theme =
+# "green_screen"` can be selected explicitly, for example to override TANKTERM_THEME.

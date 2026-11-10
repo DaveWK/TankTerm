@@ -99,6 +99,11 @@ If none of these exist, the same locations are checked using the `alacritty`
 name instead (for example `$XDG_CONFIG_HOME/alacritty/alacritty.toml`), so an
 existing Alacritty configuration keeps working.
 
+Themes are selected with `theme = "<name>"` in the configuration, `--theme`
+or `TANKTERM_THEME`: `green_screen` (default), `charm`, `dracula`,
+`catppuccin` and `base16` are built in, and any other value is a path to a
+theme file like the ones in [`extra/themes`](./extra/themes).
+
 ## Contributing
 
 A guideline about contributing to TankTerm can be found in the
