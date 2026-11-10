@@ -354,6 +354,8 @@ Like Lip Gloss, colors can be written in any of these forms:
 
 	Colors which should be used to draw the terminal cursor.
 
+	The matching *[style]* block takes precedence; see *STYLE*.
+
 	Allowed values are hexadecimal colors like _#ff00ff_, or
 	_CellForeground_/_CellBackground_, which references the affected cell.
 
@@ -424,6 +426,8 @@ Like Lip Gloss, colors can be written in any of these forms:
 *selection* = { text = _"<string>"_, background = _"<string>"_ }
 
 	Colors used for drawing selections.
+
+	The matching *[style]* block takes precedence; see *STYLE*.
 
 	Allowed values are hexadecimal colors like _#ff00ff_, or
 	_CellForeground_/_CellBackground_, which references the affected cell.
@@ -517,6 +521,78 @@ Like Lip Gloss, colors can be written in any of these forms:
 	When _true_, bold text is drawn using the bright color variants.
 
 	Default: _false_
+
+# STYLE
+
+This section documents the *[style]* table of the configuration file. Its blocks
+style the elements TankTerm draws on top of the terminal content, following
+Charm's Lip Gloss: every block is a style with the properties below, and styles
+can inherit from named styles.
+
+Each property of an element is taken from, in order:
+
+	. Its *[style.<element>]* block, then the styles listed in its _inherit_.
+	. The matching *[colors]* setting, like _colors.selection.background_.
+	. TankTerm's default for the element.
+
+*Elements*
+
+	*cursor*, *vi_mode_cursor*
+		The terminal cursor. _foreground_ is the text under the cursor and
+		_background_ the cursor itself. Only colors apply.
+
+	*selection*
+		Selected text.
+
+	*search_match*, *search_focused_match*
+		Search matches, and the focused match.
+
+	*hint_start*, *hint_end*
+		First and remaining characters of hint labels.
+
+	*footer_bar*, *line_indicator*
+		The footer bar (search, hyperlink previews) and the vi mode / search line
+		indicator. Only colors apply; _CellForeground_ and _CellBackground_ refer
+		to the primary colors.
+
+*defs*
+
+	Named styles to inherit from, defined as *[style.defs.<name>]* tables with the
+	same properties. Like Lip Gloss style variables, they aren't drawn on their own.
+
+*Style properties*
+
+	*inherit* = _"<name>"_ | [_"<name>"_, ...]
+
+		Named styles to take unset properties from, like Lip Gloss's _Inherit_.
+		With several names, earlier ones win. Inheritance is transitive; unknown
+		names and cycles are reported and skipped.
+
+	*foreground*, *background* = _"<color>"_ | _"CellForeground"_ | _"CellBackground"_
+
+		Colors in any of the forms described in *COLORS*, or a reference to the
+		affected cell's own colors.
+
+	*bold*, *italic*, *faint*, *underline*, *strikethrough*, *reverse* = _true_ | _false_
+
+		Text attributes, applied to the cells the element covers. _faint_ dims the
+		foreground and _reverse_ swaps foreground and background.
+
+		Default: _false_
+
+Example:
+	*[style.defs.accent]*++
+foreground = _"#000000"_++
+background = _"#00ff00"_++
+bold = _true_
+
+	*[style.selection]*++
+inherit = _"accent"_++
+background = _"#008000"_
+
+	*[style.search_focused_match]*++
+inherit = _"accent"_++
+underline = _true_
 
 # BELL
 

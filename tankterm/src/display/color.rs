@@ -340,6 +340,16 @@ pub enum CellRgb {
     Rgb(Rgb),
 }
 
+impl CellRgb {
+    pub fn color(self, foreground: Rgb, background: Rgb) -> Rgb {
+        match self {
+            Self::CellForeground => foreground,
+            Self::CellBackground => background,
+            Self::Rgb(rgb) => rgb,
+        }
+    }
+}
+
 impl Default for CellRgb {
     fn default() -> Self {
         Self::Rgb(Rgb::default())
