@@ -24,6 +24,7 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 
 ### Added
 
+- `Spring` visual bell animation with `bell.spring`, a damped spring like Charm's Harmonica
 - `general.accessible`, or `ACCESSIBLE`/`TANKTERM_ACCESSIBLE` like Huh, turns off cursor blinking and
     the visual bell
 - `[style.blurred]` styles for unfocused windows, like Huh's focused and blurred styles

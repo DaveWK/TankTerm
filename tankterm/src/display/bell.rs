@@ -1,10 +1,13 @@
 use std::time::{Duration, Instant};
 
-use crate::config::bell::{BellAnimation, BellConfig};
+use crate::config::bell::{BellAnimation, BellConfig, Spring};
 
 pub struct VisualBell {
     /// Visual bell animation.
     animation: BellAnimation,
+
+    /// Spring used by the spring animation.
+    spring: Spring,
 
     /// Visual bell duration.
     duration: Duration,
@@ -89,6 +92,10 @@ impl VisualBell {
                     BellAnimation::EaseOutExpo => cubic_bezier(0.19, 1.0, 0.22, 1.0, time),
                     BellAnimation::EaseOutCirc => cubic_bezier(0.075, 0.82, 0.165, 1.0, time),
                     BellAnimation::Linear => time,
+                    // Overshooting the target shows as a weaker flash, so the bell bounces. It
+                    // still ends at the bell's duration.
+                    BellAnimation::Spring if time >= 1. => 1.,
+                    BellAnimation::Spring => 1. - (1. - self.spring.position(elapsed_f)).abs(),
                 };
 
                 // Since we want the `intensity` of the VisualBell to decay over
@@ -100,6 +107,7 @@ impl VisualBell {
 
     pub fn update_config(&mut self, bell_config: &BellConfig) {
         self.animation = bell_config.animation;
+        self.spring = bell_config.spring;
         self.duration = bell_config.duration();
     }
 }
@@ -108,6 +116,7 @@ impl From<&BellConfig> for VisualBell {
     fn from(bell_config: &BellConfig) -> VisualBell {
         VisualBell {
             animation: bell_config.animation,
+            spring: bell_config.spring,
             duration: bell_config.duration(),
             start_time: None,
         }
@@ -119,4 +128,48 @@ fn cubic_bezier(p0: f64, p1: f64, p2: f64, p3: f64, x: f64) -> f64 {
         + 3.0 * (1.0 - x).powi(2) * x * p1
         + 3.0 * (1.0 - x) * x.powi(2) * p2
         + x.powi(3) * p3
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::config::UiConfig;
+
+    fn bell(config: &str) -> VisualBell {
+        let config: UiConfig = toml::from_str(config).unwrap();
+        VisualBell::from(&config.bell)
+    }
+
+    #[test]
+    fn spring_bell_stays_in_range_and_ends() {
+        let mut bell = bell("[bell]\nanimation = 'Spring'\nduration = 400\n");
+        bell.ring();
+        let start = bell.start_time.unwrap();
+
+        assert_eq!(bell.intensity_at_instant(start), 1.);
+        for step in 0..=50 {
+            let intensity = bell.intensity_at_instant(start + Duration::from_millis(step * 8));
+            assert!((0. ..=1.).contains(&intensity), "{intensity} at step {step}");
+        }
+        assert_eq!(bell.intensity_at_instant(start + Duration::from_millis(400)), 0.);
+    }
+
+    #[test]
+    fn underdamped_spring_bell_bounces() {
+        let mut bell = bell(
+            "[bell]\nanimation = 'Spring'\nduration = 1000\nspring = { frequency = 18.0, damping \
+             = 0.2 }\n",
+        );
+        bell.ring();
+        let start = bell.start_time.unwrap();
+
+        let intensities: Vec<_> = (0..=100)
+            .map(|step| bell.intensity_at_instant(start + Duration::from_millis(step * 10)))
+            .collect();
+
+        // After first fading out, the overshoot flashes again.
+        let first_low = intensities.iter().position(|&i| i < 0.05).unwrap();
+        assert!(intensities[first_low..].iter().any(|&i| i > 0.2));
+    }
 }
