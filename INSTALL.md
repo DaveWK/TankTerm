@@ -6,7 +6,7 @@ If you're just interested in the Alacritty binary and you don't need the
 install it directly through cargo:
 
 ```sh
-cargo install alacritty
+cargo install --git https://github.com/DaveWK/alacritty alacritty
 ```
 
 Note that you will still need to install the dependencies for your OS of choice.
@@ -53,7 +53,7 @@ Please refer to the [Dependencies](#dependencies) section.
 Before compiling Alacritty, you'll have to first clone the source code:
 
 ```sh
-git clone https://github.com/alacritty/alacritty.git
+git clone https://github.com/DaveWK/alacritty.git
 cd alacritty
 ```
 
