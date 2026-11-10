@@ -29,6 +29,8 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 - Default window title and class are now `TankTerm`
 - Default font is now `Iosevka Term`; if it can't be loaded, the system monospace font is
     used
+- Default color scheme is now green on black (`#00ff00` on `#000000`), with matching cursor,
+    selection, search and hint colors
 - `ALACRITTY_*` environment variables renamed to `TANKTERM_*`
 - IPC sockets and log files now use the `TankTerm-` prefix and the `tankterm` runtime directory
 
