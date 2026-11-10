@@ -15,8 +15,8 @@ use winit::platform::scancode::PhysicalKeyExtScancode;
 
 use alacritty_config_derive::{ConfigDeserialize, SerdeReplace};
 
-use alacritty_terminal::term::TermMode;
-use alacritty_terminal::vi_mode::ViMotion;
+use tankterm_terminal::term::TermMode;
+use tankterm_terminal::vi_mode::ViMotion;
 
 use crate::config::ui_config::{Hint, Program, StringVisitor};
 

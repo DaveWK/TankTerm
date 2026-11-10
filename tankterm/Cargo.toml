@@ -14,8 +14,8 @@ rust-version.workspace = true
 name = "tankTerm"
 path = "src/main.rs"
 
-[dependencies.alacritty_terminal]
-path = "../alacritty_terminal"
+[dependencies.tankterm_terminal]
+path = "../tankterm_terminal"
 version = "0.26.1-dev"
 
 [dependencies.alacritty_config_derive]

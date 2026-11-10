@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to alacritty_terminal are documented in this file. The
+All notable changes to tankterm_terminal are documented in this file. The
 sections should follow the order `Added`, `Changed`, `Deprecated`, `Fixed` and
 `Removed`.
 
@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+- **Crate renamed from `alacritty_terminal` to `tankterm_terminal`**
 - **Child processes receive `TANKTERM_WINDOW_ID` instead of `ALACRITTY_WINDOW_ID`**
 
 ### Fixed

@@ -5,7 +5,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     MB_ICONERROR, MB_OK, MB_SETFOREGROUND, MB_TASKMODAL, MessageBoxW,
 };
 
-use alacritty_terminal::tty::windows::win32_string;
+use tankterm_terminal::tty::windows::win32_string;
 
 // Install a panic handler that renders the panic in a classical Windows error
 // dialog box as well as writes the panic to STDERR.

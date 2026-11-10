@@ -52,7 +52,7 @@ const ALLOWED_TARGETS: &[&str] = &[
     LOG_TARGET_CONFIG,
     LOG_TARGET_WINIT,
     "alacritty_config_derive",
-    "alacritty_terminal",
+    "tankterm_terminal",
     env!("CARGO_CRATE_NAME"),
     "crossfont",
 ];

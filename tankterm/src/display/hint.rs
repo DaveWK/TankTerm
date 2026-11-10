@@ -7,11 +7,11 @@ use std::rc::Rc;
 use ahash::RandomState;
 use winit::keyboard::ModifiersState;
 
-use alacritty_terminal::grid::{BidirectionalIterator, Dimensions};
-use alacritty_terminal::index::{Boundary, Column, Direction, Line, Point};
-use alacritty_terminal::term::cell::Hyperlink;
-use alacritty_terminal::term::search::{Match, RegexIter, RegexSearch};
-use alacritty_terminal::term::{Term, TermMode};
+use tankterm_terminal::grid::{BidirectionalIterator, Dimensions};
+use tankterm_terminal::index::{Boundary, Column, Direction, Line, Point};
+use tankterm_terminal::term::cell::Hyperlink;
+use tankterm_terminal::term::search::{Match, RegexIter, RegexSearch};
+use tankterm_terminal::term::{Term, TermMode};
 
 use crate::config::UiConfig;
 use crate::config::ui_config::{Hint, HintAction};
@@ -590,9 +590,9 @@ impl<T> Iterator for HintPostProcessor<'_, T> {
 
 #[cfg(test)]
 mod tests {
-    use alacritty_terminal::index::{Column, Line};
-    use alacritty_terminal::term::test::mock_term;
-    use alacritty_terminal::vte::ansi::Handler;
+    use tankterm_terminal::index::{Column, Line};
+    use tankterm_terminal::term::test::mock_term;
+    use tankterm_terminal::vte::ansi::Handler;
 
     use super::*;
 

@@ -10,7 +10,7 @@ use log::{LevelFilter, error};
 use serde::{Deserialize, Serialize};
 use toml::Value;
 
-use alacritty_terminal::tty::Options as PtyOptions;
+use tankterm_terminal::tty::Options as PtyOptions;
 
 use crate::config::UiConfig;
 use crate::config::ui_config::Program;

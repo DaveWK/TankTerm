@@ -9,7 +9,7 @@ use log::error;
 use std::result::Result;
 use winit::event_loop::EventLoopProxy;
 
-use alacritty_terminal::thread;
+use tankterm_terminal::thread;
 
 use crate::UiConfig;
 use crate::cli::Options;

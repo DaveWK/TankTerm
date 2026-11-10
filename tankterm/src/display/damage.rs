@@ -3,9 +3,9 @@ use std::{cmp, mem};
 
 use glutin::surface::Rect;
 
-use alacritty_terminal::index::Point;
-use alacritty_terminal::selection::SelectionRange;
-use alacritty_terminal::term::{LineDamageBounds, TermDamageIterator};
+use tankterm_terminal::index::Point;
+use tankterm_terminal::selection::SelectionRange;
+use tankterm_terminal::term::{LineDamageBounds, TermDamageIterator};
 
 use crate::display::SizeInfo;
 
@@ -212,7 +212,7 @@ pub fn damage_y_to_viewport_y(size_info: &SizeInfo, rect: &Rect) -> i32 {
     size_info.height() as i32 - rect.y - rect.height
 }
 
-/// Iterator which converts `alacritty_terminal` damage information into renderer damaged rects.
+/// Iterator which converts `tankterm_terminal` damage information into renderer damaged rects.
 struct RenderDamageIterator<'a> {
     damaged_lines: Peekable<TermDamageIterator<'a>>,
     size_info: &'a SizeInfo<u32>,
