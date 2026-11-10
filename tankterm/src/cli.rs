@@ -15,6 +15,7 @@ use tankterm_terminal::tty::Options as PtyOptions;
 use crate::config::UiConfig;
 use crate::config::ui_config::Program;
 use crate::config::window::{Class, Identity};
+use crate::display::color::ColorContext;
 use crate::logging::LOG_TARGET_IPC_CONFIG;
 
 /// CLI options for the main TankTerm executable.
@@ -378,7 +379,13 @@ impl ParsedOptions {
     }
 
     /// Apply CLI config overrides, removing broken ones.
+    ///
+    /// ANSI colors and light/dark pairs in overrides resolve against the configuration's colors.
     pub fn override_config(&mut self, config: &mut UiConfig) {
+        ColorContext::from_colors(&config.colors).scope(|| self.override_config_in_context(config));
+    }
+
+    fn override_config_in_context(&mut self, config: &mut UiConfig) {
         let mut i = 0;
         while i < self.config_options.len() {
             let (option, parsed) = &self.config_options[i];

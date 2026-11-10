@@ -22,6 +22,11 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 - Fixed `alacritty-escapes(7)` manpage missing from macOS install
 - Added the `Open Alacritty here` entry to the right-click context menu for folders on Windows
 
+### Added
+
+- Colors can be given like in Lip Gloss: ANSI colors (`"5"`, `"201"`) and `{ light, dark }` pairs
+- `colors.mode` to choose the light or dark color of pairs; detected from the background by default
+
 ### Changed
 
 - Default config location is now `tankterm/tankterm.toml`; `alacritty` config locations are still

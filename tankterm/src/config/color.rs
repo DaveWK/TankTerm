@@ -7,6 +7,9 @@ use crate::display::color::{CellRgb, Rgb};
 
 #[derive(ConfigDeserialize, Serialize, Clone, Debug, PartialEq, Eq)]
 pub struct Colors {
+    /// Whether light/dark color pairs use their dark variant. Detected from the primary
+    /// background when unset.
+    pub mode: Option<ColorMode>,
     pub primary: PrimaryColors,
     pub cursor: InvertedCellColors,
     pub vi_mode_cursor: InvertedCellColors,
@@ -32,6 +35,7 @@ const PHOSPHOR_GREEN: Rgb = Rgb::new(0x00, 0xff, 0x00);
 impl Default for Colors {
     fn default() -> Self {
         Self {
+            mode: Default::default(),
             primary: Default::default(),
             cursor: InvertedCellColors {
                 foreground: CellRgb::Rgb(BLACK),
@@ -57,6 +61,13 @@ impl Default for Colors {
             footer_bar: Default::default(),
         }
     }
+}
+
+/// Which variant of light/dark color pairs to use.
+#[derive(ConfigDeserialize, Serialize, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ColorMode {
+    Dark,
+    Light,
 }
 
 impl Colors {
