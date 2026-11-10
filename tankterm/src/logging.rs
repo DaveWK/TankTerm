@@ -16,7 +16,7 @@ use log::{Level, LevelFilter};
 
 use crate::cli::Options;
 
-/// Logging target for IPC config error messages.
+/// Logging target for config override error messages.
 pub const LOG_TARGET_IPC_CONFIG: &str = "tankterm_log_window_config";
 
 /// Name for the environment variable containing the log file's path.
@@ -24,9 +24,6 @@ const TANKTERM_LOG_ENV: &str = "TANKTERM_LOG";
 
 /// Logging target for config error messages.
 pub const LOG_TARGET_CONFIG: &str = "tankterm_config_derive";
-
-/// Logging target for winit events.
-pub const LOG_TARGET_WINIT: &str = "tankterm_winit_event";
 
 /// Name for the environment variable containing extra logging targets.
 ///
@@ -47,7 +44,6 @@ fn extra_log_targets() -> &'static [String] {
 const ALLOWED_TARGETS: &[&str] = &[
     LOG_TARGET_IPC_CONFIG,
     LOG_TARGET_CONFIG,
-    LOG_TARGET_WINIT,
     "tankterm_config_derive",
     "tankterm_terminal",
     env!("CARGO_CRATE_NAME"),
@@ -113,7 +109,6 @@ impl log::Log for Logger {
             message: record.args().to_string(),
         };
 
-        // Write to logfile.
         if let Ok(mut logfile) = self.logfile.lock() {
             // Write to logfile, never styled.
             let _ = logfile.write_all(line.format(self.format, false).as_bytes());

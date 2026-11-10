@@ -108,7 +108,7 @@ impl Default for ColorContext {
 }
 
 impl ColorContext {
-    /// Context for an already loaded configuration, used for CLI and IPC overrides.
+    /// Context for an already loaded configuration, used for CLI overrides and resolving styles.
     pub fn from_colors(colors: &Colors) -> Self {
         let (normal, bright) = (&colors.normal, &colors.bright);
         let palette = [
