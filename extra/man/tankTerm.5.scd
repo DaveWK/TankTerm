@@ -669,10 +669,24 @@ This section documents the *[bell]* table of the configuration file.
 
 *animation* = _"Ease"_ | _"EaseOut"_ | _"EaseOutSine"_ | _"EaseOutQuad"_ | _"EaseOutCubic"_
 \| _"EaseOutQuart"_ | _"EaseOutQuint"_ | _"EaseOutExpo"_ | _"EaseOutCirc"_ | _"Linear"_
+\| _"Spring"_
 
 	Visual bell animation effect for flashing the screen when the visual bell is rung.
 
+	_Spring_ animates the flash with the damped spring set by _spring_, like
+	Charm's Harmonica. An underdamped spring overshoots, which shows as weaker
+	flashes after the first one. The flash always ends after _duration_.
+
 	Default: _"Linear"_
+
+*spring* = { frequency = _<float>_, damping = _<float>_ }
+
+	Spring for the _Spring_ animation. _frequency_ is the angular frequency in
+	radians per second; higher is faster. _damping_ is the damping ratio: below
+	_1.0_ the spring bounces, _1.0_ settles as fast as possible without bouncing,
+	and above _1.0_ it settles more slowly.
+
+	Default: { frequency = _18.0_, damping = _0.35_ }
 
 *duration* = _<integer>_
 
