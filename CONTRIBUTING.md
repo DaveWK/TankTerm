@@ -16,19 +16,19 @@ Table of Contents:
 
 ## Feature Requests
 
-Feature requests should be reported in the [issue tracker](https://github.com/DaveWK/TankTerm/issues). To reduce the
+Feature requests should be reported in the [issue tracker](https://git.infra.xitely.net/xitely/TankTerm/issues). To reduce the
 number of duplicates, please make sure to check the existing issues first.
 
 ## Bug Reports
 
-Bug reports should be reported in the [issue tracker](https://github.com/DaveWK/TankTerm/issues).
+Bug reports should be reported in the [issue tracker](https://git.infra.xitely.net/xitely/TankTerm/issues).
 
 If a bug was not present in a previous version of TankTerm, providing the exact commit which
 introduced the regression helps out a lot.
 
 ## Patches / Pull Requests
 
-All patches have to be sent on GitHub as [pull requests](https://github.com/DaveWK/TankTerm/pulls).
+All patches have to be sent on Forgejo as [pull requests](https://git.infra.xitely.net/xitely/TankTerm/pulls).
 
 You can find the minimum supported Rust version in TankTerm's manifest file
 (`grep "rust-version" Cargo.toml`). TankTerm **must** always
@@ -114,4 +114,4 @@ Pull requests where the author can't explain the changes may be closed.
 # Contact
 
 If there are any outstanding questions about contributing, they can be asked on the
-[issue tracker](https://github.com/DaveWK/TankTerm/issues).
+[issue tracker](https://git.infra.xitely.net/xitely/TankTerm/issues).

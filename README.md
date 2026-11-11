@@ -36,7 +36,7 @@ a daily driver.
 ### iced front end
 
 TankTerm's window and rendering now use the [iced](https://iced.rs) GUI toolkit
-through [iced_term](https://github.com/DaveWK/iced_term), replacing Alacritty's
+through [iced_term](https://git.infra.xitely.net/xitely/iced_term), replacing Alacritty's
 OpenGL front end. The terminal itself (escape sequences, the grid and the PTY)
 is still the `tankterm_terminal` crate. The font, colors, shell, environment,
 working directory, window title and class are read from your configuration.

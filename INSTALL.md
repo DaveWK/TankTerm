@@ -6,7 +6,7 @@ If you're just interested in the TankTerm binary and you don't need the
 install it directly through cargo:
 
 ```sh
-cargo install --git https://github.com/DaveWK/TankTerm tankterm
+cargo install --git https://git.infra.xitely.net/xitely/TankTerm tankterm
 ```
 
 This installs the `tankTerm` binary. For the OpenGL front end, add
@@ -61,7 +61,7 @@ default `main` branch uses the iced front end; the `staging` branch has the
 OpenGL front end.
 
 ```sh
-git clone https://github.com/DaveWK/TankTerm.git
+git clone https://git.infra.xitely.net/xitely/TankTerm.git
 cd TankTerm
 ```
 
