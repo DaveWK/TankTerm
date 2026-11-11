@@ -109,6 +109,12 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 - Possible deadlock on exit with ConPTY on Windows, from the window closing after the console
     was detached
 - `CSI 1 J` (erase above) not clearing the first line when the cursor is on the second line
+- Possible crash when a tab or pane key is pressed while the window closes with its last tab
+- Pasting again while the paste warning is shown replacing the text the warning asks about;
+    nothing is pasted until the warning is answered
+- Resizing a zoomed pane with the keyboard moving a divider that isn't shown; the zoom ends
+    first, like when focus moves
+- Session file not written again after writing it failed, until the tabs or panes changed
 
 ## Forked from Alacritty
 

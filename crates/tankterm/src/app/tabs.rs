@@ -37,7 +37,11 @@ impl App {
 
     /// Run a tab or pane action.
     pub(super) fn perform(&mut self, action: AppAction) -> Task<Message> {
+        // The last tab was closed and the window is about to close: nothing is left to act on.
         let tab_count = self.tabs.len();
+        if tab_count == 0 {
+            return Task::none();
+        }
 
         match action {
             AppAction::NewTab => {
@@ -105,6 +109,8 @@ impl App {
             },
             AppAction::ResizePane(direction) => {
                 let tab = &mut self.tabs[self.active];
+                tab.panes.restore();
+
                 let (axis, step) = match direction {
                     Direction::Left => (pane_grid::Axis::Vertical, -RESIZE_STEP),
                     Direction::Right => (pane_grid::Axis::Vertical, RESIZE_STEP),

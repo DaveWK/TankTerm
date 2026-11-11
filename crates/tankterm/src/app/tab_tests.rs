@@ -1,5 +1,9 @@
 //! Tabs and panes through the real `App`, with `cat` as the shell.
 
+use std::sync::Mutex;
+use std::thread;
+use std::time::{Duration, Instant};
+
 use iced::keyboard::{Key, Modifiers};
 use iced::widget::pane_grid::{Axis, Direction, Node};
 use iced::{Size, Theme};
@@ -193,6 +197,26 @@ fn zoom_shows_only_the_focused_pane_until_focus_moves() {
 }
 
 #[test]
+fn resizing_a_zoomed_pane_shows_the_divider_it_moves() {
+    let mut app = app();
+    perform(&mut app, &[
+        AppAction::Split(Axis::Vertical),
+        AppAction::ToggleZoom,
+        AppAction::ResizePane(Direction::Left),
+    ]);
+
+    assert_eq!(app.tabs[0].panes.maximized(), None);
+    assert!(matches!(app.tabs[0].panes.layout(), Node::Split { ratio, .. } if *ratio == 0.45));
+    assert_eq!(focused(&app), 1);
+
+    // A pane without a divider to move is shown among the others again as well, like one
+    // without a neighbor to move focus to.
+    perform(&mut app, &[AppAction::ToggleZoom, AppAction::ResizePane(Direction::Up)]);
+    assert_eq!(app.tabs[0].panes.maximized(), None);
+    assert!(matches!(app.tabs[0].panes.layout(), Node::Split { ratio, .. } if *ratio == 0.45));
+}
+
+#[test]
 fn panes_are_resized_at_the_nearest_divider() {
     let ratios = |app: &App| {
         let mut ratios = Vec::new();
@@ -264,6 +288,44 @@ fn a_pane_closes_when_its_shell_exits() {
     // The last tab leaves nothing to show; the window is closed.
     let _ = app.update(Message::Terminal(iced_tterm::Event::BackendCall(2, exit)));
     assert!(app.tabs.is_empty() && app.terminals.is_empty());
+    let _ = app.view();
+}
+
+#[test]
+fn actions_do_nothing_after_the_last_tab_is_closed() {
+    let mut app = app();
+    perform(&mut app, &[AppAction::CloseTab]);
+    assert!(app.tabs.is_empty());
+
+    // Keys pressed before the window is gone still arrive.
+    perform(&mut app, &[
+        AppAction::NewTab,
+        AppAction::CloseTab,
+        AppAction::NextTab,
+        AppAction::PreviousTab,
+        AppAction::SelectTab(0),
+        AppAction::LastTab,
+        AppAction::MoveTabLeft,
+        AppAction::MoveTabRight,
+        AppAction::Split(Axis::Vertical),
+        AppAction::ClosePane,
+        AppAction::FocusPane(Direction::Left),
+        AppAction::NextPane,
+        AppAction::PreviousPane,
+        AppAction::ToggleZoom,
+        AppAction::ResizePane(Direction::Left),
+        AppAction::ShowCommands,
+        AppAction::ShowProfiles,
+        AppAction::PaletteNext,
+        AppAction::PalettePrevious,
+        AppAction::PaletteClose,
+        AppAction::PasteConfirm,
+        AppAction::PasteCancel,
+    ]);
+
+    assert!(app.tabs.is_empty() && app.terminals.is_empty());
+    assert_eq!(app.active, 0);
+    assert!(app.palette.is_none());
     let _ = app.view();
 }
 
@@ -366,6 +428,85 @@ fn sessions_are_not_written_without_a_session_file() {
     assert_eq!(app.saved_session, None);
 }
 
+/// Keeps the warnings and errors logged by the tests of this binary.
+struct Warnings(Mutex<Vec<String>>);
+
+static WARNINGS: Warnings = Warnings(Mutex::new(Vec::new()));
+
+impl log::Log for Warnings {
+    fn enabled(&self, metadata: &log::Metadata<'_>) -> bool {
+        metadata.level() <= log::Level::Warn
+    }
+
+    fn log(&self, record: &log::Record<'_>) {
+        if self.enabled(record.metadata()) {
+            self.0.lock().unwrap().push(record.args().to_string());
+        }
+    }
+
+    fn flush(&self) {}
+}
+
+impl Warnings {
+    /// Start keeping what is logged. The tests install no other logger.
+    fn keep() {
+        static KEEP: std::sync::Once = std::sync::Once::new();
+
+        KEEP.call_once(|| {
+            log::set_logger(&WARNINGS).unwrap();
+            log::set_max_level(log::LevelFilter::Warn);
+        });
+    }
+
+    /// How many of the kept warnings and errors mention `text`.
+    fn mentioning(text: &str) -> usize {
+        WARNINGS.0.lock().unwrap().iter().filter(|warning| warning.contains(text)).count()
+    }
+}
+
+#[test]
+fn failed_session_writes_are_tried_again_with_the_ticks() {
+    Warnings::keep();
+
+    // A file where the session file's directory belongs keeps the session from being written.
+    let directory = tempfile::tempdir().unwrap();
+    let blocker = directory.path().join("state");
+    std::fs::write(&blocker, "").unwrap();
+    let file = blocker.join("session.json");
+    let name = file.display().to_string();
+
+    let mut app = app_with_session("", Hotkeys::default(), Some(file.clone()));
+    perform(&mut app, &[AppAction::NewTab]);
+    assert_eq!(app.saved_session, None);
+    assert_eq!(Warnings::mentioning(&name), 1);
+
+    // Every tick tries again, without repeating what went wrong.
+    let _ = app.update(Message::Tick);
+    let _ = app.update(Message::Tick);
+    assert_eq!(app.saved_session, None);
+    assert!(app.session_error.is_some());
+    assert_eq!(Warnings::mentioning(&name), 1);
+
+    // Once the file can be written the next tick writes it, and nothing before that tick.
+    std::fs::remove_file(&blocker).unwrap();
+    perform(&mut app, &[AppAction::SelectTab(0)]);
+    assert_eq!(Session::load(&file), None);
+    let _ = app.update(Message::Tick);
+    assert_eq!(Session::load(&file), Some(app.session()));
+    assert_eq!(app.saved_session, Some(app.session()));
+    assert_eq!(app.session_error, None);
+    assert_eq!(Warnings::mentioning(&name), 1);
+
+    // Later changes are written right away again, and a new failure is reported.
+    perform(&mut app, &[AppAction::NewTab]);
+    assert_eq!(Session::load(&file).map(|session| session.tabs.len()), Some(3));
+    std::fs::remove_dir_all(&blocker).unwrap();
+    std::fs::write(&blocker, "").unwrap();
+    perform(&mut app, &[AppAction::NewTab]);
+    assert_eq!(app.saved_session.as_ref().map(|session| session.tabs.len()), Some(3));
+    assert_eq!(Warnings::mentioning(&name), 2);
+}
+
 #[test]
 fn command_palette_filters_and_runs_commands() {
     let mut app = app();
@@ -440,13 +581,26 @@ fn profiles_open_in_a_new_tab() {
     assert_ne!(app.terminals[&2].background, Color::WHITE);
 }
 
+/// How long the tests wait for a shell to do something before they give up.
+///
+/// Only a test that is about to fail waits this long, so this is generous: a shell on a busy
+/// machine can take a while to start.
+const PATIENCE: Duration = Duration::from_secs(60);
+
+/// Wait until `condition` holds, failing with `what` if it doesn't in time.
+fn wait_until(what: &str, mut condition: impl FnMut() -> bool) {
+    let deadline = Instant::now() + PATIENCE;
+    while !condition() {
+        assert!(Instant::now() < deadline, "{what}");
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
 /// Wait for a terminal to show `text`.
 fn wait_for_text(app: &App, terminal: u64, text: &str) {
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
-    while !app.terminals[&terminal].terminal.text().concat().contains(text) {
-        assert!(std::time::Instant::now() < deadline, "terminal never showed {text:?}");
-        std::thread::sleep(std::time::Duration::from_millis(10));
-    }
+    wait_until(&format!("terminal never showed {text:?}"), || {
+        app.terminals[&terminal].terminal.text().concat().contains(text)
+    });
 }
 
 fn paste(terminal: u64, text: &str) -> Message {
@@ -476,6 +630,86 @@ fn pastes_with_line_breaks_wait_for_an_answer() {
     assert!(app.pending_paste.is_none());
     wait_for_text(&app, 0, "five");
     assert!(!app.terminals[&0].terminal.text().concat().contains("two"));
+}
+
+#[test]
+fn pastes_are_ignored_while_the_paste_warning_is_shown() {
+    let mut app = app();
+    let _ = app.update(paste(0, "one\ntwo\n"));
+
+    // Neither text that would be asked about nor text that wouldn't gets past the warning.
+    let _ = app.update(paste(0, "three\nfour\n"));
+    let _ = app.update(paste(0, "five"));
+    assert!(has_text(&app, "Paste 2 lines? Every line break runs a line."));
+    assert!(has_text(&app, "one") && !has_text(&app, "three"));
+
+    // The answer is about the text that is shown.
+    perform(&mut app, &[AppAction::PasteConfirm]);
+    assert!(app.pending_paste.is_none());
+    let _ = app.update(paste(0, "six"));
+    wait_for_text(&app, 0, "six");
+
+    let text = app.terminals[&0].terminal.text().concat();
+    assert!(text.contains("one") && text.contains("two"), "{text:?}");
+    assert!(!text.contains("three") && !text.contains("five"), "{text:?}");
+}
+
+/// A clipboard with the same text on the regular and the selection clipboard.
+struct TestClipboard(&'static str);
+
+impl iced_core::Clipboard for TestClipboard {
+    fn read(&self, _kind: iced_core::clipboard::Kind) -> Option<String> {
+        Some(self.0.into())
+    }
+
+    fn write(&mut self, _kind: iced_core::clipboard::Kind, _contents: String) {}
+}
+
+/// Press a mouse button over the terminal with `text` on the clipboards, which the simulator
+/// has none of, and return the text of the pastes that asks for.
+fn mouse_pastes(app: &App, button: iced::mouse::Button, text: &'static str) -> Vec<String> {
+    use iced::mouse;
+    use iced_core::renderer::Headless;
+    use iced_winit::runtime::{UserInterface, user_interface};
+
+    let renderer =
+        <iced::Renderer as Headless>::new(iced::Font::MONOSPACE, iced::Pixels(16.), None);
+    let mut renderer = iced::futures::executor::block_on(renderer).unwrap();
+    let cache = user_interface::Cache::default();
+    let mut ui = UserInterface::build(app.view(), Size::new(800., 400.), cache, &mut renderer);
+
+    let mut messages = Vec::new();
+    let _ = ui.update(
+        &[iced::Event::Mouse(mouse::Event::ButtonPressed(button))],
+        mouse::Cursor::Available((400., 300.).into()),
+        &mut renderer,
+        &mut TestClipboard(text),
+        &mut messages,
+    );
+
+    let pastes = messages.into_iter().filter_map(|message| match message {
+        Message::Terminal(iced_tterm::Event::BackendCall(_, BackendCommand::Paste(text))) => {
+            Some(text)
+        },
+        _ => None,
+    });
+    pastes.collect()
+}
+
+#[test]
+fn paste_warning_takes_the_mouse() {
+    use iced::mouse::Button;
+
+    let config = "[mouse]\nbindings = [{ mouse = \"Right\", action = \"Paste\" }]\n";
+    let mut app = app_with(config, Hotkeys::default());
+    assert_eq!(mouse_pastes(&app, Button::Middle, "ls\n"), ["ls\n"]);
+    assert_eq!(mouse_pastes(&app, Button::Right, "ls\n"), ["ls\n"]);
+
+    // The buttons that paste don't reach the terminal under the warning.
+    let _ = app.update(paste(0, "ls\n"));
+    assert!(app.pending_paste.is_some());
+    assert!(mouse_pastes(&app, Button::Middle, "rm\n").is_empty());
+    assert!(mouse_pastes(&app, Button::Right, "rm\n").is_empty());
 }
 
 #[test]
@@ -509,11 +743,9 @@ fn pastes_are_not_questioned_with_bracketed_paste_or_when_turned_off() {
     let config = "[terminal]\nshell = { program = \"sh\", args = [\"-c\", \"printf \
                   '\\\\033[?2004h'; exec cat\"] }\n";
     let mut app = app_with(config, Hotkeys::default());
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
-    while !app.terminals[&0].terminal.mode().contains(TermMode::BRACKETED_PASTE) {
-        assert!(std::time::Instant::now() < deadline, "bracketed paste was never enabled");
-        std::thread::sleep(std::time::Duration::from_millis(10));
-    }
+    wait_until("bracketed paste was never enabled", || {
+        app.terminals[&0].terminal.mode().contains(TermMode::BRACKETED_PASTE)
+    });
 
     let _ = app.update(paste(0, "one\ntwo\n"));
     assert!(app.pending_paste.is_none());
@@ -604,30 +836,57 @@ fn mouse_paste_bindings_come_from_the_configuration() {
 /// Configuration running an interactive shell, which gives every command the terminal.
 const INTERACTIVE_SHELL: &str = "[terminal]\nshell = { program = \"sh\", args = [\"-i\"] }\n";
 
+/// Type into the shell of a terminal.
+fn type_into(app: &mut App, terminal: u64, bytes: &[u8]) {
+    let write = BackendCommand::Write(bytes.to_vec());
+    let _ = app.update(Message::Terminal(iced_tterm::Event::BackendCall(terminal, write)));
+}
+
 /// Type a line into the shell of a terminal.
 fn run(app: &mut App, terminal: u64, line: &str) {
-    let write = BackendCommand::Write(format!("{line}\n").into_bytes());
-    let _ = app.update(Message::Terminal(iced_tterm::Event::BackendCall(terminal, write)));
+    type_into(app, terminal, format!("{line}\n").as_bytes());
+}
+
+/// Output of a terminal, as the application is told about it.
+fn wakeup(terminal: u64) -> Message {
+    let wakeup = BackendCommand::ProcessAlacrittyEvent(AlacrittyEvent::Wakeup);
+    Message::Terminal(iced_tterm::Event::BackendCall(terminal, wakeup))
 }
 
 /// Look at the shells until `condition` holds.
 fn tick_until(app: &mut App, what: &str, condition: impl Fn(&App) -> bool) {
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
-    loop {
+    wait_until(what, || {
         let _ = app.update(Message::Tick);
-        if condition(app) {
-            break;
-        }
-        assert!(std::time::Instant::now() < deadline, "{what}");
-        std::thread::sleep(std::time::Duration::from_millis(10));
-    }
+        condition(app)
+    });
 }
 
-/// Run a short command in a terminal and wait for it to finish.
+/// Start a command in a terminal and wait for the application to see it running.
+///
+/// The command is `cat`, which runs until [`end_command`] ends it: how long it runs is up to
+/// the test, not to the clock.
+#[cfg(unix)]
+fn start_command(app: &mut App, terminal: u64) {
+    run(app, terminal, "cat");
+    tick_until(app, "the command never started", |app| app.terminals[&terminal].busy);
+}
+
+/// End the command started by [`start_command`] and wait for its shell to have the terminal
+/// again, without the application looking at the shell.
+#[cfg(unix)]
+fn end_command(app: &mut App, terminal: u64) {
+    // Ctrl+D at the start of a line is the end of the input `cat` waits for.
+    type_into(app, terminal, b"\x04");
+
+    let shell = &app.terminals[&terminal].terminal;
+    wait_until("the command never ended", || shell.foreground_process_group() == shell.child_pid());
+}
+
+/// Run a command in a terminal and wait for the application to see it finish.
 #[cfg(unix)]
 fn run_to_the_end(app: &mut App, terminal: u64) {
-    run(app, terminal, "sleep 0.3");
-    tick_until(app, "the command never started", |app| app.terminals[&terminal].busy);
+    start_command(app, terminal);
+    end_command(app, terminal);
     tick_until(app, "the command never finished", |app| !app.terminals[&terminal].busy);
 }
 
@@ -667,10 +926,35 @@ fn finished_commands_are_pointed_out_unless_looked_at() {
     assert!(!app.terminals[&0].attention);
 }
 
+#[cfg(unix)]
+#[test]
+fn finished_commands_are_noticed_with_the_output_that_follows_them() {
+    let mut app = app_with(INTERACTIVE_SHELL, Hotkeys::default());
+    perform(&mut app, &[AppAction::NewTab]);
+
+    start_command(&mut app, 0);
+    end_command(&mut app, 0);
+    assert!(app.terminals[&0].busy && !app.terminals[&0].attention);
+
+    // The shell's next prompt is output of the terminal; it doesn't take a tick.
+    let _ = app.update(wakeup(0));
+    assert!(!app.terminals[&0].busy && app.terminals[&0].attention);
+}
+
 /// The directory the shell of a terminal is in right now.
 #[cfg(target_os = "linux")]
 fn directory(app: &App, terminal: u64) -> Option<PathBuf> {
     working_directory(app.terminals[&terminal].terminal.child_pid().unwrap())
+}
+
+/// Have the shell of a terminal change its directory and wait until it did, without the
+/// application looking at the shell.
+#[cfg(target_os = "linux")]
+fn change_directory(app: &mut App, terminal: u64, path: &std::path::Path) {
+    run(app, terminal, &format!("cd {}", path.display()));
+    wait_until("the shell never changed directory", || {
+        directory(app, terminal).as_deref() == Some(path)
+    });
 }
 
 #[cfg(target_os = "linux")]
@@ -680,10 +964,7 @@ fn new_tabs_and_panes_start_in_the_focused_shells_directory() {
     let path = directory.path().canonicalize().unwrap();
 
     let mut app = app_with(INTERACTIVE_SHELL, Hotkeys::default());
-    run(&mut app, 0, &format!("cd {}", path.display()));
-    tick_until(&mut app, "the shell never changed directory", |app| {
-        app.terminals[&0].working_directory.as_ref() == Some(&path)
-    });
+    change_directory(&mut app, 0, &path);
 
     perform(&mut app, &[AppAction::NewTab, AppAction::Split(Axis::Vertical)]);
     assert_eq!(self::directory(&app, 1), Some(path.clone()));
@@ -693,13 +974,41 @@ fn new_tabs_and_panes_start_in_the_focused_shells_directory() {
     let config = format!("{INTERACTIVE_SHELL}\n[tabs]\ninherit_working_directory = false\n");
     let mut app = app_with(&config, Hotkeys::default());
     let start = self::directory(&app, 0);
-    run(&mut app, 0, &format!("cd {}", path.display()));
-    tick_until(&mut app, "the shell never changed directory", |app| {
-        app.terminals[&0].working_directory.as_ref() == Some(&path)
-    });
+    change_directory(&mut app, 0, &path);
 
     perform(&mut app, &[AppAction::NewTab]);
     assert_eq!(self::directory(&app, 1), start);
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn directories_are_looked_up_with_the_ticks_for_the_session_file() {
+    let state = tempfile::tempdir().unwrap();
+    let file = state.path().join("session.json");
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().canonicalize().unwrap();
+    let saved = |app: &App| match &app.session().tabs[0].layout {
+        crate::session::SavedNode::Pane { working_directory } => working_directory.clone(),
+        crate::session::SavedNode::Split { .. } => panic!("the tab was never split"),
+    };
+
+    let mut app = app_with_session(INTERACTIVE_SHELL, Hotkeys::default(), Some(file.clone()));
+    change_directory(&mut app, 0, &path);
+
+    // Output of a terminal doesn't have the directory of its shell looked up.
+    let _ = app.update(wakeup(0));
+    assert_ne!(saved(&app), Some(path.clone()));
+
+    // The next tick does, and the session file is written with what it found.
+    let _ = app.update(Message::Tick);
+    assert_eq!(saved(&app), Some(path.clone()));
+    assert_eq!(Session::load(&file), Some(app.session()));
+
+    // Without a session file there is nothing to look the directories up for.
+    let mut app = app_with(INTERACTIVE_SHELL, Hotkeys::default());
+    change_directory(&mut app, 0, &path);
+    let _ = app.update(Message::Tick);
+    assert_ne!(saved(&app), Some(path));
 }
 
 #[cfg(target_os = "linux")]
@@ -809,6 +1118,12 @@ fn bound_keys_are_handled_and_kept_from_the_shell() {
     assert_eq!(written, b"b");
 }
 
+/// How long [`type_keys`] pauses where a key is `None`.
+///
+/// A pause is never shorter than this, however busy the machine is, so a leader key timeout
+/// below it has always run out after a pause.
+const PAUSE: Duration = Duration::from_millis(80);
+
 /// Press and release keys in a focused terminal of `app`, pausing where a key is `None`.
 ///
 /// Returns the actions the keys ran and the bytes they sent to the shell.
@@ -823,7 +1138,7 @@ fn type_keys(app: &App, keys: &[Option<(Key, Modifiers)>]) -> (Vec<AppAction>, V
 
     for key in keys {
         let Some((key, modifiers)) = key.clone() else {
-            std::thread::sleep(std::time::Duration::from_millis(80));
+            thread::sleep(PAUSE);
             continue;
         };
 
@@ -877,20 +1192,20 @@ fn ctrl(character: &str) -> Option<(Key, Modifiers)> {
     Some((Key::Character(character.into()), Modifiers::CTRL))
 }
 
+/// Leader key timeout, in milliseconds, for tests whose keys follow the leader key in time
+/// however slowly the test runs.
+const NEVER: u64 = 24 * 60 * 60 * 1000;
+
 /// Hotkeys with `Ctrl+A` as the leader key and `c` after it bound to a new tab.
 fn leader_hotkeys(timeout: u64) -> Hotkeys {
     Hotkeys::default()
-        .with_leader(
-            Key::Character("a".into()),
-            Modifiers::CTRL,
-            std::time::Duration::from_millis(timeout),
-        )
+        .with_leader(Key::Character("a".into()), Modifiers::CTRL, Duration::from_millis(timeout))
         .with_sequence(Key::Character("c".into()), Modifiers::empty(), AppAction::NewTab)
 }
 
 #[test]
 fn leader_key_and_the_key_after_it_are_kept_from_the_shell() {
-    let app = app_with("", leader_hotkeys(10_000));
+    let app = app_with("", leader_hotkeys(NEVER));
 
     let (actions, written) = type_keys(&app, &[ctrl("a"), key("c"), key("c")]);
     assert_eq!(actions, [AppAction::NewTab]);
@@ -902,7 +1217,7 @@ fn leader_key_and_the_key_after_it_are_kept_from_the_shell() {
 fn unbound_key_after_the_leader_key_cancels_the_sequence() {
     use iced::keyboard::key::Named;
 
-    let app = app_with("", leader_hotkeys(10_000));
+    let app = app_with("", leader_hotkeys(NEVER));
 
     let (actions, written) = type_keys(&app, &[ctrl("a"), key("q"), key("c")]);
     assert_eq!(actions, []);
@@ -917,7 +1232,7 @@ fn unbound_key_after_the_leader_key_cancels_the_sequence() {
 
 #[test]
 fn leader_key_twice_sends_it_to_the_shell() {
-    let app = app_with("", leader_hotkeys(10_000));
+    let app = app_with("", leader_hotkeys(NEVER));
 
     let (actions, written) = type_keys(&app, &[ctrl("a"), ctrl("a"), key("c")]);
     assert_eq!(actions, []);
@@ -926,6 +1241,7 @@ fn leader_key_twice_sends_it_to_the_shell() {
 
 #[test]
 fn leader_key_gives_up_after_its_timeout() {
+    // Shorter than the pause, which a busy machine only makes longer.
     let app = app_with("", leader_hotkeys(20));
 
     let (actions, written) = type_keys(&app, &[ctrl("a"), None, key("c")]);
@@ -938,7 +1254,7 @@ fn leader_key_is_left_to_the_shell_without_leader_bindings() {
     let hotkeys = Hotkeys::default().with_leader(
         Key::Character("a".into()),
         Modifiers::CTRL,
-        std::time::Duration::from_secs(10),
+        Duration::from_millis(NEVER),
     );
     let app = app_with("", hotkeys);
 

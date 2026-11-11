@@ -108,6 +108,8 @@ pub struct App {
     window_focused: bool,
     /// The session as it was last written to `session_file`.
     saved_session: Option<Session>,
+    /// Why the session couldn't be written, while a write that failed waits to be tried again.
+    session_error: Option<String>,
     /// The command palette or profile selector, while one is shown.
     palette: Option<Palette>,
     /// Keys that work while the palette is shown, in place of the configured ones.
@@ -147,7 +149,8 @@ struct Shell {
     background: Color,
     /// Whether a command was running in the shell when it was last looked at.
     busy: bool,
-    /// Directory the shell was in when it was last looked at, where that can be told.
+    /// Directory the shell was started in or was in at the last tick, where that can be told.
+    /// Only kept up to date while there is a session file to remember it in.
     working_directory: Option<PathBuf>,
     /// The terminal rang the bell or finished a command while nobody was looking at it.
     attention: bool,

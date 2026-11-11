@@ -32,6 +32,7 @@ impl App {
             next_tab: 0,
             window_focused: true,
             saved_session: None,
+            session_error: None,
             palette: None,
             palette_keys: Hotkeys::palette(),
             pending_paste: None,
@@ -105,9 +106,12 @@ impl App {
 
     /// Write the session file if the tabs or panes changed since it was last written.
     ///
+    /// A write that failed is tried again when `retry` is set, which it is with every tick, and
+    /// its error is logged once, not with every attempt.
+    ///
     /// The last tab closing isn't recorded, so closing a window by exiting its last shell
     /// remembers that last tab.
-    fn save_session(&mut self) {
+    fn save_session(&mut self, retry: bool) {
         let Some(path) = &self.options.session_file else { return };
         if self.tabs.is_empty() {
             return;
@@ -115,13 +119,28 @@ impl App {
 
         let session = self.session();
         if self.saved_session.as_ref() == Some(&session) {
+            // The file holds these tabs and panes; a write that failed has nothing left to do.
+            self.session_error = None;
             return;
         }
 
-        if let Err(err) = session.save(path) {
-            warn!("Unable to save the session to {}: {err}", path.display());
+        if self.session_error.is_some() && !retry {
+            return;
         }
-        self.saved_session = Some(session);
+
+        match session.save(path) {
+            Ok(()) => {
+                self.saved_session = Some(session);
+                self.session_error = None;
+            },
+            Err(err) => {
+                let err = err.to_string();
+                if self.session_error.as_ref() != Some(&err) {
+                    warn!("Unable to save the session to {}: {err}", path.display());
+                }
+                self.session_error = Some(err);
+            },
+        }
     }
 
     /// Mark the tab that is shown as seen, clearing its activity marker, and the pane that has
@@ -154,17 +173,20 @@ impl App {
             _ => None,
         });
 
-        // Finished commands and working directories are only known on Unix.
-        let ticks = cfg!(unix).then(|| Subscription::run(ticks));
+        // Finished commands and working directories are only known on Unix. Elsewhere ticks are
+        // only needed while the session file waits to be written again.
+        let ticking = cfg!(unix) || self.session_error.is_some();
+        let ticks = ticking.then(|| Subscription::run(ticks));
 
         Subscription::batch(terminals.chain([window]).chain(ticks))
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
+        let tick = matches!(message, Message::Tick);
         let task = self.handle(message);
 
         self.shown();
-        self.save_session();
+        self.save_session(tick);
 
         task
     }
@@ -205,6 +227,7 @@ impl App {
                 let terminals: Vec<u64> = self.terminals.keys().copied().collect();
                 let finished = terminals.into_iter().filter(|id| self.poll_process(*id));
                 let finished: Vec<u64> = finished.collect();
+                self.poll_directories();
 
                 Task::batch(finished.into_iter().map(|id| self.notify(id)))
             },
@@ -250,6 +273,12 @@ impl App {
     ///
     /// Without bracketed paste a shell takes every line break in pasted text as the Enter key.
     fn paste(&mut self, terminal: u64, text: String) {
+        // The warning shows the text it asks about; that text isn't replaced behind its back, and
+        // nothing else gets into a terminal before it is answered.
+        if self.pending_paste.is_some() {
+            return;
+        }
+
         let Some(shell) = self.terminals.get_mut(&terminal) else { return };
 
         let bracketed = shell.terminal.mode().contains(TermMode::BRACKETED_PASTE);
@@ -355,10 +384,13 @@ impl App {
         window::latest().and_then(move |id| window::request_user_attention(id, attention))
     }
 
-    /// Look at the shell of a terminal: whether it runs a command and which directory it is in.
+    /// Look at the shell of a terminal: whether it runs a command.
     ///
     /// Returns whether a command finished since the shell was last looked at. A command runs
     /// while another process group than the shell's has the terminal.
+    ///
+    /// This runs with every output of the terminal, so it only asks the terminal for its
+    /// foreground process group.
     fn poll_process(&mut self, terminal: u64) -> bool {
         let Some(shell) = self.terminals.get_mut(&terminal) else { return false };
         let (Some(pid), Some(foreground)) =
@@ -369,11 +401,24 @@ impl App {
 
         let was_busy = shell.busy;
         shell.busy = foreground != pid;
-        if let Some(directory) = working_directory(pid) {
-            shell.working_directory = Some(directory);
-        }
 
         was_busy && !shell.busy
+    }
+
+    /// Look up the directories the shells are in, which the session file remembers.
+    ///
+    /// This takes the file system, so it runs with the ticks and not with every output of a
+    /// terminal, and not at all if there is no session file to write the directories to.
+    fn poll_directories(&mut self) {
+        if self.options.session_file.is_none() {
+            return;
+        }
+
+        for shell in self.terminals.values_mut() {
+            if let Some(directory) = shell.terminal.child_pid().and_then(working_directory) {
+                shell.working_directory = Some(directory);
+            }
+        }
     }
 }
 
