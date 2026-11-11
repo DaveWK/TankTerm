@@ -22,5 +22,5 @@ toml_edit = "0.25.19"
 
 # iced_term depends on tankterm_terminal from this repository; use the local copy so there is only
 # one terminal crate in the build.
-[patch."https://github.com/DaveWK/TankTerm"]
+[patch."ssh://git@git.infra.xitely.net:2222/xitely/TankTerm.git"]
 tankterm_terminal = { path = "tankterm_terminal" }
