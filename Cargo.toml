@@ -1,10 +1,10 @@
 [workspace]
 members = [
-    "tankterm",
-    "iced_tterm",
-    "tankterm_terminal",
-    "tankterm_config",
-    "tankterm_config_derive",
+    "crates/tankterm",
+    "crates/iced_tterm",
+    "crates/tankterm_terminal",
+    "crates/tankterm_config",
+    "crates/tankterm_config_derive",
 ]
 resolver = "2"
 

@@ -551,7 +551,7 @@ mod tests {
             let generated = String::from_utf8_lossy(&generated);
 
             let mut completion = String::new();
-            let mut file = File::open(format!("../extra/completions/{file}")).unwrap();
+            let mut file = File::open(format!("extra/completions/{file}")).unwrap();
             file.read_to_string(&mut completion).unwrap();
 
             assert_eq!(generated, completion);
@@ -559,11 +559,11 @@ mod tests {
 
         // NOTE: Use this to generate new completions.
         //
-        // let mut file = File::create("../extra/completions/tankTerm.bash").unwrap();
+        // let mut file = File::create("extra/completions/tankTerm.bash").unwrap();
         // clap_complete::generate(Shell::Bash, &mut clap, "tankTerm", &mut file);
-        // let mut file = File::create("../extra/completions/tankTerm.fish").unwrap();
+        // let mut file = File::create("extra/completions/tankTerm.fish").unwrap();
         // clap_complete::generate(Shell::Fish, &mut clap, "tankTerm", &mut file);
-        // let mut file = File::create("../extra/completions/_tankTerm").unwrap();
+        // let mut file = File::create("extra/completions/_tankTerm").unwrap();
         // clap_complete::generate(Shell::Zsh, &mut clap, "tankTerm", &mut file);
     }
 }

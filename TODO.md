@@ -6,8 +6,8 @@ Approved and waiting their turn, in this order.
 
 1. Commit the tab, pane, palette, profile and paste work by topic on `main` and push once it is
    finished. Delete the `xitely/iced_term` repository on Forgejo (the local checkout is gone).
-2. Layout: move the crates under `crates/`, split `tankterm/src/app.rs` into a module, rename
-   `tankterm/src/display` to `color`, remove `.builds/` and `.github/` and merge the Forgejo CI
+2. Layout: split `crates/tankterm/src/app.rs` into a module, rename
+   `crates/tankterm/src/display` to `color`, remove `.builds/` and `.github/` and merge the Forgejo CI
    from the `forgejo-ci` branch.
 3. Config options the iced front end ignores:
    - Remove the OpenGL-only ones: `debug.renderer`, `debug.prefer_egl`, `debug.render_timer`,
@@ -111,7 +111,7 @@ When connecting to another machine, pick the best `TERM` value that machine actu
 of sending one it may not know.
 
 - Today `TERM` is `alacritty` when that terminfo entry is installed locally and `xterm-256color`
-  otherwise (`tankterm_terminal/src/tty/mod.rs`). Over SSH the value is forwarded as is, so a
+  otherwise (`crates/tankterm_terminal/src/tty/mod.rs`). Over SSH the value is forwarded as is, so a
   server without the `alacritty` entry gets a broken session.
 - Idea: try an ordered list, best first (for example `alacritty-direct`, `alacritty`,
   `xterm-256color`, `xterm`), and use the first one the server has.

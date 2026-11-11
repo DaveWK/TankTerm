@@ -1,8 +1,8 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
    <Package Name="TankTerm" UpgradeCode="5ee0a736-cd5b-40d6-88bd-d21a492e02d0" Language="1033" Codepage="1252" Version="0.18.0-dev" Manufacturer="TankTerm" InstallerVersion="200">
       <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
-      <Icon Id="TankTermIco" SourceFile=".\tankterm\windows\tankterm.ico" />
-      <WixVariable Id="WixUILicenseRtf" Value=".\tankterm\windows\wix\license.rtf" />
+      <Icon Id="TankTermIco" SourceFile=".\crates\tankterm\windows\tankterm.ico" />
+      <WixVariable Id="WixUILicenseRtf" Value=".\crates\tankterm\windows\wix\license.rtf" />
       <Property Id="ARPPRODUCTICON" Value="TankTermIco" />
       <MediaTemplate EmbedCab="yes" />
       <ui:WixUI Id="WixUI_Minimal" />

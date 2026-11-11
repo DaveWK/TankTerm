@@ -6,7 +6,7 @@ The sections should follow the order `Added`, `Changed`, `Fixed` and `Removed`.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 Notable changes to the `tankterm_terminal` crate are documented in its
-[CHANGELOG](./tankterm_terminal/CHANGELOG.md).
+[CHANGELOG](./crates/tankterm_terminal/CHANGELOG.md).
 
 ## 0.18.0-dev
 

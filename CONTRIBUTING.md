@@ -80,7 +80,7 @@ If any change has been made to the `config.rs` file, it should also be documente
 Changes compared to the latest TankTerm release which have a direct effect on the user (opposed to
 things like code refactorings or documentation/tests) additionally need to be documented in the
 `CHANGELOG.md`. When a notable change is made to `tankterm_terminal`, it should be documented in
-`tankterm_terminal/CHANGELOG.md` as well. The existing entries should be used as a style guideline.
+`crates/tankterm_terminal/CHANGELOG.md` as well. The existing entries should be used as a style guideline.
 The change log should be used to document changes from a user-perspective, instead of explaining the
 technical background (like commit messages) More information about TankTerm's change log format can
 be found [here](https://keepachangelog.com).
