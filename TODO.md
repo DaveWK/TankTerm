@@ -4,8 +4,8 @@
 
 Approved and waiting their turn, in this order.
 
-1. Commit the current work by topic on `main` and push; then delete the old `iced_term` checkout
-   and its Forgejo repository.
+1. Commit the tab, pane, palette, profile and paste work by topic on `main` and push once it is
+   finished. Delete the `xitely/iced_term` repository on Forgejo (the local checkout is gone).
 2. Layout: move the crates under `crates/`, split `tankterm/src/app.rs` into a module, rename
    `tankterm/src/display` to `color`, remove `.builds/` and `.github/` and merge the Forgejo CI
    from the `forgejo-ci` branch.
@@ -104,6 +104,27 @@ iTerm2 inline images.
 - `iced_tterm` would have to draw textures between the cell backgrounds and the text.
 - Outcome: which protocol to support first, what each of the three layers needs, and a size
   estimate. No implementation.
+
+### Assess: negotiating the best terminfo a server has ("greedyterm")
+
+When connecting to another machine, pick the best `TERM` value that machine actually has instead
+of sending one it may not know.
+
+- Today `TERM` is `alacritty` when that terminfo entry is installed locally and `xterm-256color`
+  otherwise (`tankterm_terminal/src/tty/mod.rs`). Over SSH the value is forwarded as is, so a
+  server without the `alacritty` entry gets a broken session.
+- Idea: try an ordered list, best first (for example `alacritty-direct`, `alacritty`,
+  `xterm-256color`, `xterm`), and use the first one the server has.
+- To assess:
+  - Where the negotiation can run. The terminal cannot see the server's terminfo database, so it
+    needs an SSH wrapper or shell integration that asks the server (`infocmp NAME`) before the
+    session starts, or the built-in SSH client once that exists.
+  - Whether to install the entry on the server instead (`infocmp -x | ssh HOST tic -x -`), as
+    other terminals' SSH helpers do, and when that is acceptable.
+  - Whether answering XTGETTCAP queries reduces the need, since applications can then ask the
+    terminal for capabilities directly.
+  - How this fits profiles that run `ssh`, and nested cases such as `sudo`, `su` and containers.
+- Outcome: a recommendation and a size estimate. No implementation.
 
 ### Built-in SSH, serial and vault (requirements open)
 
