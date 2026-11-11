@@ -47,9 +47,8 @@ Background on Alacritty, which TankTerm is based on:
 
 ## Installation
 
-TankTerm has to be built from source; packages from distribution package
-managers install upstream Alacritty instead. The detailed instructions to build
-and install it can be found [here](INSTALL.md).
+TankTerm has to be built from source. The detailed instructions to build and
+install it can be found [here](INSTALL.md).
 
 ### Requirements
 
