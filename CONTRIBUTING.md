@@ -42,7 +42,7 @@ bumped according to semver when necessary.
 To make sure no regressions were introduced, all tests should be run before sending a pull request.
 The following command can be run to test TankTerm:
 
-```
+```sh
 cargo test
 ```
 
@@ -93,7 +93,7 @@ rustfmt` and then format all code using `cargo fmt`.
 
 Unless otherwise specified, TankTerm follows the Rust compiler's style guidelines:
 
-https://rust-lang.github.io/api-guidelines
+<https://rust-lang.github.io/api-guidelines>
 
 All comments should be fully punctuated with a trailing period. This applies both to regular and
 documentation comments.

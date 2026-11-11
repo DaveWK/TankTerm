@@ -5,8 +5,7 @@
 Approved and waiting their turn, in this order.
 
 1. Delete the `xitely/iced_term` repository and the merged `forgejo-ci` branch on Forgejo.
-2. Split `crates/tankterm/src/app.rs` into a module.
-3. Config options the iced front end ignores:
+2. Config options the iced front end ignores:
    - Remove the OpenGL-only ones: `debug.renderer`, `debug.prefer_egl`, `debug.render_timer`,
      `debug.highlight_damage`, `window.embed` / `--embed`, `--print-events`, `--ref-test`.
    - Port first: window basics (`dimensions`, `position`, `startup_mode`, `decorations`,
@@ -16,13 +15,13 @@ Approved and waiting their turn, in this order.
      options, `--hold`.
    - Port later, low priority: `window.blur`, `window.resize_increments`,
      `window.dynamic_padding`, `window.option_as_alt`.
-4. `tankTerm msg` in the iced front end: spawn, split, send-text, get-text, list, activate.
-5. Key tables and user-defined leader bindings in `[keyboard] bindings` (the leader key itself
+3. `tankTerm msg` in the iced front end: spawn, split, send-text, get-text, list, activate.
+4. Key tables and user-defined leader bindings in `[keyboard] bindings` (the leader key itself
    comes with the key preset option), with pane select, rotate panes, tab navigator and rename
    tab.
-6. Vi mode, scrollback search and hints in the iced front end.
-7. Shell integration: OSC 7 working directory and OSC 133 prompt zones.
-8. Tab bar: `[style.tab_*]` blocks, tab title templates, status segments, and window buttons in
+5. Vi mode, scrollback search and hints in the iced front end.
+6. Shell integration: OSC 7 working directory and OSC 133 prompt zones.
+7. Tab bar: `[style.tab_*]` blocks, tab title templates, status segments, and window buttons in
    the tab bar in place of the OS title bar.
 
 ## Deferred

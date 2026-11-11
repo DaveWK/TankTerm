@@ -22,6 +22,7 @@ An application owns one `Terminal` per terminal and shows it with `TerminalView:
 - **Actions** are what `Terminal::handle` returns for the application to act on:
   `Action::Shutdown` when the shell exits and `Action::ChangeTitle` when the title changes.
 
-TankTerm's `crates/tankterm/src/app.rs` is the reference for using the widget with tabs and split panes.
+TankTerm's `crates/tankterm/src/app/` is the reference for using the widget with tabs and split
+panes.
 
 The widget's API is not stable.

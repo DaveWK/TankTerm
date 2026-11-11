@@ -78,7 +78,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Batch background rendering
 - Shell arguments (thanks [@fdavid-spk](https://github.com/fdavid-spk))
 - CHANGELOG.md
-- `msgcat --color=test` [results](./docs/colortest)
+- `msgcat --color=test` results
 
 ### Changed
 
@@ -101,7 +101,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - (**breaking changes**) `iced_term::Subscription`
 
-[unreleased]: https://github.com/Harzu/iced_term/compare/0.8.0...HEAD
 [0.8.0]: https://github.com/Harzu/iced_term/compare/0.7.0...0.8.0
 [0.7.0]: https://github.com/Harzu/iced_term/compare/0.6.0...0.7.0
 [0.6.0]: https://github.com/Harzu/iced_term/compare/0.5.1...0.6.0

@@ -325,7 +325,7 @@ infocmp alacritty
 If it is not present already, you can install it globally with the following
 command:
 
-```
+```sh
 sudo tic -xe alacritty,alacritty-direct extra/tankterm.info
 ```
 
@@ -407,7 +407,7 @@ echo "source ~/.bash_completion/tankTerm" >> ~/.bashrc
 
 To install the completions for fish, from inside the fish shell, run
 
-```
+```fish
 mkdir -p $fish_complete_path[1]
 cp extra/completions/tankTerm.fish $fish_complete_path[1]/tankTerm.fish
 ```

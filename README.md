@@ -91,7 +91,7 @@ following locations:
 
 On Windows, the config file will be looked for in:
 
-* `%APPDATA%\tankterm\tankterm.toml`
+- `%APPDATA%\tankterm\tankterm.toml`
 
 Themes are selected with `theme = "<name>"` in the configuration, `--theme`
 or `TANKTERM_THEME`: `green_screen` (default), `charm`, `dracula`,
