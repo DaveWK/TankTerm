@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   button is released after selecting
 - `Terminal::child_pid()` and `Terminal::foreground_process_group()`, for telling whether a
   command is running in the shell; only known on Unix
+- `Settings::scroll` (`ScrollSettings`): `history`, the most lines the scrollback buffer keeps,
+  and `multiplier`, the lines scrolled for every step of the mouse wheel; `Command::ChangeScroll`
+  changes both for a running terminal
 
 ### Changed
 
@@ -26,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   text instead of `BackendCommand::Write` with the bytes to send, so applications can hold a paste
   back before passing it on to `Terminal::handle`
 - (**breaking changes**) `Event` has a new `SelectionFinished` variant
+- (**breaking changes**) `Settings` has a new `scroll` field
 - Pastes without bracketed paste send line breaks as carriage returns, like the Enter key
 - Releasing the mouse button outside the terminal ends a selection drag
 

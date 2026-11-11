@@ -177,6 +177,7 @@ impl<'a> TerminalView<'a> {
                     state,
                     *delta,
                     &self.term.font.measure,
+                    self.term.scroll_multiplier,
                     &mut commands,
                 );
             },
@@ -302,20 +303,26 @@ impl<'a> TerminalView<'a> {
         }
     }
 
+    /// Turn a turn of the mouse wheel into lines to scroll: `multiplier`
+    /// lines for every step of a wheel, or for every line's height of a
+    /// touchpad's pixels.
     fn handle_wheel_scrolled(
         state: &mut TerminalViewState,
         delta: ScrollDelta,
         font_measure: &Size<f32>,
+        multiplier: f32,
         commands: &mut Vec<Command>,
     ) {
         match delta {
             ScrollDelta::Lines { y, .. } => {
-                let lines = y.signum() * y.abs().round();
-                commands.push(Command::Scroll(lines as i32));
+                let lines = y.signum() * (y.abs() * multiplier).round();
+                if lines != 0.0 {
+                    commands.push(Command::Scroll(lines as i32));
+                }
             },
             ScrollDelta::Pixels { y, .. } => {
-                state.scroll_pixels += y;
-                let line_height = font_measure.height; // Assume this method exists and gives the height of a line
+                state.scroll_pixels += y * multiplier;
+                let line_height = font_measure.height;
                 let lines = (state.scroll_pixels / line_height).trunc();
                 state.scroll_pixels %= line_height;
                 if lines != 0.0 {
@@ -1852,6 +1859,7 @@ mod tests {
                 &mut state,
                 ScrollDelta::Lines { y: 3.0, x: 0.0 }, // Scroll down 3 lines
                 &font.measure,
+                1.0,
                 &mut commands,
             );
 
@@ -1869,6 +1877,7 @@ mod tests {
                 &mut state,
                 ScrollDelta::Lines { y: -2.0, x: 0.0 },
                 &font.measure,
+                1.0,
                 &mut commands,
             );
 
@@ -1886,6 +1895,7 @@ mod tests {
                 &mut state,
                 ScrollDelta::Pixels { y: 45.0, x: 0.0 },
                 &font.measure,
+                1.0,
                 &mut commands,
             );
 
@@ -1904,12 +1914,56 @@ mod tests {
                 &mut state,
                 ScrollDelta::Pixels { y: -60.0, x: 0.0 },
                 &font.measure,
+                1.0,
                 &mut commands,
             );
 
             assert_eq!(commands.len(), 1);
             assert!(matches!(commands[0], Command::Scroll(-3)));
             assert_eq!(state.scroll_pixels, -5.4000034);
+        }
+
+        #[test]
+        fn wheel_steps_scroll_the_multiplier_in_lines() {
+            let font = TermFont::new(FontSettings::default());
+            let scrolled = |delta, multiplier| {
+                let mut state = TerminalViewState::new(0);
+                let mut commands = Vec::new();
+                TerminalView::handle_wheel_scrolled(
+                    &mut state,
+                    delta,
+                    &font.measure,
+                    multiplier,
+                    &mut commands,
+                );
+                commands
+            };
+
+            let step = |y| ScrollDelta::Lines { y, x: 0.0 };
+            assert!(matches!(
+                scrolled(step(1.0), 3.0)[..],
+                [Command::Scroll(3)]
+            ));
+            assert!(matches!(
+                scrolled(step(-2.0), 3.0)[..],
+                [Command::Scroll(-6)]
+            ));
+            // Part of a step still scrolls if the multiplier makes a line
+            // of it.
+            assert!(matches!(
+                scrolled(step(0.5), 3.0)[..],
+                [Command::Scroll(2)]
+            ));
+            assert!(scrolled(step(0.2), 1.0).is_empty());
+            assert!(scrolled(step(1.0), 0.0).is_empty());
+
+            // A touchpad's pixels are multiplied as well.
+            let pixels = ScrollDelta::Pixels {
+                y: font.measure.height,
+                x: 0.0,
+            };
+            assert!(matches!(scrolled(pixels, 1.0)[..], [Command::Scroll(1)]));
+            assert!(matches!(scrolled(pixels, 3.0)[..], [Command::Scroll(3)]));
         }
     }
 }

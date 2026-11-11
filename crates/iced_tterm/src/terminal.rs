@@ -2,7 +2,7 @@ use crate::actions::Action;
 use crate::backend;
 use crate::bindings::{Binding, BindingAction, BindingsLayout, InputKind};
 use crate::font::TermFont;
-use crate::settings::{FontSettings, Settings, ThemeSettings};
+use crate::settings::{FontSettings, ScrollSettings, Settings, ThemeSettings};
 use crate::theme::{ColorPalette, Theme};
 use crate::{AlacrittyEvent, TermMode};
 use iced::futures::stream::BoxStream;
@@ -26,6 +26,9 @@ pub enum Event {
 pub enum Command {
     ChangeTheme(Box<ColorPalette>),
     ChangeFont(FontSettings),
+    /// Change the size of the scrollback buffer and how far the mouse wheel
+    /// scrolls. Lines the smaller buffer has no room for are dropped.
+    ChangeScroll(ScrollSettings),
     AddBindings(Vec<(Binding<InputKind>, BindingAction)>),
     ProxyToBackend(backend::Command),
 }
@@ -37,6 +40,8 @@ pub struct Terminal {
     pub(crate) theme: Theme,
     pub(crate) cache: Cache,
     pub(crate) bindings: BindingsLayout,
+    /// Lines scrolled for every step of the mouse wheel.
+    pub(crate) scroll_multiplier: f32,
     pub(crate) backend: backend::Backend,
     backend_event_rx: Arc<Mutex<backend::EventReceiver>>,
 }
@@ -51,6 +56,7 @@ impl Terminal {
             backend_event_tx,
             settings.backend,
             theme.color_scheme(),
+            settings.scroll.history,
         )?;
 
         Ok(Self {
@@ -59,6 +65,7 @@ impl Terminal {
             font,
             theme,
             bindings: BindingsLayout::default(),
+            scroll_multiplier: settings.scroll.multiplier,
             cache: Cache::default(),
             backend,
             backend_event_rx: Arc::new(Mutex::new(backend_event_rx)),
@@ -131,6 +138,10 @@ impl Terminal {
             },
             Command::ChangeFont(font_settings) => {
                 self.font = TermFont::new(font_settings);
+            },
+            Command::ChangeScroll(scroll) => {
+                self.scroll_multiplier = scroll.multiplier;
+                self.backend.set_scrollback(scroll.history);
             },
             Command::AddBindings(bindings) => {
                 self.bindings.add_bindings(bindings);

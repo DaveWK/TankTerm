@@ -90,6 +90,7 @@ Notable changes to the `tankterm_terminal` crate are documented in its
     `dimensions`, `position`, `startup_mode`, `decorations` and `level` apply to the iced front
     end; other config options are ignored for now. `Transparent` and `Buttonless` decorations are
     drawn like `Full`
+- `scrolling.history` and `scrolling.multiplier` apply to the iced front end
 
 ### Removed
 

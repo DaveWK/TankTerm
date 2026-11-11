@@ -6,7 +6,9 @@ use iced_core::alignment::Vertical;
 use iced_core::text::{Alignment, LineHeight, Paragraph as _, Shaping, Text, Wrapping};
 use iced_graphics::text::paragraph::Paragraph;
 use iced_tterm::ColorPalette;
-use iced_tterm::settings::{BackendSettings, FontSettings, Settings, ThemeSettings};
+use iced_tterm::settings::{
+    BackendSettings, FontSettings, ScrollSettings, Settings, ThemeSettings,
+};
 use log::warn;
 
 use crate::cli::Options;
@@ -34,6 +36,15 @@ pub fn settings(config: &UiConfig, options: &Options) -> Settings {
         font: font_settings(config),
         theme: ThemeSettings::new(Box::new(palette(&config.colors))),
         backend: backend_settings(config, options, std::env::var("SHELL").ok()),
+        scroll: scroll_settings(config),
+    }
+}
+
+/// The scrollback size and the lines scrolled per step of the mouse wheel.
+fn scroll_settings(config: &UiConfig) -> ScrollSettings {
+    ScrollSettings {
+        history: config.scrolling.history() as usize,
+        multiplier: f32::from(config.scrolling.multiplier),
     }
 }
 
@@ -436,6 +447,16 @@ mod tests {
 
     fn config(toml: &str) -> UiConfig {
         toml::from_str(toml).unwrap()
+    }
+
+    #[test]
+    fn scrolling_follows_the_config() {
+        let defaults = scroll_settings(&UiConfig::default());
+        assert_eq!(defaults, ScrollSettings { history: 10_000, multiplier: 3. });
+
+        let config = config("[scrolling]\nhistory = 0\nmultiplier = 7\n");
+        assert_eq!(scroll_settings(&config), ScrollSettings { history: 0, multiplier: 7. });
+        assert_eq!(settings(&config, &options(&[])).scroll, scroll_settings(&config));
     }
 
     #[test]

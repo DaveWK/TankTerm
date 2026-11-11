@@ -54,7 +54,7 @@ fn app_with_session(config: &str, hotkeys: Hotkeys, session_file: Option<PathBuf
     App::new(options, settings.clone(), settings).unwrap()
 }
 
-fn app_with(config: &str, hotkeys: Hotkeys) -> App {
+pub(super) fn app_with(config: &str, hotkeys: Hotkeys) -> App {
     app_with_session(config, hotkeys, None)
 }
 
@@ -62,7 +62,7 @@ fn app() -> App {
     app_with("", Hotkeys::default())
 }
 
-fn perform(app: &mut App, actions: &[AppAction]) {
+pub(super) fn perform(app: &mut App, actions: &[AppAction]) {
     for action in actions {
         let _ = app.update(Message::Action(*action));
     }
@@ -75,13 +75,13 @@ fn terminals(app: &App, index: usize) -> Vec<u64> {
 }
 
 /// Terminal ID of the focused pane of the tab that is shown.
-fn focused(app: &App) -> u64 {
+pub(super) fn focused(app: &App) -> u64 {
     let tab = &app.tabs[app.active];
     *tab.panes.get(tab.focus).unwrap()
 }
 
 /// Text drawn by the application's view.
-fn has_text(app: &App, text: &str) -> bool {
+pub(super) fn has_text(app: &App, text: &str) -> bool {
     let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
     ui.find(text).is_ok()
 }
@@ -588,7 +588,7 @@ fn profiles_open_in_a_new_tab() {
 const PATIENCE: Duration = Duration::from_secs(60);
 
 /// Wait until `condition` holds, failing with `what` if it doesn't in time.
-fn wait_until(what: &str, mut condition: impl FnMut() -> bool) {
+pub(super) fn wait_until(what: &str, mut condition: impl FnMut() -> bool) {
     let deadline = Instant::now() + PATIENCE;
     while !condition() {
         assert!(Instant::now() < deadline, "{what}");
@@ -597,7 +597,7 @@ fn wait_until(what: &str, mut condition: impl FnMut() -> bool) {
 }
 
 /// Wait for a terminal to show `text`.
-fn wait_for_text(app: &App, terminal: u64, text: &str) {
+pub(super) fn wait_for_text(app: &App, terminal: u64, text: &str) {
     wait_until(&format!("terminal never showed {text:?}"), || {
         app.terminals[&terminal].terminal.text().concat().contains(text)
     });

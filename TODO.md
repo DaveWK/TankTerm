@@ -7,8 +7,8 @@ Approved and waiting their turn, in this order.
 1. Delete the `xitely/iced_term` repository and the merged `forgejo-ci` branch on Forgejo.
 2. Config options the iced front end ignores:
    - Port first: `window.opacity` (needs the widget to draw its background with alpha), key
-     binding actions (copy, paste, font size, scrolling, clear history, fullscreen), scrolling,
-     cursor and bell options, and live config reload.
+     binding actions (copy, paste, font size, scrolling, clear history, fullscreen), cursor and
+     bell options, and live config reload.
    - Port after those: font faces and offsets, the remaining colour options, selection and mouse
      options, `--hold`.
    - Port later, low priority: `window.blur`, `window.resize_increments`,

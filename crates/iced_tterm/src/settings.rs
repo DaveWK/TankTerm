@@ -14,6 +14,25 @@ pub struct Settings {
     pub font: FontSettings,
     pub theme: ThemeSettings,
     pub backend: BackendSettings,
+    pub scroll: ScrollSettings,
+}
+
+/// The scrollback buffer and how far the mouse wheel scrolls.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ScrollSettings {
+    /// Most lines kept in the scrollback buffer; `0` keeps none.
+    pub history: usize,
+    /// Lines scrolled for every step of the mouse wheel.
+    pub multiplier: f32,
+}
+
+impl Default for ScrollSettings {
+    fn default() -> Self {
+        Self {
+            history: 10_000,
+            multiplier: 1.0,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

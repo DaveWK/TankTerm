@@ -173,6 +173,8 @@ pub struct Backend {
     term: Arc<FairMutex<Term<EventProxy>>>,
     size: TerminalSize,
     notifier: Notifier,
+    /// The options the `Term` was last given.
+    config: term::Config,
     last_content: RenderableContent,
     pub(crate) url_regex: RegexSearch,
     /// The program started in the terminal and the PTY it talks to.
@@ -200,11 +202,13 @@ impl Backend {
     /// Spawn the shell.
     ///
     /// `color_scheme` is set before the PTY reader starts, so the shell can query it right away.
+    /// `scrollback` is the most lines the scrollback buffer keeps.
     pub fn new(
         id: u64,
         event_proxy: EventProxy,
         settings: BackendSettings,
         color_scheme: tankterm_terminal::term::ColorScheme,
+        scrollback: usize,
     ) -> Result<Self> {
         let pty_config = tty::Options {
             shell: Some(tty::Shell::new(settings.program, settings.args)),
@@ -213,7 +217,7 @@ impl Backend {
             ..tty::Options::default()
         };
 
-        let config = term_config();
+        let config = term_config(scrollback);
         let terminal_size = TerminalSize::default();
         let pty = tty::new(&pty_config, terminal_size.into(), id)?;
         #[cfg(unix)]
@@ -222,7 +226,8 @@ impl Backend {
             master: pty.file().try_clone().ok(),
         };
 
-        let mut term = Term::new(config, &terminal_size, event_proxy.clone());
+        let mut term =
+            Term::new(config.clone(), &terminal_size, event_proxy.clone());
         term.set_color_scheme(color_scheme);
 
         let cursor = term.grid_mut().cursor_cell().clone();
@@ -250,11 +255,23 @@ impl Backend {
             term: term.clone(),
             size: terminal_size,
             notifier,
+            config,
             last_content: initial_content,
             url_regex: RegexSearch::new(URL_REGEX).expect("invalid url regexp"),
             #[cfg(unix)]
             process,
         })
+    }
+
+    /// Change how many lines the scrollback buffer keeps. Lines that no
+    /// longer fit are dropped, the oldest first.
+    pub(crate) fn set_scrollback(&mut self, scrollback: usize) {
+        if self.config.scrolling_history == scrollback {
+            return;
+        }
+
+        self.config.scrolling_history = scrollback;
+        self.term.lock().set_options(self.config.clone());
     }
 
     /// The terminal's modes as they are right now, not as of the last sync.
@@ -673,9 +690,11 @@ impl Backend {
     }
 }
 
-/// The configuration of the widget's `Term`.
-fn term_config() -> term::Config {
+/// The configuration of the widget's `Term`, keeping at most `scrollback`
+/// lines of history.
+fn term_config(scrollback: usize) -> term::Config {
     term::Config {
+        scrolling_history: scrollback,
         // Let applications opt into the kitty keyboard protocol; keys are
         // encoded for whatever flags they enable (see `crate::keyboard`), and
         // nothing changes for applications that don't.
@@ -847,7 +866,7 @@ mod tests {
         fn new() -> Self {
             let events = EventCollector::default();
             let term = Term::new(
-                term_config(),
+                term_config(10_000),
                 &TermSize::new(80, 24),
                 events.clone(),
             );
@@ -1053,7 +1072,8 @@ mod tests {
             ..BackendSettings::default()
         };
         let _backend =
-            Backend::new(0, proxy, settings, ColorScheme::Light).unwrap();
+            Backend::new(0, proxy, settings, ColorScheme::Light, 10_000)
+                .unwrap();
 
         let reply =
             tokio::time::timeout(std::time::Duration::from_secs(5), async {
@@ -1105,6 +1125,12 @@ mod tests {
 
     #[cfg(unix)]
     fn backend_running(script: &str) -> Backend {
+        backend_with_scrollback(script, 10_000)
+    }
+
+    /// A terminal running `script` that keeps `scrollback` lines of history.
+    #[cfg(unix)]
+    fn backend_with_scrollback(script: &str, scrollback: usize) -> Backend {
         use tankterm_terminal::term::ColorScheme;
 
         let (proxy, _receiver) = event_channel(100);
@@ -1113,7 +1139,41 @@ mod tests {
             args: vec!["-c".into(), script.into()],
             ..BackendSettings::default()
         };
-        Backend::new(0, proxy, settings, ColorScheme::Dark).unwrap()
+        Backend::new(0, proxy, settings, ColorScheme::Dark, scrollback).unwrap()
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn scrollback_keeps_the_configured_number_of_lines() {
+        // The default size has 50 lines, so 250 lines of output leave 201
+        // lines of history behind, counting the line of the cursor.
+        let script = "seq 1 250; exec cat";
+
+        let first = |backend: &Backend| backend.text().first().cloned();
+
+        let backend = backend_with_scrollback(script, 10_000);
+        eventually("the output never ended", || {
+            backend.text().iter().any(|line| line == "250")
+        });
+        assert_eq!(first(&backend).as_deref(), Some("1"));
+
+        // 20 lines of history above the 49 lines of output on the screen.
+        let mut backend = backend_with_scrollback(script, 20);
+        eventually("the history never filled up", || {
+            first(&backend).as_deref() == Some("182")
+        });
+
+        // A smaller buffer drops the oldest lines, and no buffer leaves
+        // only the screen.
+        backend.set_scrollback(5);
+        assert_eq!(first(&backend).as_deref(), Some("197"));
+        backend.set_scrollback(0);
+        assert_eq!(first(&backend).as_deref(), Some("202"));
+
+        // Scrolling has nowhere to go without history.
+        backend.handle(Command::Scroll(3));
+        backend.sync();
+        assert_eq!(backend.renderable_content().grid.display_offset(), 0);
     }
 
     #[cfg(unix)]
@@ -1163,6 +1223,7 @@ mod tests {
             proxy,
             settings,
             tankterm_terminal::term::ColorScheme::Dark,
+            10_000,
         )
         .unwrap();
 

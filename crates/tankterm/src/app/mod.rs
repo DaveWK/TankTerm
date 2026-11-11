@@ -20,6 +20,8 @@ use crate::session::Session;
 #[cfg(all(test, unix))]
 mod layout_tests;
 #[cfg(all(test, unix))]
+mod option_tests;
+#[cfg(all(test, unix))]
 mod render_tests;
 #[cfg(all(test, unix))]
 mod tab_tests;
