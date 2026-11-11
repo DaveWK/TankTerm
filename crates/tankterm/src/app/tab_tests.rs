@@ -440,7 +440,7 @@ fn sessions_are_not_written_without_a_session_file() {
 }
 
 /// Keeps the warnings and errors logged by the tests of this binary.
-struct Warnings(Mutex<Vec<String>>);
+pub(super) struct Warnings(Mutex<Vec<String>>);
 
 static WARNINGS: Warnings = Warnings(Mutex::new(Vec::new()));
 
@@ -460,7 +460,7 @@ impl log::Log for Warnings {
 
 impl Warnings {
     /// Start keeping what is logged. The tests install no other logger.
-    fn keep() {
+    pub(super) fn keep() {
         static KEEP: std::sync::Once = std::sync::Once::new();
 
         KEEP.call_once(|| {
@@ -470,7 +470,7 @@ impl Warnings {
     }
 
     /// How many of the kept warnings and errors mention `text`.
-    fn mentioning(text: &str) -> usize {
+    pub(super) fn mentioning(text: &str) -> usize {
         WARNINGS.0.lock().unwrap().iter().filter(|warning| warning.contains(text)).count()
     }
 }
@@ -679,6 +679,17 @@ impl iced_core::Clipboard for TestClipboard {
 /// Press a mouse button over the terminal with `text` on the clipboards, which the simulator
 /// has none of, and return the text of the pastes that asks for.
 fn mouse_pastes(app: &App, button: iced::mouse::Button, text: &'static str) -> Vec<String> {
+    mouse_pastes_with(app, button, Modifiers::empty(), text)
+}
+
+/// [`mouse_pastes`] with modifier keys held down, in a terminal that was clicked first so it
+/// hears about them.
+pub(super) fn mouse_pastes_with(
+    app: &App,
+    button: iced::mouse::Button,
+    modifiers: Modifiers,
+    text: &'static str,
+) -> Vec<String> {
     use iced::mouse;
     use iced_core::renderer::Headless;
     use iced_winit::runtime::{UserInterface, user_interface};
@@ -689,9 +700,17 @@ fn mouse_pastes(app: &App, button: iced::mouse::Button, text: &'static str) -> V
     let cache = user_interface::Cache::default();
     let mut ui = UserInterface::build(app.view(), Size::new(800., 400.), cache, &mut renderer);
 
+    let held = [
+        iced::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)),
+        iced::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)),
+        iced::Event::Keyboard(iced::keyboard::Event::ModifiersChanged(modifiers)),
+    ];
+    let held = if modifiers.is_empty() { &held[..0] } else { &held[..] };
+    let press = [iced::Event::Mouse(mouse::Event::ButtonPressed(button))];
+
     let mut messages = Vec::new();
     let _ = ui.update(
-        &[iced::Event::Mouse(mouse::Event::ButtonPressed(button))],
+        &[held, &press].concat(),
         mouse::Cursor::Available((400., 300.).into()),
         &mut renderer,
         &mut TestClipboard(text),

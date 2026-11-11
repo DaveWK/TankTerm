@@ -63,24 +63,13 @@ impl App {
         })
     }
 
-    /// A font at the size the font size actions left it at.
-    ///
-    /// The size changes in whole pixels from the rounded size, which fonts look best at.
-    pub(super) fn zoomed(&self, mut font: FontSettings) -> FontSettings {
-        if self.font_zoom != 0. {
-            font.size = (font.size.round() + self.font_zoom).max(MIN_FONT_SIZE);
-        }
-
-        font
-    }
-
     /// Change the font size of every terminal by `step` pixels, or back to the configured size
     /// without a step.
     pub(super) fn change_font_size(&mut self, step: Option<f32>) {
         let smallest = MIN_FONT_SIZE - self.settings.font.size.round();
         self.font_zoom = step.map_or(0., |step| (self.font_zoom + step).max(smallest.min(0.)));
 
-        let font = self.zoomed(self.settings.font.clone());
+        let font = zoomed(self.settings.font.clone(), self.font_zoom);
         for shell in self.terminals.values_mut() {
             shell.terminal.handle(iced_tterm::Command::ChangeFont(font.clone()));
         }
@@ -114,6 +103,17 @@ impl App {
             shell.terminal.handle(iced_tterm::Command::ProxyToBackend(clear));
         }
     }
+}
+
+/// A font at the size the font size actions left it at, `zoom` pixels from the configured one.
+///
+/// The size changes in whole pixels from the rounded size, which fonts look best at.
+pub(super) fn zoomed(mut font: FontSettings, zoom: f32) -> FontSettings {
+    if zoom != 0. {
+        font.size = (font.size.round() + zoom).max(MIN_FONT_SIZE);
+    }
+
+    font
 }
 
 /// Make the window fullscreen, or a regular window again if it is.

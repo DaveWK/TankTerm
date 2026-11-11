@@ -9,7 +9,7 @@ use iced_tterm::BackendCommand;
 use iced_tterm::settings::Settings;
 use log::error;
 
-use super::actions::{FONT_SIZE_STEP, toggle_fullscreen, toggle_maximized};
+use super::actions::{FONT_SIZE_STEP, toggle_fullscreen, toggle_maximized, zoomed};
 use super::{
     App, Message, PendingPaste, RESIZE_LIMITS, RESIZE_STEP, Shell, Tab, working_directory,
 };
@@ -187,7 +187,7 @@ impl App {
     pub(super) fn spawn(&mut self, mut settings: Settings, background: Color) -> io::Result<u64> {
         let id = self.next_terminal;
         let working_directory = settings.backend.working_directory.clone();
-        settings.font = self.zoomed(settings.font);
+        settings.font = zoomed(settings.font, self.font_zoom);
         let mut terminal = iced_tterm::Terminal::new(id, settings)?;
         terminal.handle(iced_tterm::Command::AddBindings(self.options.bindings.clone()));
         // Copying and pasting are bound in the configuration, like every other action.
@@ -203,6 +203,7 @@ impl App {
             // A new terminal takes itself to have the keyboard focus.
             focused: true,
             rang: None,
+            profile: None,
         };
         self.next_terminal += 1;
         self.terminals.insert(id, shell);

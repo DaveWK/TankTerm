@@ -90,7 +90,20 @@ This section documents the *[general]* table of the configuration file.
 
 *live_config_reload* = _true_ | _false_
 
-	Live config reload (changes require restart)
+	Read the configuration again when the configuration file or a file it
+	imports changes, and apply it to the running window. A change is noticed
+	within a second. A configuration that can't be read is logged and the
+	running one is kept.
+
+	The colors and theme, font, _window.padding_, _window.title_, key and mouse
+	bindings and the *[tabs]*, *[[profiles]]*, *[scrolling]*, *[cursor]* and
+	*[bell]* options apply to the terminals that are open. The shell, its
+	working directory and *[env]* apply to terminals opened afterwards. The
+	other *[window]* options need a restart.
+
+	Turning this option off takes effect with the change; turning it on needs a
+	restart, as does a configuration file that didn't exist when TankTerm
+	started. Theme files given by path aren't watched.
 
 	Default: _true_
 

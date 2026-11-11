@@ -107,10 +107,15 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 - `bell.command` and the visual bell (`bell.duration`, `bell.color`, `bell.animation` and
     `bell.spring`) apply to the iced front end; the visual bell flashes the pane of the terminal
     that rang, and the command runs in the directory of that terminal's shell on Linux
+- `general.live_config_reload` applies to the iced front end: within a second of a change to
+    the configuration file or a file it imports, the colors, font, padding, key and mouse
+    bindings, tabs, profiles, scrolling, cursor and bell options of the running window change.
+    The window's `dimensions`, `position`, `startup_mode`, `decorations`, `level` and `class`
+    need a restart, and running shells keep their program and environment
 
 ### Removed
 
-- IPC (`tankTerm msg`, `--socket`), `--daemon` and live config reload
+- IPC (`tankTerm msg`, `--socket`) and `--daemon`
 - Key bindings to `command`, `chars` and the actions for vi mode, search, hints, the key help,
     new windows, hiding, minimizing and quitting; mouse bindings other than pasting; hints, vi
     mode, search and the message bar

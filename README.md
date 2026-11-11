@@ -46,7 +46,6 @@ and fullscreen are read from your configuration.
 This front end is new and doesn't support everything the OpenGL one did yet:
 
 - IPC (`tankTerm msg`, `--socket`) and `--daemon`
-- Live config reload
 - Hints, vi mode and search, with the key binding actions that need them
 - Key bindings to `command` and `chars` and to `Quit`, `Hide`, `Minimize`, `ClearSelection`,
   `CopySelection`, `SpawnNewInstance` and `CreateNewWindow`; mouse bindings other than pasting
@@ -54,7 +53,9 @@ This front end is new and doesn't support everything the OpenGL one did yet:
 - `--hold`
 
 Command line options that aren't supported yet fail with an error; config
-options that aren't supported yet are ignored.
+options that aren't supported yet are ignored. Changes to the configuration
+file apply to the running window, except for the window's size, position,
+startup mode, decorations, level and class.
 
 ## Features
 

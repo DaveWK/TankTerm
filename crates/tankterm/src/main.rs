@@ -44,16 +44,17 @@ mod palette;
 #[cfg(windows)]
 mod panic;
 mod session;
+mod setup;
 mod term_settings;
+mod watch;
 
-use crate::app::{App, AppOptions, Layout, Profile};
-use crate::bell::Bell;
+use crate::app::App;
 use crate::cli::{Options, Subcommands};
 use crate::config::UiConfig;
 use crate::config::window::{Decorations, StartupMode, WindowLevel};
-use crate::hotkeys::Hotkeys;
 #[cfg(target_os = "macos")]
 use crate::macos::locale;
+use crate::setup::{ConfigSource, Setup};
 
 /// Window icon, used on X11. Wayland and macOS take the icon from the desktop entry or bundle,
 /// and Windows from the executable's resources.
@@ -144,53 +145,16 @@ fn tankterm(mut options: Options) -> Result<(), Box<dyn Error>> {
     let _files = TemporaryFiles { log_file: log_file.filter(|_| !config.debug.persistent_logging) };
 
     // Spawn the shell before starting iced, so failing to launch it is reported as an error.
-    let title = term_settings::window_title(&config, &options);
-    let settings = term_settings::settings(&config, &options);
-    let cell = term_settings::cell_size(&settings.font);
-    let window_size =
-        term_settings::window_size(&config, cell, term_settings::padding(&config, cell));
-    // Profiles with a theme of their own get their colors from the configuration loaded with it.
-    let profiles = config.profiles.clone().into_iter().map(|profile| {
-        let themed =
-            profile.theme.as_deref().map(|theme| config::load_with_theme(&mut options, theme));
-        let config = themed.as_ref().unwrap_or(&config);
-        let settings = term_settings::profile_settings(&profile, config, &options);
-        let detail = [settings.backend.program.clone()]
-            .into_iter()
-            .chain(settings.backend.args.iter().cloned())
-            .collect::<Vec<_>>()
-            .join(" ");
+    let Setup { options: app_options, first, settings } = setup::setup(&config, &mut options);
+    let cell = term_settings::cell_size(&first.font);
+    let window_size = term_settings::window_size(&config, cell, app_options.layout.padding);
+    let window = window_settings(&config, &options, window_size);
+    let mut app = App::new(app_options, first, settings)?;
 
-        Profile {
-            name: profile.name,
-            detail,
-            settings,
-            background: term_settings::background(config),
-        }
-    });
-    let profiles: Vec<_> = profiles.collect();
-
-    let app_options = AppOptions {
-        title,
-        dynamic_title: config.window.dynamic_title,
-        layout: Layout {
-            padding: term_settings::padding(&config, cell),
-            background: term_settings::background(&config),
-            foreground: term_settings::foreground(&config),
-        },
-        tabs: config.tabs,
-        hotkeys: Hotkeys::from_config(&config),
-        // A window started for a single command isn't a session worth remembering.
-        session_file: session::default_path().filter(|_| {
-            config.tabs.restore && options.window_options.terminal_options.command().is_none()
-        }),
-        profiles,
-        confirm_multiline_paste: config.terminal.confirm_multiline_paste,
-        copy_on_select: config.selection.save_to_clipboard,
-        bindings: hotkeys::mouse_bindings(config.mouse_bindings()),
-        bell: Bell::from_config(&config.bell),
-    };
-    let app = App::new(app_options, settings, term_settings::tab_settings(&config, &options))?;
+    // The command line options are needed again whenever the configuration is.
+    if let Some(source) = ConfigSource::new(&config, options) {
+        app.watch_config(source);
+    }
 
     // iced takes a reusable boot function, but the application is only booted once.
     let app = Mutex::new(Some(app));
@@ -202,7 +166,7 @@ fn tankterm(mut options: Options) -> Result<(), Box<dyn Error>> {
     let result = iced::application(boot, App::update, App::view)
         .title(App::title)
         .subscription(App::subscription)
-        .window(window_settings(&config, &options, window_size))
+        .window(window)
         .run();
 
     // Without explicitly detaching the console cmd won't redraw its prompt.

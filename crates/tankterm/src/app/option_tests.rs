@@ -18,7 +18,7 @@ use crate::config::UiConfig;
 use crate::hotkeys::ScrollTo;
 
 /// The lines the terminal under the pointer is asked to scroll by for one step of the wheel.
-fn wheel_step(app: &App, y: f32) -> Vec<i32> {
+pub(super) fn wheel_step(app: &App, y: f32) -> Vec<i32> {
     let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
     ui.point_at((400., 200.));
     let delta = ScrollDelta::Lines { x: 0., y };
@@ -57,7 +57,7 @@ fn app_counting(config: &str) -> App {
 }
 
 /// The oldest of the numbers 1 to 200 the first terminal still has.
-fn oldest_line(app: &App) -> u32 {
+pub(super) fn oldest_line(app: &App) -> u32 {
     let text = app.terminals[&0].terminal.text();
     text[0].parse().unwrap_or_else(|_| panic!("unexpected first line in {text:?}"))
 }
@@ -224,7 +224,7 @@ fn clear_history_drops_the_scrollback_of_the_focused_terminal() {
 }
 
 /// The cell size of every terminal that is shown, by terminal ID, as laid out in a window.
-fn cells(app: &App) -> HashMap<u64, Size> {
+pub(super) fn cells(app: &App) -> HashMap<u64, Size> {
     let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
     ui.snapshot(&Theme::Dark).unwrap();
 
@@ -420,7 +420,7 @@ fn window_actions_toggle_fullscreen_and_maximized() {
 }
 
 /// The shape the cursor of a terminal is drawn with.
-fn cursor(app: &App, terminal: u64) -> CursorShape {
+pub(super) fn cursor(app: &App, terminal: u64) -> CursorShape {
     app.terminals[&terminal].terminal.cursor_shape()
 }
 

@@ -1,21 +1,25 @@
 //! Application state: starting up, the session file, and the messages the application handles.
 
 use std::collections::HashMap;
-use std::io;
 use std::path::Path;
 use std::time::Instant;
+use std::{io, mem};
 
 use iced::widget::pane_grid;
 use iced::{Subscription, Task, window};
 use iced_tterm::actions::Action;
+use iced_tterm::bindings::BindingAction;
 use iced_tterm::settings::Settings;
 use iced_tterm::{AlacrittyEvent, BackendCommand, TermMode, TerminalView};
 use log::{error, warn};
 
+use super::actions::zoomed;
 use super::{App, AppOptions, Message, PROCESS_INTERVAL, PendingPaste, working_directory};
 use crate::hotkeys::Hotkeys;
 use crate::palette::{self, Palette};
 use crate::session::{SavedNode, SavedTab, Session, ordered_panes};
+use crate::setup::{ConfigSource, Setup};
+use crate::watch::changes;
 
 impl App {
     /// Create the first terminal with `first` and spawn its shell.
@@ -39,6 +43,7 @@ impl App {
             palette_keys: Hotkeys::palette(),
             pending_paste: None,
             paste_keys: Hotkeys::paste_warning(),
+            config: None,
         };
 
         let session = app.options.session_file.as_deref().and_then(Session::load);
@@ -55,6 +60,76 @@ impl App {
         app.sync_focus();
 
         Ok(app)
+    }
+
+    /// Read the configuration from `source` again whenever one of its files changes.
+    pub fn watch_config(&mut self, source: ConfigSource) {
+        self.config = Some(source);
+    }
+
+    /// Read the configuration again and take over what can change in a running window.
+    ///
+    /// A configuration that can't be read is logged and changes nothing.
+    fn reload_config(&mut self) {
+        let Some(source) = &mut self.config else { return };
+
+        if let Some(setup) = source.reload() {
+            // A configuration without live reload isn't watched any longer.
+            if source.paths.is_empty() {
+                self.config = None;
+            }
+
+            self.apply(setup);
+        }
+    }
+
+    /// Take over the settings of a configuration that was read again.
+    ///
+    /// The terminals that are running get its colors, font, scrollback and cursor; their
+    /// shells keep running as they were started. Terminals opened from a profile get the
+    /// colors of that profile, if it still exists. The size the font size actions left the
+    /// font at is kept, as a distance from the configured size.
+    fn apply(&mut self, setup: Setup) {
+        let Setup { options, settings, .. } = setup;
+        let previous = mem::replace(&mut self.options, options);
+        self.settings = settings;
+
+        // Mouse buttons that had a binding and have none now are the terminal's again.
+        let mut bindings = self.options.bindings.clone();
+        for (binding, _) in previous.bindings {
+            if !bindings.iter().any(|(bound, _)| *bound == binding) {
+                bindings.push((binding, BindingAction::Ignore));
+            }
+        }
+
+        for shell in self.terminals.values_mut() {
+            let profile = shell.profile.as_ref().and_then(|name| {
+                self.options.profiles.iter().find(|profile| profile.name == *name)
+            });
+            let (settings, background) = match profile {
+                Some(profile) => (&profile.settings, profile.background),
+                None => (&self.settings, self.options.layout.background),
+            };
+            shell.background = background;
+
+            let font = zoomed(settings.font.clone(), self.font_zoom);
+            for command in [
+                iced_tterm::Command::ChangeTheme(settings.theme.color_pallete.clone()),
+                iced_tterm::Command::ChangeFont(font),
+                iced_tterm::Command::ChangeScroll(settings.scroll),
+                iced_tterm::Command::ChangeCursor(settings.cursor),
+                iced_tterm::Command::AddBindings(bindings.clone()),
+            ] {
+                shell.terminal.handle(command);
+            }
+        }
+
+        // The visual bell may have been turned off while it flashes.
+        if !self.options.bell.flash.is_enabled() {
+            for shell in self.terminals.values_mut() {
+                shell.rang = None;
+            }
+        }
     }
 
     /// Open the tabs and panes of a session, as far as shells can be started for them.
@@ -201,7 +276,11 @@ impl App {
         // A flashing visual bell is drawn anew with every frame, until it has faded out.
         let frames = self.is_flashing().then(|| window::frames().map(Message::Frame));
 
-        Subscription::batch(terminals.chain([window]).chain(ticks).chain(frames))
+        let config = self.config.as_ref();
+        let config =
+            config.map(|source| changes(source.paths.clone()).map(|()| Message::ConfigChanged));
+
+        Subscription::batch(terminals.chain([window]).chain(ticks).chain(frames).chain(config))
     }
 
     /// Whether the visual bell flashes for a terminal.
@@ -281,6 +360,10 @@ impl App {
                 self.poll_directories();
 
                 Task::batch(finished.into_iter().map(|id| self.notify(id)))
+            },
+            Message::ConfigChanged => {
+                self.reload_config();
+                Task::none()
             },
             Message::Frame(now) => {
                 // Flashes that have faded out are over; the frames stop with the last one.
@@ -375,8 +458,16 @@ impl App {
                 let profile = self.options.profiles.get(index);
                 let spawned = profile.map(|profile| (profile.settings.clone(), profile.background));
 
+                let name = profile.map(|profile| profile.name.clone());
+
                 match spawned.map(|(settings, background)| self.spawn(settings, background)) {
-                    Some(Ok(terminal)) => self.push_tab(terminal),
+                    Some(Ok(terminal)) => {
+                        // Remembered for when the configuration changes the profile.
+                        if let Some(shell) = self.terminals.get_mut(&terminal) {
+                            shell.profile = name;
+                        }
+                        self.push_tab(terminal);
+                    },
                     Some(Err(err)) => error!("Unable to open the profile: {err}"),
                     None => (),
                 }

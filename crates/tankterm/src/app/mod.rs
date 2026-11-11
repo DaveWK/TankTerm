@@ -18,12 +18,15 @@ use crate::config::tabs::Tabs;
 use crate::hotkeys::{AppAction, Hotkeys};
 use crate::palette::Palette;
 use crate::session::Session;
+use crate::setup::ConfigSource;
 
 mod actions;
 #[cfg(all(test, unix))]
 mod layout_tests;
 #[cfg(all(test, unix))]
 mod option_tests;
+#[cfg(all(test, unix))]
+mod reload_tests;
 #[cfg(all(test, unix))]
 mod render_tests;
 #[cfg(all(test, unix))]
@@ -66,9 +69,11 @@ pub enum Message {
     Tick,
     /// A frame is about to be drawn while a visual bell flashes.
     Frame(Instant),
+    /// A configuration file changed.
+    ConfigChanged,
 }
 
-/// Settings of the application that don't change while it runs.
+/// Settings of the application, which only change when the configuration is read again.
 pub struct AppOptions {
     /// Window title, used until a terminal sets its own.
     pub title: String,
@@ -130,6 +135,8 @@ pub struct App {
     pending_paste: Option<PendingPaste>,
     /// Keys that answer the paste warning.
     paste_keys: Hotkeys,
+    /// Where the configuration comes from, while its files are watched for changes.
+    config: Option<ConfigSource>,
 }
 
 /// Text that was pasted into a terminal but not sent to it yet.
@@ -170,6 +177,8 @@ struct Shell {
     focused: bool,
     /// When the terminal rang the bell, while the visual bell flashes for it.
     rang: Option<Instant>,
+    /// Name of the profile the terminal was opened from, if it was.
+    profile: Option<String>,
 }
 
 /// How terminals are placed in the window.

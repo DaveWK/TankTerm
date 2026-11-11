@@ -1,5 +1,6 @@
 //! Conversion from the TankTerm configuration to `iced_tterm` settings.
 
+use std::sync::{Mutex, PoisonError};
 use std::time::Duration;
 
 use iced::font::Family;
@@ -118,11 +119,26 @@ fn family(name: &str, installed: impl Fn(&str) -> bool) -> Option<Family> {
     if name.eq_ignore_ascii_case("monospace") {
         Some(Family::Monospace)
     } else if installed(name) {
-        // iced needs a `'static` family name. Fonts are only resolved on startup, so leaking the
-        // name once is fine.
-        Some(Family::Name(Box::leak(name.to_owned().into_boxed_str())))
+        Some(Family::Name(static_name(name)))
     } else {
         None
+    }
+}
+
+/// A family name that lives as long as the program, which is what iced needs.
+///
+/// Every name is only leaked once, however often the configuration is read.
+fn static_name(name: &str) -> &'static str {
+    static NAMES: Mutex<Vec<&'static str>> = Mutex::new(Vec::new());
+
+    let mut names = NAMES.lock().unwrap_or_else(PoisonError::into_inner);
+    match names.iter().find(|known| **known == name) {
+        Some(known) => known,
+        None => {
+            let leaked: &'static str = Box::leak(name.to_owned().into_boxed_str());
+            names.push(leaked);
+            leaked
+        },
     }
 }
 
@@ -343,6 +359,15 @@ mod tests {
     #[test]
     fn installed_family_is_kept() {
         assert_eq!(family("Iosevka Term", |_| true), Some(Family::Name("Iosevka Term")));
+    }
+
+    #[test]
+    fn family_names_are_only_kept_once() {
+        let first = static_name("TankTerm Test Family");
+        let second = static_name(&String::from("TankTerm Test Family"));
+
+        assert_eq!(first, "TankTerm Test Family");
+        assert!(std::ptr::eq(first, second));
     }
 
     #[test]
