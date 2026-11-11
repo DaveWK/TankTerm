@@ -612,7 +612,7 @@ written as { key = _"Paste"_, action = _"Paste"_ } in the configuration file.
 
 # BUGS
 
-Found a bug? Please report it at _https://github.com/DaveWK/TankTerm/issues_.
+Found a bug? Please report it at _https://git.infra.xitely.net/xitely/TankTerm/issues_.
 
 # MAINTAINERS
 

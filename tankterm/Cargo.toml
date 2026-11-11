@@ -5,8 +5,8 @@ authors = ["Christian Duerr <contact@christianduerr.com>", "Joe Wilm <joe@jwilm.
 license = "Apache-2.0"
 description = "A fast, cross-platform, OpenGL terminal emulator"
 readme = "README.md"
-homepage = "https://github.com/DaveWK/TankTerm"
-repository = "https://github.com/DaveWK/TankTerm"
+homepage = "https://git.infra.xitely.net/xitely/TankTerm"
+repository = "https://git.infra.xitely.net/xitely/TankTerm"
 edition.workspace = true
 rust-version.workspace = true
 
