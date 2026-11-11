@@ -82,14 +82,13 @@ impl Default for ColorPalette {
 pub struct Theme {
     palette: Box<ColorPalette>,
     ansi256_colors: HashMap<u8, Color>,
+    /// How opaque the widget's background is drawn.
+    background_opacity: f32,
 }
 
 impl Default for Theme {
     fn default() -> Self {
-        Self {
-            palette: Box::<ColorPalette>::default(),
-            ansi256_colors: build_ansi256_colors(),
-        }
+        Self::new(ThemeSettings::default())
     }
 }
 
@@ -113,7 +112,17 @@ impl Theme {
         Self {
             palette: settings.color_pallete,
             ansi256_colors: build_ansi256_colors(),
+            background_opacity: settings.background_opacity.clamp(0.0, 1.0),
         }
+    }
+
+    /// How opaque the widget's background is drawn, from `0.0` to `1.0`.
+    pub(crate) fn background_opacity(&self) -> f32 {
+        self.background_opacity
+    }
+
+    pub(crate) fn set_background_opacity(&mut self, opacity: f32) {
+        self.background_opacity = opacity.clamp(0.0, 1.0);
     }
 
     pub fn get_color(&self, c: ansi::Color) -> Color {
@@ -340,8 +349,14 @@ fn hex_to_color(hex: &str) -> anyhow::Result<Color> {
 
 impl TerminalStyle for Theme {
     fn container_style(&self, overrides: &Colors) -> container::Style {
+        let background = Color {
+            a: self.background_opacity,
+            ..self.background_with_overrides(overrides)
+        };
+
         container::Style {
-            background: Some(self.background_with_overrides(overrides).into()),
+            // A background that isn't there needs no drawing.
+            background: (background.a > 0.0).then(|| background.into()),
             ..container::Style::default()
         }
     }
@@ -352,6 +367,52 @@ mod tests {
     use super::*;
     use std::collections::HashMap;
     use tankterm_terminal::vte::ansi;
+
+    #[test]
+    fn background_is_drawn_at_its_opacity() {
+        let theme = |opacity| {
+            Theme::new(ThemeSettings {
+                background_opacity: opacity,
+                ..ThemeSettings::default()
+            })
+        };
+        let background = |theme: &Theme, overrides: &Colors| {
+            theme.container_style(overrides).background
+        };
+        let palette = Color::from_rgb8(0x18, 0x18, 0x18);
+        let mut overridden = Colors::default();
+        overridden[NamedColor::Background] = Some(Rgb {
+            r: 0x10,
+            g: 0x20,
+            b: 0x30,
+        });
+
+        assert_eq!(
+            background(&Theme::default(), &Colors::default()),
+            Some(palette.into())
+        );
+        assert_eq!(
+            background(&theme(0.5), &Colors::default()),
+            Some(Color { a: 0.5, ..palette }.into())
+        );
+        // A background the application set is as transparent as the
+        // theme's.
+        assert_eq!(
+            background(&theme(0.5), &overridden),
+            Some(
+                Color {
+                    a: 0.5,
+                    ..Color::from_rgb8(0x10, 0x20, 0x30)
+                }
+                .into()
+            )
+        );
+        assert_eq!(background(&theme(0.0), &overridden), None);
+
+        // Opacities outside of the range are the nearest one inside.
+        assert_eq!(theme(7.0).background_opacity(), 1.0);
+        assert_eq!(theme(-1.0).background_opacity(), 0.0);
+    }
 
     #[test]
     fn color_scheme_follows_background() {

@@ -16,6 +16,7 @@ use std::hash::{Hash, Hasher};
 use std::io::Result;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use tankterm_terminal::vte::ansi::NamedColor;
 use tokio::sync::Mutex;
 
 #[derive(Debug, Clone)]
@@ -28,7 +29,11 @@ pub enum Event {
 
 #[derive(Debug, Clone)]
 pub enum Command {
+    /// Change the colors. The opacity of the background is kept.
     ChangeTheme(Box<ColorPalette>),
+    /// Change how opaque the widget draws its background, from `0.0` to
+    /// `1.0`.
+    ChangeBackgroundOpacity(f32),
     ChangeFont(FontSettings),
     /// Change the size of the scrollback buffer and how far the mouse wheel
     /// scrolls. Lines the smaller buffer has no room for are dropped.
@@ -164,6 +169,14 @@ impl Terminal {
         self.backend.selection()
     }
 
+    /// The background color the application in the terminal set (OSC 11),
+    /// if it set one. Without one the background is the palette's.
+    pub fn background_override(&self) -> Option<iced::Color> {
+        let colors = &self.backend.renderable_content().colors;
+        colors[NamedColor::Background]
+            .map(|rgb| iced::Color::from_rgb8(rgb.r, rgb.g, rgb.b))
+    }
+
     /// How many lines the terminal's screen has, which is a page for
     /// scrolling.
     pub fn screen_lines(&self) -> usize {
@@ -197,8 +210,14 @@ impl Terminal {
 
         match cmd {
             Command::ChangeTheme(color_pallete) => {
-                self.theme = Theme::new(ThemeSettings::new(color_pallete));
+                self.theme = Theme::new(ThemeSettings {
+                    color_pallete,
+                    background_opacity: self.theme.background_opacity(),
+                });
                 self.backend.set_color_scheme(self.theme.color_scheme());
+            },
+            Command::ChangeBackgroundOpacity(opacity) => {
+                self.theme.set_background_opacity(opacity);
             },
             Command::ChangeFont(font_settings) => {
                 self.font = TermFont::new(font_settings);
@@ -416,5 +435,41 @@ mod tests {
         terminal.handle(Command::Focus(true));
         assert_eq!(terminal.cursor_shape(), CursorShape::Underline);
         assert!(terminal.cursor_blinks());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn background_opacity_outlives_a_new_palette() {
+        use crate::settings::BackendSettings;
+        use crate::theme::TerminalStyle;
+        use tankterm_terminal::term::color::Colors;
+
+        let settings = Settings {
+            backend: BackendSettings {
+                program: "cat".into(),
+                ..BackendSettings::default()
+            },
+            ..Settings::default()
+        };
+        let mut terminal = Terminal::new(0, settings).unwrap();
+        let alpha = |terminal: &Terminal| {
+            let style = terminal.theme.container_style(&Colors::default());
+            style.background.map(|background| match background {
+                iced::Background::Color(color) => (color.r, color.a),
+                background => panic!("unexpected {background:?}"),
+            })
+        };
+        assert_eq!(alpha(&terminal).map(|(_, alpha)| alpha), Some(1.0));
+        assert_eq!(terminal.background_override(), None);
+
+        terminal.handle(Command::ChangeBackgroundOpacity(0.25));
+        assert_eq!(alpha(&terminal).map(|(_, alpha)| alpha), Some(0.25));
+
+        let white = ColorPalette {
+            background: "#ffffff".into(),
+            ..ColorPalette::default()
+        };
+        terminal.handle(Command::ChangeTheme(Box::new(white)));
+        assert_eq!(alpha(&terminal), Some((1.0, 0.25)));
     }
 }

@@ -94,6 +94,8 @@ pub struct AppOptions {
     pub bindings: Vec<(Binding<InputKind>, BindingAction)>,
     /// What happens when a terminal rings the bell.
     pub bell: Bell,
+    /// How opaque the background of the terminals is, from 0 to 1.
+    pub opacity: f32,
 }
 
 /// A configured shell profile, ready to be opened in a tab.
@@ -102,7 +104,7 @@ pub struct Profile {
     /// The profile's command line, shown next to its name.
     pub detail: String,
     pub settings: Settings,
-    /// Color shown in the padding around the profile's terminals.
+    /// Color drawn behind the profile's terminals and their padding.
     pub background: Color,
 }
 
@@ -137,6 +139,8 @@ pub struct App {
     paste_keys: Hotkeys,
     /// Where the configuration comes from, while its files are watched for changes.
     config: Option<ConfigSource>,
+    /// Whether the window was opened transparent, which it is for the rest of its life.
+    transparent: bool,
 }
 
 /// Text that was pasted into a terminal but not sent to it yet.
@@ -164,7 +168,7 @@ struct Shell {
     terminal: iced_tterm::Terminal,
     /// Title set by the terminal's application, if any.
     title: Option<String>,
-    /// Color shown in the padding around the terminal.
+    /// Color drawn behind the terminal and its padding, until its application sets another.
     background: Color,
     /// Whether a command was running in the shell when it was last looked at.
     busy: bool,
@@ -186,7 +190,7 @@ struct Shell {
 pub struct Layout {
     /// Space around every terminal, in logical pixels.
     pub padding: Padding,
-    /// Color shown in the padding.
+    /// Color drawn behind the terminals and their padding.
     pub background: Color,
     /// Text color, used for the tab bar and pane frames.
     pub foreground: Color,

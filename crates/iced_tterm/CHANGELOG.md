@@ -37,6 +37,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   right now and whether it is blinking; `CursorShape` is re-exported from `tankterm_terminal`
 - `BackendCommand::BlinkCursor`, which `Terminal::subscription()` sends every blink interval
   while the cursor blinks; pass it on to `Terminal::handle` like the other backend calls
+- `ThemeSettings::background_opacity`, how opaque the widget draws its background, for
+  transparent windows and for applications that draw the background themselves;
+  `Command::ChangeBackgroundOpacity` changes it and `Command::ChangeTheme` keeps it
+- `Terminal::background_override()`, the background color the application in the terminal set
+  with OSC 11, if any
 - `Settings::scroll` (`ScrollSettings`): `history`, the most lines the scrollback buffer keeps,
   and `multiplier`, the lines scrolled for every step of the mouse wheel; `Command::ChangeScroll`
   changes both for a running terminal
@@ -47,7 +52,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   text instead of `BackendCommand::Write` with the bytes to send, so applications can hold a paste
   back before passing it on to `Terminal::handle`
 - (**breaking changes**) `Event` has a new `SelectionFinished` variant
-- (**breaking changes**) `Settings` has new `scroll` and `cursor` fields
+- (**breaking changes**) `Settings` has new `scroll` and `cursor` fields, and `ThemeSettings` a
+  new `background_opacity` field
 - Pastes without bracketed paste send line breaks as carriage returns, like the Enter key
 - Releasing the mouse button outside the terminal ends a selection drag
 

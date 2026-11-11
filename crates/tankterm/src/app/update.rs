@@ -5,8 +5,9 @@ use std::path::Path;
 use std::time::Instant;
 use std::{io, mem};
 
+use iced::theme::{self, Base as _};
 use iced::widget::pane_grid;
-use iced::{Subscription, Task, window};
+use iced::{Color, Subscription, Task, Theme, window};
 use iced_tterm::actions::Action;
 use iced_tterm::bindings::BindingAction;
 use iced_tterm::settings::Settings;
@@ -28,6 +29,8 @@ impl App {
     /// session file with a usable session, its tabs and panes are opened instead.
     pub fn new(options: AppOptions, first: Settings, settings: Settings) -> io::Result<Self> {
         let mut app = Self {
+            // A window that starts opaque stays opaque, see `opacity`.
+            transparent: options.opacity < 1.,
             options,
             settings,
             tabs: Vec::new(),
@@ -248,6 +251,26 @@ impl App {
                 shell.focused = has_focus;
                 shell.terminal.handle(iced_tterm::Command::Focus(has_focus));
             }
+        }
+    }
+
+    /// How opaque the background of the terminals is drawn, from 0 to 1.
+    ///
+    /// This is `window.opacity` in a window that was opened transparent. A window that wasn't
+    /// has nothing to show behind a transparent background but the color iced clears it with,
+    /// so its background stays opaque even if the configuration changes.
+    pub(super) fn opacity(&self) -> f32 {
+        if self.transparent { self.options.opacity } else { 1. }
+    }
+
+    /// The window's base style: a transparent window isn't cleared to a color before the
+    /// terminals are drawn.
+    pub fn style(&self, theme: &Theme) -> theme::Style {
+        let base = theme.base();
+        if self.transparent {
+            theme::Style { background_color: Color::TRANSPARENT, ..base }
+        } else {
+            base
         }
     }
 

@@ -38,7 +38,12 @@ const FALLBACK_SHELL: &str = "powershell";
 pub fn settings(config: &UiConfig, options: &Options) -> Settings {
     Settings {
         font: font_settings(config),
-        theme: ThemeSettings::new(Box::new(palette(&config.colors))),
+        // The application draws the background itself, behind the terminal and its padding in
+        // one piece, so that it is equally transparent everywhere with `window.opacity`.
+        theme: ThemeSettings {
+            color_pallete: Box::new(palette(&config.colors)),
+            background_opacity: 0.,
+        },
         backend: backend_settings(config, options, std::env::var("SHELL").ok()),
         scroll: scroll_settings(config),
         cursor: cursor_settings(config),
@@ -215,7 +220,7 @@ pub fn window_size(config: &UiConfig, cell: Size, padding: Padding) -> Option<Si
     ))
 }
 
-/// Background color of the window, shown in the padding.
+/// Background color of the window, drawn behind the terminals and their padding.
 pub fn background(config: &UiConfig) -> Color {
     let background = config.colors.primary.background;
     Color::from_rgb8(background.r, background.g, background.b)
@@ -596,6 +601,14 @@ mod tests {
     fn background_is_primary_background() {
         let config = config("[colors.primary]\nbackground = '#102030'\n");
         assert_eq!(background(&config), Color::from_rgb8(0x10, 0x20, 0x30));
+    }
+
+    #[test]
+    fn terminals_leave_their_background_to_the_application() {
+        for config in ["", "[window]\nopacity = 0.5\n"] {
+            let settings = settings(&self::config(config), &options(&[]));
+            assert_eq!(settings.theme.background_opacity, 0.);
+        }
     }
 
     #[test]

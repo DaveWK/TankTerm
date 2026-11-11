@@ -112,6 +112,11 @@ Notable changes to the `tankterm_terminal` crate are documented in its
     bindings, tabs, profiles, scrolling, cursor and bell options of the running window change.
     The window's `dimensions`, `position`, `startup_mode`, `decorations`, `level` and `class`
     need a restart, and running shells keep their program and environment
+- `window.opacity` applies to the iced front end: the window is transparent and the background
+    of the terminals and their padding is drawn at that opacity, while cells with a background
+    color of their own, the tab bar and the command palette stay opaque. A window that started
+    opaque needs a restart to become transparent
+- The padding around a terminal takes the background color its application sets with OSC 11
 
 ### Removed
 

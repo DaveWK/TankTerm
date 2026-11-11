@@ -39,9 +39,9 @@ through [iced_tterm](./crates/iced_tterm), replacing Alacritty's
 OpenGL front end. The terminal itself (escape sequences, the grid and the PTY)
 is still the `tankterm_terminal` crate. The font, colors, shell, environment,
 working directory, the window's title, class, size, position, startup mode,
-decorations and level, the `[scrolling]`, `[cursor]` and `[bell]` options and
-the key bindings for tabs, panes, copying and pasting, the font size, scrolling
-and fullscreen are read from your configuration.
+decorations, level and opacity, the `[scrolling]`, `[cursor]` and `[bell]`
+options and the key bindings for tabs, panes, copying and pasting, the font
+size, scrolling and fullscreen are read from your configuration.
 
 This front end is new and doesn't support everything the OpenGL one did yet:
 
@@ -49,7 +49,7 @@ This front end is new and doesn't support everything the OpenGL one did yet:
 - Hints, vi mode and search, with the key binding actions that need them
 - Key bindings to `command` and `chars` and to `Quit`, `Hide`, `Minimize`, `ClearSelection`,
   `CopySelection`, `SpawnNewInstance` and `CreateNewWindow`; mouse bindings other than pasting
-- `window.opacity` and `window.blur`, and most `[mouse]` options
+- `window.blur`, `colors.transparent_background_colors` and most `[mouse]` options
 - `--hold`
 
 Command line options that aren't supported yet fail with an error; config

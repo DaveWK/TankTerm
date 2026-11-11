@@ -50,6 +50,7 @@ fn app_with_session(config: &str, hotkeys: Hotkeys, session_file: Option<PathBuf
         copy_on_select: config.selection.save_to_clipboard,
         bindings: crate::hotkeys::mouse_bindings(config.mouse_bindings()),
         bell: crate::bell::Bell::from_config(&config.bell),
+        opacity: config.window_opacity(),
     };
 
     App::new(options, settings.clone(), settings).unwrap()

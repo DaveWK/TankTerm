@@ -165,6 +165,7 @@ fn tankterm(mut options: Options) -> Result<(), Box<dyn Error>> {
 
     let result = iced::application(boot, App::update, App::view)
         .title(App::title)
+        .style(App::style)
         .subscription(App::subscription)
         .window(window)
         .run();
@@ -224,6 +225,8 @@ fn window_settings(config: &UiConfig, options: &Options, size: Option<Size>) -> 
             WindowLevel::Normal => window::Level::Normal,
             WindowLevel::AlwaysOnTop => window::Level::AlwaysOnTop,
         },
+        // Only a transparent window shows what is behind a background that isn't opaque.
+        transparent: config.window_opacity() < 1.,
         #[cfg(all(feature = "x11", not(any(target_os = "macos", windows))))]
         icon: window_icon(),
         #[cfg(not(any(target_os = "macos", windows)))]
@@ -290,6 +293,20 @@ mod tests {
         assert!(!settings.maximized && !settings.fullscreen);
         assert!(settings.decorations);
         assert_eq!(settings.level, window::Level::Normal);
+        assert!(!settings.transparent);
+    }
+
+    #[test]
+    fn window_is_transparent_with_an_opacity_below_one() {
+        let transparent = |opacity: &str| {
+            let config = config(&format!("[window]\nopacity = {opacity}\n"));
+            window_settings(&config, &options(&[]), None).transparent
+        };
+
+        assert!(transparent("0.9") && transparent("0.0"));
+        assert!(!transparent("1.0"));
+        // The opacity is at most one.
+        assert!(!transparent("3.0"));
     }
 
     #[test]

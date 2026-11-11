@@ -47,6 +47,7 @@ fn tabs_and_panes() {
         copy_on_select: false,
         bindings: Vec::new(),
         bell: crate::bell::Bell::from_config(&config.bell),
+        opacity: config.window_opacity(),
     };
     let mut app = App::new(options, settings.clone(), settings).unwrap();
 
@@ -170,4 +171,19 @@ fn visual_bell() {
     let rang = app.terminals.get_mut(&1).unwrap().rang.as_mut().expect("the pane doesn't flash");
     *rang -= Duration::from_secs(30);
     snapshot(&app, window, &dir, "visual-bell");
+}
+
+#[test]
+#[ignore = "writes screenshots for manual inspection"]
+fn window_opacity() {
+    let Some(dir) = env::var_os("TANKTERM_SNAPSHOT_DIR").map(PathBuf::from) else { return };
+    let window = Size::new(900., 420.);
+
+    // The screenshot is taken over the gray of iced's dark theme, which stands in for what
+    // is behind the window. Cells with a background of their own stay opaque.
+    let config = "[window]\nopacity = 0.5\n[colors.primary]\nbackground = \"#c02020\"\n";
+    let lines = ["plain", "\x1b[44m blue cells \x1b[0m plain", "\x1b[7m reversed \x1b[0m"];
+    let mut app = three_panes(config, lines);
+    settle(&mut app, window);
+    snapshot(&app, window, &dir, "window-opacity");
 }

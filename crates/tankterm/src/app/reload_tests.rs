@@ -93,7 +93,7 @@ fn changed(app: &mut App) {
 }
 
 /// Whether two applications draw the same picture.
-fn same_picture(one: &App, other: &App) -> bool {
+pub(super) fn same_picture(one: &App, other: &App) -> bool {
     let window = Size::new(800., 400.);
     let directory = tempfile::tempdir().unwrap();
     let picture = directory.path().join("picture");
@@ -457,4 +457,64 @@ fn watched_files_change_the_window_without_being_told() {
     });
 
     assert_eq!(app.options.layout.background, iced::Color::from_rgb8(0x20, 0x20, 0x40));
+}
+
+#[test]
+fn changed_opacity_applies_to_a_window_that_was_opened_transparent() {
+    let file = ConfigFile::new("[window]\nopacity = 0.5\n");
+    let mut app = file.start();
+    assert_eq!(app.opacity(), 0.5);
+
+    file.write("[window]\nopacity = 0.8\n");
+    changed(&mut app);
+    assert_eq!(app.opacity(), 0.8);
+    assert!(same_picture(&app, &ConfigFile::new("[window]\nopacity = 0.8\n").start()));
+
+    // Opaque again, in a window that stays transparent.
+    file.write("");
+    changed(&mut app);
+    assert_eq!(app.opacity(), 1.);
+    assert!(same_picture(&app, &ConfigFile::new("").start()));
+    assert_eq!(app.style(&Theme::Dark).background_color, iced::Color::TRANSPARENT);
+}
+
+#[test]
+fn changed_opacity_waits_for_a_restart_in_a_window_that_was_opened_opaque() {
+    let file = ConfigFile::new("");
+    let mut app = file.start();
+    let opaque = ConfigFile::new("").start();
+
+    file.write("[window]\nopacity = 0.5\n");
+    changed(&mut app);
+
+    // The window can't show what is behind it, so its background isn't made transparent.
+    assert_eq!(app.options.opacity, 0.5);
+    assert_eq!(app.opacity(), 1.);
+    assert!(same_picture(&app, &opaque));
+    assert_ne!(app.style(&Theme::Dark).background_color, iced::Color::TRANSPARENT);
+}
+
+#[test]
+fn background_set_by_an_application_is_drawn_behind_the_padding_too() {
+    let padding = "[window]\npadding = { x = 12, y = 6 }\n";
+
+    // OSC 11 sets the background color.
+    let file = ConfigFile::new("");
+    file.write_raw(&format!(
+        "terminal.shell = {{ program = \"sh\", args = [\"-c\", \"printf \
+         '\\\\033]11;#204060\\\\007'; exec cat\"] }}\n{padding}"
+    ));
+    let mut app = file.start();
+    let blue = iced::Color::from_rgb8(0x20, 0x40, 0x60);
+    wait_until("the background was never set", || {
+        let _ = app.update(super::tab_tests::wakeup(0));
+        app.terminals[&0].terminal.background_override() == Some(blue)
+    });
+    assert_eq!(app.pane_background(&app.terminals[&0]), blue);
+
+    // The window looks like one with that background configured.
+    let configured =
+        ConfigFile::new(&format!("{padding}[colors.primary]\nbackground = \"#204060\"\n"));
+    assert!(same_picture(&app, &configured.start()));
+    assert!(!same_picture(&app, &ConfigFile::new(padding).start()));
 }

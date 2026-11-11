@@ -33,6 +33,7 @@ fn terminal_size(config: &str, window: Size) -> (Size, Padding) {
         copy_on_select: false,
         bindings: Vec::new(),
         bell: crate::bell::Bell::from_config(&config.bell),
+        opacity: config.window_opacity(),
     };
     let app = App::new(options, settings.clone(), settings).unwrap();
 

@@ -12,6 +12,7 @@ use iced_tterm::settings::ScrollSettings;
 use iced_tterm::{BackendCommand, CursorShape, SelectionType, TermMode};
 use iced_winit::runtime;
 
+use super::reload_tests::same_picture;
 use super::tab_tests::{app_with, key, perform, type_keys, wait_for_text, wait_until, wakeup};
 use super::*;
 use crate::config::UiConfig;
@@ -645,4 +646,44 @@ fn visual_bell_is_off_without_a_duration_and_when_accessible() {
     app.options.bell = crate::bell::Bell::from_config(&config.bell);
     bell(&mut app, 0);
     assert!(!app.is_flashing());
+}
+
+/// An application with a background color and opacity.
+fn app_with_background(color: &str, opacity: f32) -> App {
+    let config = format!(
+        "[colors.primary]\nbackground = \"{color}\"\n[window]\nopacity = {opacity:?}\npadding = \
+         {{ x = 10, y = 10 }}\n"
+    );
+    app_with(&config, Hotkeys::default())
+}
+
+#[test]
+fn window_opacity_makes_the_background_transparent() {
+    let app = app_with_background("#c02020", 0.5);
+    let shell = &app.terminals[&0];
+    assert_eq!(app.pane_background(shell), Color { a: 0.5, ..Color::from_rgb8(0xc0, 0x20, 0x20) });
+
+    // Opaque backgrounds are told apart by their color, and from a transparent one.
+    let red = app_with_background("#c02020", 1.);
+    assert_eq!(red.pane_background(&red.terminals[&0]).a, 1.);
+    assert!(!same_picture(&red, &app_with_background("#2020c0", 1.)));
+    assert!(!same_picture(&red, &app));
+
+    // A background that isn't drawn at all looks the same in every color.
+    let clear = app_with_background("#c02020", 0.);
+    assert!(same_picture(&clear, &app_with_background("#2020c0", 0.)));
+    assert!(!same_picture(&clear, &app));
+}
+
+#[test]
+fn window_is_only_cleared_to_a_color_when_it_is_opaque() {
+    let transparent = app_with_background("#c02020", 0.5);
+    assert_eq!(transparent.style(&Theme::Dark).background_color, Color::TRANSPARENT);
+    assert_eq!(transparent.opacity(), 0.5);
+
+    let opaque = app_with("", Hotkeys::default());
+    let style = opaque.style(&Theme::Dark);
+    assert_eq!(style.background_color.a, 1.);
+    assert_eq!(style.text_color, transparent.style(&Theme::Dark).text_color);
+    assert_eq!(opaque.opacity(), 1.);
 }

@@ -98,8 +98,9 @@ This section documents the *[general]* table of the configuration file.
 	The colors and theme, font, _window.padding_, _window.title_, key and mouse
 	bindings and the *[tabs]*, *[[profiles]]*, *[scrolling]*, *[cursor]* and
 	*[bell]* options apply to the terminals that are open. The shell, its
-	working directory and *[env]* apply to terminals opened afterwards. The
-	other *[window]* options need a restart.
+	working directory and *[env]* apply to terminals opened afterwards.
+	_window.opacity_ applies to a window that was opened transparent. The other
+	*[window]* options need a restart.
 
 	Turning this option off takes effect with the change; turning it on needs a
 	restart, as does a configuration file that didn't exist when TankTerm
@@ -200,6 +201,14 @@ This section documents the *[window]* table of the configuration file.
 
 	Background opacity as a floating point number from _0.0_ to _1.0_. The value
 	_0.0_ is completely transparent and _1.0_ is opaque.
+
+	The background of the terminals and their padding is transparent. Cells
+	with a background color of their own, the tab bar, the command palette and
+	the paste warning stay opaque.
+
+	The window is opened transparent when the opacity is below _1.0_. In such a
+	window a changed opacity applies right away; a window that was opened
+	opaque needs a restart to become transparent.
 
 	Default: _1.0_
 
@@ -694,6 +703,9 @@ Like Lip Gloss, colors can be written in any of these forms:
 	Whether or not _window.opacity_ applies to all cell backgrounds, or only to
 	the default background. When set to _true_ all cells will be transparent
 	regardless of their background color.
+
+	This isn't supported by the iced front end yet: only the default background
+	is transparent.
 
 	Default: _false_
 

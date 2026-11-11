@@ -122,13 +122,29 @@ impl Default for FontSettings {
     }
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct ThemeSettings {
     pub color_pallete: Box<ColorPalette>,
+    /// How opaque the widget draws its background, from `0.0`, not at all,
+    /// to `1.0`. Cells with a background color of their own stay opaque.
+    ///
+    /// What is behind the widget only shows through a window that is
+    /// transparent itself.
+    pub background_opacity: f32,
+}
+
+impl Default for ThemeSettings {
+    fn default() -> Self {
+        Self::new(Box::default())
+    }
 }
 
 impl ThemeSettings {
+    /// A palette on an opaque background.
     pub fn new(color_pallete: Box<ColorPalette>) -> Self {
-        Self { color_pallete }
+        Self {
+            color_pallete,
+            background_opacity: 1.0,
+        }
     }
 }

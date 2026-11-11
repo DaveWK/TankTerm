@@ -3,10 +3,10 @@
 use iced::widget::pane_grid::{self, PaneGrid};
 use iced::widget::text::Wrapping;
 use iced::widget::{button, column, container, keyed_column, mouse_area, row, stack, text};
-use iced::{Element, Length};
+use iced::{Border, Color, Element, Length};
 use iced_tterm::TerminalView;
 
-use super::{App, Layout, MAX_TAB_WIDTH, Message};
+use super::{App, Layout, MAX_TAB_WIDTH, Message, Shell};
 use crate::config::BindingMode;
 use crate::config::tabs::{ShowTabs, TabsPosition};
 use crate::hotkeys::{AppAction, KeyFilter};
@@ -74,7 +74,7 @@ impl App {
     fn pane(&self, terminal: u64, framed: bool, focused: bool) -> Element<'_, Message> {
         let Layout { padding, foreground, .. } = self.options.layout;
         let Some(shell) = self.terminals.get(&terminal) else { return container("").into() };
-        let background = shell.background;
+        let background = self.pane_background(shell);
 
         let terminal = container(TerminalView::show(&shell.terminal).map(Message::Terminal))
             .padding(padding)
@@ -101,13 +101,26 @@ impl App {
             (false, true) => blend(self.options.layout.background, foreground, 0.6),
             (false, false) => blend(self.options.layout.background, foreground, 0.15),
         };
+        // The frame is a border and not a color behind the terminal, where it would show
+        // through a transparent background.
+        let width = if framed { 1. } else { 0. };
         container(terminal)
-            .padding(if framed { 1 } else { 0 })
+            .padding(width)
             .style(move |_| container::Style {
-                background: Some(frame.into()),
+                border: Border { color: frame, width, ..Border::default() },
                 ..Default::default()
             })
             .into()
+    }
+
+    /// The color behind a terminal and its padding: the one its application set (OSC 11) or
+    /// else the configured one, as opaque as `window.opacity` says.
+    ///
+    /// The terminal widget draws no background of its own, so this is the only layer and the
+    /// padding is as transparent as the terminal.
+    pub(super) fn pane_background(&self, shell: &Shell) -> Color {
+        let background = shell.terminal.background_override().unwrap_or(shell.background);
+        Color { a: self.opacity(), ..background }
     }
 
     /// The tab bar: a button for every tab, each with a close button, and one to add a tab.
