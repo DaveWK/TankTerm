@@ -12,7 +12,7 @@ packages:
   - groff
 
 sources:
-  - https://github.com/DaveWK/TankTerm
+  - https://git.infra.xitely.net/xitely/TankTerm
 
 environment:
   PATH: /home/build/.cargo/bin:/usr/bin/

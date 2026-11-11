@@ -4,8 +4,8 @@ version = "0.2.4-dev"
 authors = ["Christian Duerr <contact@christianduerr.com>"]
 license = "MIT OR Apache-2.0"
 description = "TankTerm configuration abstractions"
-homepage = "https://github.com/DaveWK/TankTerm"
-repository = "https://github.com/DaveWK/TankTerm"
+homepage = "https://git.infra.xitely.net/xitely/TankTerm"
+repository = "https://git.infra.xitely.net/xitely/TankTerm"
 edition.workspace = true
 rust-version.workspace = true
 

@@ -97,7 +97,7 @@ making it possible to control TankTerm without directly accessing it.
 
 # BUGS
 
-Found a bug? Please report it at _https://github.com/DaveWK/TankTerm/issues_.
+Found a bug? Please report it at _https://git.infra.xitely.net/xitely/TankTerm/issues_.
 
 # MAINTAINERS
 
