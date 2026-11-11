@@ -21,6 +21,8 @@ Approved and waiting their turn, in this order.
 6. Shell integration: OSC 7 working directory and OSC 133 prompt zones.
 7. Tab bar: `[style.tab_*]` blocks, tab title templates, status segments, and window buttons in
    the tab bar in place of the OS title bar.
+8. `tankTerm ssh` with terminfo negotiation; design and decisions are in the section below
+   the deferred list.
 
 ## Deferred
 
@@ -99,49 +101,6 @@ iTerm2 inline images.
 - Outcome: which protocol to support first, what each of the three layers needs, and a size
   estimate. No implementation.
 
-### Terminfo negotiation over SSH ("greedyterm"): assessed, decisions open
-
-Send a server only a `TERM` value it actually has. Assessed against Fedora 45, Rocky 10.2,
-Debian 13 and 11, and Ubuntu 24.04; not built.
-
-Recommended design: a `tankTerm ssh` wrapper that execs the real `ssh`.
-
-- First connection to a host: one fixed probe over a shared SSH connection (ControlMaster) that
-  tests which terminfo files exist in the system directories. The answer is cached per resolved
-  user, host and port; later connections add no latency and run nothing on the server.
-- Order: `alacritty`, `xterm-256color`, `xterm`; `xterm-256color` when the probe fails. The list
-  is configurable.
-- The probe tests files instead of calling `infocmp`, which is missing from Fedora and Rocky
-  container images. It ignores `~/.terminfo` so the answer still holds after `sudo`.
-- Profiles use it as their shell. Plain `ssh` typed in a shell is not covered until there is an
-  alias or shell integration.
-- Size: medium. Unix only at first.
-
-Findings that shaped it:
-
-- `alacritty` is always present on Fedora and Rocky. On Debian and Ubuntu it comes with
-  `ncurses-term`, which `openssh-server` pulls in by default but minimal and container installs
-  lack. `INSTALL.md` currently says the entry ships everywhere, which is wrong for those.
-- `alacritty-direct` and `xterm-direct` are left out of the default order: outside tmux they
-  turn colours 8 and above into RGB values, so `tput setaf 9` comes out nearly black.
-- Installing the entry on the server lost: root cannot see it after `sudo -i`, it goes stale,
-  and Fedora and Rocky images have no `tic`.
-- Answering XTGETTCAP does not remove the need, since an unknown `TERM` fails before any query,
-  but it would give Neovim true colour on servers that drop `COLORTERM`. TankTerm answers no
-  DCS queries today. Worth its own item.
-- `extra/tankterm.info` is behind ncurses 6.6 in several capabilities; refreshing it is a small
-  separate job.
-
-To decide before building:
-
-1. `alacritty` first, or `alacritty-direct` first for true colour inside tmux without setup?
-2. Probe by default with a visible notice, or opt in per profile or host?
-3. Is a shared SSH connection that lingers a few seconds after the first connect acceptable?
-4. Cover plain `ssh` typed in a shell, or only profiles and `tankTerm ssh`?
-5. Offer installing the entry as an explicit per-host action?
-6. Will TankTerm keep the `alacritty` names? A `tankterm` entry would be on no server.
-7. Cache lifetime (30 days suggested).
-
 ### Ref test recorder
 
 The 45 ref tests in `crates/tankterm_terminal/tests/ref` still run, but new ones cannot be
@@ -169,3 +128,40 @@ Requirements to capture:
 - What the vault stores (passwords, key passphrases, whole config), what unlocks it, and whether
   the system keyring is enough instead.
 - Serial: which devices and settings matter (baud rate, flow control, hex view, reconnect).
+
+## Terminfo negotiation over SSH ("greedyterm")
+
+Planned item 8. Send a server only a `TERM` value it actually has. Assessed against Fedora 45,
+Rocky 10.2, Debian 13 and 11, and Ubuntu 24.04.
+
+Recommended design: a `tankTerm ssh` wrapper that execs the real `ssh`.
+
+- Probing is opt-in per host or profile. Hosts that have not opted in get `xterm-256color`.
+- First connection to an opted-in host: one fixed probe over a shared SSH connection
+  (ControlMaster) that tests which terminfo files exist in the system directories. The answer is
+  cached per resolved user, host and port until `--reprobe` is given; later connections add no
+  latency and run nothing on the server.
+- Order: `alacritty`, `xterm-256color`, `xterm`; `xterm-256color` when the probe fails. The list
+  is configurable. TankTerm keeps the `alacritty` names.
+- It never installs an entry on a server. On Debian and Ubuntu hosts without one it prints a
+  hint to install `ncurses-term`.
+- The probe tests files instead of calling `infocmp`, which is missing from Fedora and Rocky
+  container images. It ignores `~/.terminfo` so the answer still holds after `sudo`.
+- Covered: profiles that use it as their shell, and `tankTerm ssh` typed by hand. Plain `ssh` is
+  not covered.
+- Size: medium. Unix only at first.
+
+Findings that shaped it:
+
+- `alacritty` is always present on Fedora and Rocky. On Debian and Ubuntu it comes with
+  `ncurses-term`, which `openssh-server` pulls in by default but minimal and container installs
+  lack. `INSTALL.md` currently says the entry ships everywhere, which is wrong for those.
+- `alacritty-direct` and `xterm-direct` are left out of the default order: outside tmux they
+  turn colours 8 and above into RGB values, so `tput setaf 9` comes out nearly black.
+- Installing the entry on the server lost: root cannot see it after `sudo -i`, it goes stale,
+  and Fedora and Rocky images have no `tic`.
+- Answering XTGETTCAP does not remove the need, since an unknown `TERM` fails before any query,
+  but it would give Neovim true colour on servers that drop `COLORTERM`. TankTerm answers no
+  DCS queries today. Worth its own item.
+- `extra/tankterm.info` is behind ncurses 6.6 in several capabilities; refreshing it is a small
+  separate job.
