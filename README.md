@@ -13,8 +13,7 @@
 > [CONTRIBUTING.md](./CONTRIBUTING.md#llmai-contributions). Please report problems with TankTerm
 > here, not to the upstream Alacritty project.
 >
-> The command is `tankTerm`. Existing Alacritty configuration files are still loaded when there is
-> no TankTerm configuration, and TankTerm keeps using the `alacritty` terminfo.
+> The command is `tankTerm`. TankTerm keeps using the `alacritty` terminfo.
 
 <p align="center">
   <img alt="TankTerm - A fast, cross-platform, OpenGL terminal emulator"
@@ -93,10 +92,6 @@ following locations:
 On Windows, the config file will be looked for in:
 
 * `%APPDATA%\tankterm\tankterm.toml`
-
-If none of these exist, the same locations are checked using the `alacritty`
-name instead (for example `$XDG_CONFIG_HOME/alacritty/alacritty.toml`), so an
-existing Alacritty configuration keeps working.
 
 Themes are selected with `theme = "<name>"` in the configuration, `--theme`
 or `TANKTERM_THEME`: `green_screen` (default), `charm`, `dracula`,

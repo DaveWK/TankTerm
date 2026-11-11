@@ -1,4 +1,4 @@
-//! Tests for default config file discovery and the `alacritty` fallback.
+//! Tests for default config file discovery.
 //!
 //! These run the `tankTerm` binary in a subprocess with an isolated environment, so `HOME` and the
 //! XDG variables can be pointed at temporary directories without affecting other tests. The
@@ -66,7 +66,7 @@ impl Env {
 /// A system-wide config would be found instead of "no config", so tests expecting none skip when
 /// one exists.
 fn has_system_config() -> bool {
-    ["/etc/tankterm", "/etc/alacritty"].iter().any(|dir| Path::new(dir).exists())
+    Path::new("/etc/tankterm").exists()
 }
 
 #[test]
@@ -79,42 +79,16 @@ fn tankterm_xdg_config() {
 }
 
 #[test]
-fn legacy_alacritty_xdg_config_used_as_fallback() {
+fn alacritty_configs_are_not_used() {
+    if has_system_config() {
+        return;
+    }
+
     let env = Env::new();
-    let config = env.xdg_config_home.join("alacritty/alacritty.toml");
-    env.write_config(&config);
-
-    assert_eq!(env.found_config(), Some(config));
-}
-
-#[test]
-fn legacy_alacritty_home_config_used_as_fallback() {
-    let env = Env::new();
-    let config = env.home.join(".alacritty.toml");
-    env.write_config(&config);
-
-    assert_eq!(env.found_config(), Some(config));
-}
-
-#[test]
-fn tankterm_config_preferred_over_alacritty() {
-    let env = Env::new();
-    let tankterm = env.xdg_config_home.join("tankterm/tankterm.toml");
-    env.write_config(&tankterm);
     env.write_config(&env.xdg_config_home.join("alacritty/alacritty.toml"));
+    env.write_config(&env.home.join(".alacritty.toml"));
 
-    assert_eq!(env.found_config(), Some(tankterm));
-}
-
-#[test]
-fn any_tankterm_location_preferred_over_alacritty() {
-    // The lowest priority TankTerm location still wins over the highest priority Alacritty one.
-    let env = Env::new();
-    let tankterm = env.home.join(".tankterm.toml");
-    env.write_config(&tankterm);
-    env.write_config(&env.xdg_config_home.join("alacritty/alacritty.toml"));
-
-    assert_eq!(env.found_config(), Some(tankterm));
+    assert_eq!(env.found_config(), None);
 }
 
 #[test]

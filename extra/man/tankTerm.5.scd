@@ -24,9 +24,6 @@ On Windows, the config file will be looked for in:
 
 . _%APPDATA%\\tankterm\\tankterm.toml_
 
-If none of these exist, the same locations are checked using the _alacritty_
-name instead, so an existing Alacritty configuration keeps working.
-
 # THEME
 
 *theme* = _"<name>"_ | _"<path>"_

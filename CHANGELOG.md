@@ -67,8 +67,8 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 
 - Logs follow Charm's log layout (`<time> <LEVEL> <prefix>: <message>`), styled on a terminal unless
     `NO_COLOR` is set, with JSON and logfmt output through `TANKTERM_LOG_FORMAT`
-- Default config location is now `tankterm/tankterm.toml`; `alacritty` config locations are still
-    used as a fallback
+- Default config location is now `tankterm/tankterm.toml`; `alacritty` config locations are no
+    longer read
 - Default window title and class are now `TankTerm`
 - `Command+W` closes the current tab instead of quitting on macOS; the window still closes with
     its last tab

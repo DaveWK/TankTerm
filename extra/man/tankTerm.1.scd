@@ -83,9 +83,6 @@ set of features with high performance.
 
 		. _%APPDATA%\\tankterm\\tankterm.toml_
 
-	If none of these exist, the same locations are checked using the _alacritty_
-	name instead, so an existing Alacritty configuration keeps working.
-
 *--embed* _<PARENT>_
 
 	X11 window ID to embed TankTerm within (decimal or hexadecimal with _0x_ prefix).

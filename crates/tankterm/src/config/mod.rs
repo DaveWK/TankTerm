@@ -420,12 +420,6 @@ fn prune_yaml_nulls(value: &mut serde_yaml::Value, warn_pruned: bool) {
 /// Config file and directory name.
 const CONFIG_NAME: &str = "tankterm";
 
-/// Config file and directory name used by upstream Alacritty.
-///
-/// Configs in these locations are still loaded when no TankTerm config exists, so existing
-/// Alacritty users keep their configuration.
-const LEGACY_CONFIG_NAME: &str = "alacritty";
-
 /// Get the location of the first found default config file paths
 /// according to the following order:
 ///
@@ -434,16 +428,9 @@ const LEGACY_CONFIG_NAME: &str = "alacritty";
 /// 3. $HOME/.config/tankterm/tankterm.toml
 /// 4. $HOME/.tankterm.toml
 /// 5. /etc/tankterm/tankterm.toml
-///
-/// If none of these exist, the same locations are searched using the `alacritty` name instead.
 #[cfg(not(windows))]
 pub fn installed_config(suffix: &str) -> Option<PathBuf> {
-    installed_config_named(CONFIG_NAME, suffix)
-        .or_else(|| installed_config_named(LEGACY_CONFIG_NAME, suffix))
-}
-
-#[cfg(not(windows))]
-fn installed_config_named(name: &str, suffix: &str) -> Option<PathBuf> {
+    let name = CONFIG_NAME;
     let file_name = format!("{name}.{suffix}");
 
     // Try using XDG location by default.
@@ -452,12 +439,12 @@ fn installed_config_named(name: &str, suffix: &str) -> Option<PathBuf> {
         .or_else(|| xdg::BaseDirectories::new().find_config_file(&file_name))
         .or_else(|| {
             if let Ok(home) = env::var("HOME") {
-                // Fallback path: $HOME/.config/<name>/<name>.toml.
+                // Fallback path: $HOME/.config/tankterm/tankterm.toml.
                 let fallback = PathBuf::from(&home).join(".config").join(name).join(&file_name);
                 if fallback.exists() {
                     return Some(fallback);
                 }
-                // Fallback path: $HOME/.<name>.toml.
+                // Fallback path: $HOME/.tankterm.toml.
                 let hidden_name = format!(".{file_name}");
                 let fallback = PathBuf::from(&home).join(hidden_name);
                 if fallback.exists() {
@@ -471,14 +458,10 @@ fn installed_config_named(name: &str, suffix: &str) -> Option<PathBuf> {
 }
 
 /// Get the location of the default config file, `%APPDATA%\tankterm\tankterm.toml`.
-///
-/// If it doesn't exist, `%APPDATA%\alacritty\alacritty.toml` is used instead.
 #[cfg(windows)]
 pub fn installed_config(suffix: &str) -> Option<PathBuf> {
-    [CONFIG_NAME, LEGACY_CONFIG_NAME].into_iter().find_map(|name| {
-        let file_name = format!("{name}.{suffix}");
-        dirs::config_dir().map(|path| path.join(name).join(file_name)).filter(|new| new.exists())
-    })
+    let file_name = format!("{CONFIG_NAME}.{suffix}");
+    dirs::config_dir().map(|path| path.join(CONFIG_NAME).join(file_name)).filter(|new| new.exists())
 }
 
 #[cfg(test)]
