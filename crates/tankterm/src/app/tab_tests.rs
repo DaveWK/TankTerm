@@ -49,6 +49,7 @@ fn app_with_session(config: &str, hotkeys: Hotkeys, session_file: Option<PathBuf
         confirm_multiline_paste: config.terminal.confirm_multiline_paste,
         copy_on_select: config.selection.save_to_clipboard,
         bindings: crate::hotkeys::mouse_bindings(config.mouse_bindings()),
+        bell: crate::bell::Bell::from_config(&config.bell),
     };
 
     App::new(options, settings.clone(), settings).unwrap()

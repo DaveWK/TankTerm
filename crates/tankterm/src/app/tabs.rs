@@ -202,6 +202,7 @@ impl App {
             attention: false,
             // A new terminal takes itself to have the keyboard focus.
             focused: true,
+            rang: None,
         };
         self.next_terminal += 1;
         self.terminals.insert(id, shell);

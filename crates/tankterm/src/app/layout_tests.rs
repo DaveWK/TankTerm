@@ -32,6 +32,7 @@ fn terminal_size(config: &str, window: Size) -> (Size, Padding) {
         confirm_multiline_paste: true,
         copy_on_select: false,
         bindings: Vec::new(),
+        bell: crate::bell::Bell::from_config(&config.bell),
     };
     let app = App::new(options, settings.clone(), settings).unwrap();
 

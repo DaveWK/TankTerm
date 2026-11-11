@@ -789,6 +789,9 @@ This section documents the *[bell]* table of the configuration file.
 
 	Visual bell animation effect for flashing the screen when the visual bell is rung.
 
+	The flash covers the pane of the terminal that rang the bell. A terminal in
+	a tab that isn't shown doesn't flash; its tab is marked instead.
+
 	_Spring_ animates the flash with the damped spring set by _spring_, like
 	Charm's Harmonica. An underdamped spring overshoots, which shows as weaker
 	flashes after the first one. The flash always ends after _duration_.
@@ -819,7 +822,8 @@ This section documents the *[bell]* table of the configuration file.
 
 *command* = _"<string>"_ | { program = _"<string>"_, args = [_"<string>"_,] }
 
-	This program is executed whenever the bell is rung.
+	This program is executed whenever the bell is rung, by any terminal. On
+	Linux it is started in the directory the shell of that terminal is in.
 
 	When set to _"None"_, no command will be executed.
 

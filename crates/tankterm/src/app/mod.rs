@@ -6,13 +6,14 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use iced::widget::pane_grid;
 use iced::{Color, Padding};
 use iced_tterm::bindings::{Binding, BindingAction, InputKind};
 use iced_tterm::settings::Settings;
 
+use crate::bell::Bell;
 use crate::config::tabs::Tabs;
 use crate::hotkeys::{AppAction, Hotkeys};
 use crate::palette::Palette;
@@ -63,6 +64,8 @@ pub enum Message {
     PaletteChoose(usize),
     /// Time to look at the shells again.
     Tick,
+    /// A frame is about to be drawn while a visual bell flashes.
+    Frame(Instant),
 }
 
 /// Settings of the application that don't change while it runs.
@@ -84,6 +87,8 @@ pub struct AppOptions {
     pub copy_on_select: bool,
     /// Bindings added to every terminal: what the middle and right mouse buttons do.
     pub bindings: Vec<(Binding<InputKind>, BindingAction)>,
+    /// What happens when a terminal rings the bell.
+    pub bell: Bell,
 }
 
 /// A configured shell profile, ready to be opened in a tab.
@@ -163,6 +168,8 @@ struct Shell {
     attention: bool,
     /// Whether the terminal was last told that it has the keyboard focus.
     focused: bool,
+    /// When the terminal rang the bell, while the visual bell flashes for it.
+    rang: Option<Instant>,
 }
 
 /// How terminals are placed in the window.

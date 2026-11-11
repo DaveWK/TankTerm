@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 use std::io;
 use std::path::Path;
+use std::time::Instant;
 
 use iced::widget::pane_grid;
 use iced::{Subscription, Task, window};
@@ -197,7 +198,34 @@ impl App {
         let ticking = cfg!(unix) || self.session_error.is_some();
         let ticks = ticking.then(|| Subscription::run(ticks));
 
-        Subscription::batch(terminals.chain([window]).chain(ticks))
+        // A flashing visual bell is drawn anew with every frame, until it has faded out.
+        let frames = self.is_flashing().then(|| window::frames().map(Message::Frame));
+
+        Subscription::batch(terminals.chain([window]).chain(ticks).chain(frames))
+    }
+
+    /// Whether the visual bell flashes for a terminal.
+    pub(super) fn is_flashing(&self) -> bool {
+        self.terminals.values().any(|shell| shell.rang.is_some())
+    }
+
+    /// The bell of a terminal rang: run the bell command and start the visual bell.
+    ///
+    /// The command runs in the directory of the terminal's shell, where that can be told. The
+    /// visual bell flashes over the terminal's pane, if its tab is shown.
+    fn ring(&mut self, terminal: u64) {
+        let shown = self
+            .tabs
+            .get(self.active)
+            .is_some_and(|tab| tab.panes.iter().any(|(_, id)| *id == terminal));
+        let Some(shell) = self.terminals.get_mut(&terminal) else { return };
+
+        if shown && self.options.bell.flash.is_enabled() {
+            shell.rang = Some(Instant::now());
+        }
+
+        let directory = shell.terminal.child_pid().and_then(working_directory);
+        self.options.bell.run_command(directory.as_deref());
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
@@ -239,7 +267,10 @@ impl App {
                         // A prompt is often what gets printed when a command finishes.
                         if self.poll_process(id) { self.notify(id) } else { Task::none() }
                     },
-                    Some(AlacrittyEvent::Bell) => self.notify(id),
+                    Some(AlacrittyEvent::Bell) => {
+                        self.ring(id);
+                        self.notify(id)
+                    },
                     _ => Task::none(),
                 }
             },
@@ -250,6 +281,16 @@ impl App {
                 self.poll_directories();
 
                 Task::batch(finished.into_iter().map(|id| self.notify(id)))
+            },
+            Message::Frame(now) => {
+                // Flashes that have faded out are over; the frames stop with the last one.
+                let flash = self.options.bell.flash;
+                for shell in self.terminals.values_mut() {
+                    let over = |rang| flash.is_over(now.saturating_duration_since(rang));
+                    shell.rang = shell.rang.filter(|rang| !over(*rang));
+                }
+
+                Task::none()
             },
             Message::PaletteQuery(query) => {
                 if let Some(palette) = &mut self.palette {

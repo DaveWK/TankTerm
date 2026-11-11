@@ -27,12 +27,14 @@ use windows_sys::Win32::System::Console::{ATTACH_PARENT_PROCESS, AttachConsole, 
 use tankterm_terminal::tty;
 
 mod app;
+mod bell;
 mod cli;
 mod color;
 // Most configuration options belong to the previous OpenGL front end and aren't read by the iced
 // front end yet, but are still parsed so existing config files keep loading without errors.
 #[allow(dead_code, unused_imports)]
 mod config;
+mod daemon;
 mod hotkeys;
 mod logging;
 #[cfg(target_os = "macos")]
@@ -45,6 +47,7 @@ mod session;
 mod term_settings;
 
 use crate::app::{App, AppOptions, Layout, Profile};
+use crate::bell::Bell;
 use crate::cli::{Options, Subcommands};
 use crate::config::UiConfig;
 use crate::config::window::{Decorations, StartupMode, WindowLevel};
@@ -185,6 +188,7 @@ fn tankterm(mut options: Options) -> Result<(), Box<dyn Error>> {
         confirm_multiline_paste: config.terminal.confirm_multiline_paste,
         copy_on_select: config.selection.save_to_clipboard,
         bindings: hotkeys::mouse_bindings(config.mouse_bindings()),
+        bell: Bell::from_config(&config.bell),
     };
     let app = App::new(app_options, settings, term_settings::tab_settings(&config, &options))?;
 

@@ -85,6 +85,16 @@ impl App {
                 ..Default::default()
             });
 
+        // The visual bell flashes over the terminal and its padding. It is a layer of its own,
+        // so the terminal keeps its place among the widgets while the flash comes and goes.
+        let flash = shell.rang.and_then(|rang| self.options.bell.flash.color(rang.elapsed()));
+        let flash = flash.map(|color| {
+            container("").width(Length::Fill).height(Length::Fill).style(move |_| {
+                container::Style { background: Some(color.into()), ..Default::default() }
+            })
+        });
+        let terminal = stack![terminal].push(flash);
+
         // A pane that wants to be looked at stands out from the focused one.
         let frame = match (shell.attention, focused) {
             (true, _) => foreground,

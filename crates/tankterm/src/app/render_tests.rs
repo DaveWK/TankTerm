@@ -46,6 +46,7 @@ fn tabs_and_panes() {
         confirm_multiline_paste: true,
         copy_on_select: false,
         bindings: Vec::new(),
+        bell: crate::bell::Bell::from_config(&config.bell),
     };
     let mut app = App::new(options, settings.clone(), settings).unwrap();
 
@@ -151,4 +152,22 @@ fn cursors() {
     let _ =
         app.update(Message::Action(AppAction::FocusPane(iced::widget::pane_grid::Direction::Up)));
     snapshot(&app, window, &dir, "cursor-thick-underline");
+}
+
+#[test]
+#[ignore = "writes screenshots for manual inspection"]
+fn visual_bell() {
+    let Some(dir) = env::var_os("TANKTERM_SNAPSHOT_DIR").map(PathBuf::from) else { return };
+    let window = Size::new(900., 420.);
+
+    let config = "[bell]\nduration = 60000\ncolor = \"#ff4040\"\n";
+    let mut app = three_panes(config, ["quiet", "rang the bell", "quiet"]);
+    settle(&mut app, window);
+
+    // Halfway through the flash of the pane at the top right.
+    let bell = BackendCommand::ProcessAlacrittyEvent(AlacrittyEvent::Bell);
+    let _ = app.update(Message::Terminal(iced_tterm::Event::BackendCall(1, bell)));
+    let rang = app.terminals.get_mut(&1).unwrap().rang.as_mut().expect("the pane doesn't flash");
+    *rang -= Duration::from_secs(30);
+    snapshot(&app, window, &dir, "visual-bell");
 }

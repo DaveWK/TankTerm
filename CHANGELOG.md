@@ -104,6 +104,9 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 - The cursor only blinks in the terminal that has the keyboard focus, and with
     `cursor.unfocused_hollow` it is hollow in the panes that don't have it, not only in a window
     without focus
+- `bell.command` and the visual bell (`bell.duration`, `bell.color`, `bell.animation` and
+    `bell.spring`) apply to the iced front end; the visual bell flashes the pane of the terminal
+    that rang, and the command runs in the directory of that terminal's shell on Linux
 
 ### Removed
 

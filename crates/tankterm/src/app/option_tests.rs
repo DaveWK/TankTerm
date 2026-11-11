@@ -562,3 +562,87 @@ fn applications_turn_blinking_on_unless_it_is_never() {
     });
     assert!(!blinks(&app));
 }
+
+/// The bell of a terminal rang.
+fn bell(app: &mut App, terminal: u64) {
+    let bell = BackendCommand::ProcessAlacrittyEvent(iced_tterm::AlacrittyEvent::Bell);
+    let _ = app.update(Message::Terminal(iced_tterm::Event::BackendCall(terminal, bell)));
+}
+
+#[test]
+fn bell_command_runs_with_every_bell() {
+    let directory = tempfile::tempdir().unwrap();
+    let log = directory.path().join("bells");
+    let config = format!(
+        "[bell]\ncommand = {{ program = \"sh\", args = [\"-c\", \"echo rang >> '{}'\"] }}\n",
+        log.display()
+    );
+    let mut app = app_with(&config, Hotkeys::default());
+    perform(&mut app, &[AppAction::NewTab]);
+    let bells = || std::fs::read_to_string(&log).unwrap_or_default().lines().count();
+
+    // The terminal that is typed into and one in a tab that isn't shown.
+    bell(&mut app, 1);
+    wait_until("the bell command never ran", || bells() == 1);
+    bell(&mut app, 0);
+    wait_until("the bell command never ran again", || bells() == 2);
+
+    // No command, no process: a bell without one is only pointed out.
+    let mut app = app_with("", Hotkeys::default());
+    bell(&mut app, 0);
+    assert!(!app.is_flashing());
+}
+
+#[test]
+fn bell_command_that_cannot_run_is_survived() {
+    let mut app = app_with("[bell]\ncommand = \"/does/not/exist/tankterm\"\n", Hotkeys::default());
+    bell(&mut app, 0);
+    assert_eq!(app.terminals.len(), 1);
+}
+
+#[test]
+fn visual_bell_flashes_the_pane_that_rang_until_it_fades() {
+    let mut app = app_with("[bell]\nduration = 200\n", Hotkeys::default());
+    perform(&mut app, &[AppAction::Split(iced::widget::pane_grid::Axis::Vertical)]);
+    assert!(!app.is_flashing());
+
+    // A pane that isn't typed into flashes as well; the other one doesn't.
+    bell(&mut app, 0);
+    let rang = app.terminals[&0].rang.expect("the pane doesn't flash");
+    assert!(app.terminals[&1].rang.is_none());
+    assert!(app.is_flashing());
+
+    // Frames are drawn while the flash fades, and stop once it has.
+    let _ = app.update(Message::Frame(rang + Duration::from_millis(199)));
+    assert!(app.is_flashing());
+    let _ = app.update(Message::Frame(rang + Duration::from_millis(200)));
+    assert!(!app.is_flashing());
+    let _ = app.view();
+
+    // Ringing again while it flashes starts the flash over.
+    bell(&mut app, 0);
+    bell(&mut app, 0);
+    let again = app.terminals[&0].rang.unwrap();
+    assert!(again >= rang);
+    let _ = app.view();
+
+    // A terminal in a tab that isn't shown has nothing to flash.
+    perform(&mut app, &[AppAction::NewTab]);
+    let _ = app.update(Message::Frame(again + Duration::from_secs(1)));
+    bell(&mut app, 1);
+    assert!(!app.is_flashing());
+    assert!(app.terminals[&1].attention);
+}
+
+#[test]
+fn visual_bell_is_off_without_a_duration_and_when_accessible() {
+    let mut app = app_with("[bell]\ncolor = \"#ff0000\"\n", Hotkeys::default());
+    bell(&mut app, 0);
+    assert!(!app.is_flashing());
+
+    let mut config: UiConfig = toml::from_str("[bell]\nduration = 200\n").unwrap();
+    config.apply_accessibility(true);
+    app.options.bell = crate::bell::Bell::from_config(&config.bell);
+    bell(&mut app, 0);
+    assert!(!app.is_flashing());
+}
