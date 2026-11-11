@@ -58,6 +58,9 @@ clap_complete = "4.6.11"
 [target.'cfg(not(windows))'.dependencies]
 xdg = "3.0.0"
 
+[target.'cfg(not(any(target_os = "macos", windows)))'.dependencies]
+arboard = { version = "3.7.0", default-features = false, optional = true }
+
 [target.'cfg(not(target_os = "macos"))'.dependencies]
 png = { version = "0.18.1", default-features = false, optional = true }
 
@@ -92,7 +95,7 @@ embed-resource = "3.0.12"
 [features]
 default = ["wayland", "x11"]
 x11 = [
-    "copypasta/x11",
+    "dep:arboard",
     "winit/x11",
     "glutin/x11",
     "glutin/glx",

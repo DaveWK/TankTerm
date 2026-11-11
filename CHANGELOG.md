@@ -49,6 +49,8 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 ### Changed
 
 - Wayland client-side decorations draw their title with `ab_glyph` instead of `crossfont`
+- X11 clipboard uses `arboard` instead of a git build of `x11-clipboard`; if the clipboard can't be
+    opened, a warning is logged instead of crashing
 - Logs follow Charm's log layout (`<time> <LEVEL> <prefix>: <message>`), styled on a terminal unless
     `NO_COLOR` is set, with JSON and logfmt output through `TANKTERM_LOG_FORMAT`
 - Default config location is now `tankterm/tankterm.toml`; `alacritty` config locations are still

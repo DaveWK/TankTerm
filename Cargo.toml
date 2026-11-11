@@ -20,7 +20,3 @@ incremental = false
 toml = "1.2.1"
 toml_edit = "0.25.19"
 
-# TODO: Fix for alacritty/alacritty#6978, which isn't in an `x11-clipboard` release yet (0.9.3 still
-# checks selection ownership after storing). Remove once a release includes it.
-[patch.crates-io]
-x11-clipboard = { git = "https://github.com/quininer/x11-clipboard.git", rev = "19ab2163cf0bd0db607e827a5214571990307866" }
