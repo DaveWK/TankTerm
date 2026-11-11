@@ -80,7 +80,7 @@ jobs:
           extra/man/scdoc.sh extra/man/tankTerm-escapes.7.scd | gzip -c > "./tankTerm-escapes.7.gz"
       - name: Upload Assets
         run: |
-          mv ./extra/logo/alacritty-term.svg ./TankTerm.svg
+          mv ./extra/logo/tankterm.svg ./TankTerm.svg
           ./.github/workflows/upload_asset.sh ./TankTerm.svg $GITHUB_TOKEN
           ./.github/workflows/upload_asset.sh ./tankTerm.1.gz $GITHUB_TOKEN
           ./.github/workflows/upload_asset.sh ./tankTerm-msg.1.gz $GITHUB_TOKEN

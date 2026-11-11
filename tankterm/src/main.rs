@@ -50,7 +50,7 @@ use crate::macos::locale;
 /// Window icon, used on X11. Wayland and macOS take the icon from the desktop entry or bundle,
 /// and Windows from the executable's resources.
 #[cfg(all(feature = "x11", not(any(target_os = "macos", windows))))]
-const WINDOW_ICON: &[u8] = include_bytes!("../extra/logo/compat/tankterm-term.png");
+const WINDOW_ICON: &[u8] = include_bytes!("../extra/logo/compat/tankterm-64.png");
 
 fn main() -> Result<(), Box<dyn Error>> {
     #[cfg(windows)]

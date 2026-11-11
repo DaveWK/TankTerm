@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="384" height="384" viewBox="0 0 384 384" role="img" aria-labelledby="title">
+  <title id="title">TankTerm</title>
+  <g transform="translate(1 34)" stroke="#07130f" stroke-width="8" stroke-linejoin="round" stroke-linecap="round">
+    <g id="chassis">
+      <path fill="#09634d" d="M186 173 264 137Q289 127 314 146C339 160 351 181 351 205Q351 241 323 254L226 299 171 278Z"/>
+      <path fill="#24ed0a" d="M51 145 155 96Q172 88 191 96L287 141C313 152 326 167 332 177L203 239 43 165Z"/>
+      <path fill="#09634d" d="M190 204 292 157C315 168 326 197 321 224Q319 244 306 254L224 293 185 277Z"/>
+      <path fill="#21ed09" stroke="none" d="M196 202 277 165Q295 160 305 175L312 188 219 232Z"/>
+      <path fill="#11755b" d="M45 154 66 141Q76 134 86 138L201 194Q236 209 240 252C243 280 232 300 206 307L178 307 59 245Z"/>
+      <path fill="#19de0a" stroke="none" d="M53 154 72 143Q77 140 84 143L199 198Q217 206 226 222L205 232Z"/>
+      <path fill="#13826a" d="M60 160 183 219C206 230 219 254 216 277C214 304 198 316 175 306L63 249C40 237 27 217 28 190C29 165 42 153 60 160Z"/>
+      <path fill="#07130f" stroke="none" d="M58 173 177 230C196 239 207 259 204 279C202 296 190 300 177 293L66 238C47 228 35 210 36 190Q37 169 58 173Z"/>
+      <g fill="#20eb0c" stroke="none" transform="rotate(-17)">
+        <ellipse cx="-5" cy="209" rx="14" ry="21"/>
+        <ellipse cx="26" cy="239" rx="14.5" ry="22"/>
+        <ellipse cx="58" cy="270" rx="15" ry="22"/>
+        <ellipse cx="92" cy="302" rx="16" ry="23"/>
+      </g>
+    </g>
+    <g id="turret">
+      <path fill="#09634d" d="M74 77Q74 52 92 42L170 10Q182 5 196 10L250 34Q272 44 272 66L271 145Q271 164 252 174L217 190Q195 201 176 193L96 158Q75 149 74 134Z"/>
+      <path fill="#1bed0b" d="M93 77Q93 61 104 63L170 91Q182 97 196 91L254 58Q271 48 271 69L271 145Q271 160 258 168L215 189Q195 200 176 192L105 161Q93 156 93 144Z"/>
+      <path fill="#10d302" stroke="none" d="M195 102 267 64 267 145Q267 158 255 164L212 186Q203 190 195 191Z"/>
+      <path fill="#c2f4e6" d="M90 42Q94 36 107 31L154 11Q173 2 191 8L246 34Q275 47 258 62L204 94Q186 105 169 98L101 70Q76 59 90 42Z"/>
+      <g id="prompt" fill="none" stroke-width="12">
+        <path d="m117 98 20 28-20 17"/>
+        <path d="m149 150 18 8"/>
+      </g>
+    </g>
+    <g id="barrel">
+      <path fill="#0cb907" d="M245 90 311 104 311 166 235 149C212 145 218 86 245 90Z"/>
+      <path fill="#26ef0c" stroke="none" d="m244 94 63 14-8 31-74-16Q228 94 244 94Z"/>
+      <path d="m240 107 35 8" stroke="#dcfff1" stroke-width="9"/>
+      <ellipse fill="#117e65" cx="311" cy="132" rx="27" ry="36" transform="rotate(13 311 132)"/>
+      <ellipse stroke="none" fill="#061510" cx="314" cy="133" rx="15" ry="23" transform="rotate(13 314 133)"/>
+    </g>
+  </g>
+</svg>

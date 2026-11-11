@@ -1,5 +1,5 @@
 <p align="center">
-    <img width="200" alt="TankTerm Logo" src="./extra/logo/compat/tankterm-term%2Bscanlines.png">
+    <img width="200" alt="TankTerm Logo" src="./extra/logo/compat/tankterm.png">
 </p>
 
 <h1 align="center">TankTerm - A fast, cross-platform, OpenGL terminal emulator</h1>

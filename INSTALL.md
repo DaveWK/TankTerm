@@ -339,14 +339,14 @@ to system menus. This will install the desktop entry for TankTerm:
 
 ```sh
 sudo cp target/release/tankTerm /usr/local/bin # or anywhere else in $PATH
-sudo cp extra/logo/tankterm-term.svg /usr/share/pixmaps/TankTerm.svg
+sudo cp extra/logo/tankterm.svg /usr/share/pixmaps/TankTerm.svg
 sudo desktop-file-install extra/linux/TankTerm.desktop
 sudo update-desktop-database
 ```
 
-If you are having problems with TankTerm's logo, you can replace it with
-prerendered PNGs and simplified SVGs available in the `extra/logo/compat`
-directory.
+If you are having problems with TankTerm's logo, you can replace it with the
+prerendered PNGs available in the `extra/logo/compat` directory. For small
+sizes like panel icons, `extra/logo/tankterm-small.svg` is drawn for 24 pixels.
 
 ### Manual Page
 

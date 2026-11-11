@@ -39,6 +39,7 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 - Default config location is now `tankterm/tankterm.toml`; `alacritty` config locations are still
     used as a fallback
 - Default window title and class are now `TankTerm`
+- New TankTerm logo replaces the Alacritty one in the window, application and installer icons
 - Default font is now `Iosevka Term`; if it can't be loaded, the system monospace font is
     used
 - Default color scheme is now green on black (`#00ff00` on `#000000`), with matching cursor,
