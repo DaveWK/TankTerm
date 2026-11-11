@@ -8,6 +8,9 @@ use tankterm_terminal::term::TermMode;
 pub enum BindingAction {
     Copy,
     Paste,
+    /// Paste the selection clipboard (the primary selection on X11 and
+    /// Wayland), or the regular clipboard where there is none.
+    PasteSelection,
     Char(char),
     Esc(String),
     LinkOpen,
@@ -340,6 +343,7 @@ fn platform_keyboard_bindings() -> Vec<(Binding<InputKind>, BindingAction)> {
         KeyboardBinding;
         "c", Modifiers::SHIFT | Modifiers::COMMAND; BindingAction::Copy;
         "v", Modifiers::SHIFT | Modifiers::COMMAND; BindingAction::Paste;
+        Insert, Modifiers::SHIFT; BindingAction::PasteSelection;
     )
 }
 
@@ -347,6 +351,7 @@ fn mouse_default_bindings() -> Vec<(Binding<InputKind>, BindingAction)> {
     generate_bindings!(
         MouseBinding;
         Left, Modifiers::COMMAND; BindingAction::LinkOpen;
+        Middle; BindingAction::PasteSelection;
     )
 }
 

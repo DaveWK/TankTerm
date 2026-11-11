@@ -529,18 +529,10 @@ written as { key = _"Paste"_, action = _"Paste"_ } in the configuration file.
 :  _Command_
 :[
 :  _Quit_
-|  _W_
-:  _Command_
-:[
-:  _Quit_
 |  _N_
 :  _Command_
 :[
 :  _CreateNewWindow_
-|  _T_
-:  _Command_
-:[
-:  _CreateNewTab_
 |  _F_
 :  _Command|Control_
 :[
@@ -553,58 +545,384 @@ written as { key = _"Paste"_, action = _"Paste"_ } in the configuration file.
 :  _Command_
 :  _~Search_
 :  _SearchBackward_
-|  _]_
-:  _Command|Shift_
-:[
+
+# TAB AND PANE BINDINGS
+
+The default bindings for tabs and panes depend on the *keyboard.preset* option
+of *tankTerm*(5), which is _"Tabby"_ unless it is set.
+
+## Tabby and WezTerm presets on Windows, Linux, and BSD
+
+[[ *key*
+:[ *mods*
+:< *action*
+|  _T_
+:  _Control|Shift_
+:  _CreateNewTab_
+|  _W_
+:  _Control|Shift_
+:  _CloseTab_
+|  _Tab_
+:  _Control_
 :  _SelectNextTab_
-|  _[_
-:  _Command|Shift_
-:[
+|  _Tab_
+:  _Control|Shift_
 :  _SelectPreviousTab_
-|  _Tab_
-:  _Command_
+|  _PageUp_
+:  _Control|Shift_
+:  _MoveTabLeft_
+|  _PageDown_
+:  _Control|Shift_
+:  _MoveTabRight_
+|  _S_
+:  _Control|Shift_
+:  _SplitRight_
+|  _D_
+:  _Control|Shift_
+:  _SplitDown_
+|  _W_
+:  _Control|Alt_
+:  _ClosePane_
+|  _Z_
+:  _Control|Shift_
+:  _TogglePaneZoom_
+|  _ArrowLeft_
+:  _Control|Shift|Alt_
+:  _ResizePaneLeft_
+|  _ArrowRight_
+:  _Control|Shift|Alt_
+:  _ResizePaneRight_
+|  _ArrowUp_
+:  _Control|Shift|Alt_
+:  _ResizePaneUp_
+|  _ArrowDown_
+:  _Control|Shift|Alt_
+:  _ResizePaneDown_
+|  _P_
+:  _Control|Shift_
+:  _ShowCommandPalette_
+|  _E_
+:  _Control|Shift_
+:  _ShowProfiles_
+
+## Tabby preset on Windows, Linux, and BSD
+
+_Control|Shift_ with the arrow keys and with the digits reach the applications
+in the terminal. No key is bound to _SelectLastTab_.
+
+[[ *key*
+:[ *mods*
+:< *action*
+|  _1_
+:  _Alt_
+:  _SelectTab1_
+|  _2_
+:  _Alt_
+:  _SelectTab2_
+|  _3_
+:  _Alt_
+:  _SelectTab3_
+|  _4_
+:  _Alt_
+:  _SelectTab4_
+|  _5_
+:  _Alt_
+:  _SelectTab5_
+|  _6_
+:  _Alt_
+:  _SelectTab6_
+|  _7_
+:  _Alt_
+:  _SelectTab7_
+|  _8_
+:  _Alt_
+:  _SelectTab8_
+|  _9_
+:  _Alt_
+:  _SelectTab9_
+|  _ArrowLeft_
+:  _Control|Alt_
+:  _FocusPaneLeft_
+|  _ArrowRight_
+:  _Control|Alt_
+:  _FocusPaneRight_
+|  _ArrowUp_
+:  _Control|Alt_
+:  _FocusPaneUp_
+|  _ArrowDown_
+:  _Control|Alt_
+:  _FocusPaneDown_
+
+## WezTerm preset on Windows, Linux, and BSD
+
+_Alt_ with the digits and _Control|Alt_ with the arrow keys reach the
+applications in the terminal.
+
+[[ *key*
+:[ *mods*
+:< *action*
+|  _1_
+:  _Control|Shift_
+:  _SelectTab1_
+|  _2_
+:  _Control|Shift_
+:  _SelectTab2_
+|  _3_
+:  _Control|Shift_
+:  _SelectTab3_
+|  _4_
+:  _Control|Shift_
+:  _SelectTab4_
+|  _5_
+:  _Control|Shift_
+:  _SelectTab5_
+|  _6_
+:  _Control|Shift_
+:  _SelectTab6_
+|  _7_
+:  _Control|Shift_
+:  _SelectTab7_
+|  _8_
+:  _Control|Shift_
+:  _SelectTab8_
+|  _9_
+:  _Control|Shift_
+:  _SelectLastTab_
+|  _ArrowLeft_
+:  _Control|Shift_
+:  _FocusPaneLeft_
+|  _ArrowRight_
+:  _Control|Shift_
+:  _FocusPaneRight_
+|  _ArrowUp_
+:  _Control|Shift_
+:  _FocusPaneUp_
+|  _ArrowDown_
+:  _Control|Shift_
+:  _FocusPaneDown_
+
+## Leader preset on Windows, Linux, and BSD
+
+Only these keys run their action directly.
+
+[[ *key*
+:[ *mods*
+:< *action*
+|  _T_
+:  _Control|Shift_
+:  _CreateNewTab_
+|  _S_
+:  _Control|Shift_
+:  _SplitRight_
+|  _D_
+:  _Control|Shift_
+:  _SplitDown_
+
+## Leader preset: keys after the leader key
+
+These keys are pressed after the leader key, which is _Control+A_ unless
+*keyboard.leader* is set. In the configuration file they are bindings with
+*mode* = _"Leader"_. They are the same on every platform and only use keys that
+need no _Shift_, so they don't depend on the keyboard layout.
+
+[[ *key*
+:[ *mods*
+:< *action*
+|  _C_
+:[
+:  _CreateNewTab_
+|  _K_
+:[
+:  _CloseTab_
+|  _N_
 :[
 :  _SelectNextTab_
-|  _Tab_
-:  _Command|Shift_
+|  _P_
 :[
 :  _SelectPreviousTab_
 |  _1_
-:  _Command_
 :[
 :  _SelectTab1_
 |  _2_
-:  _Command_
 :[
 :  _SelectTab2_
 |  _3_
-:  _Command_
 :[
 :  _SelectTab3_
 |  _4_
-:  _Command_
 :[
 :  _SelectTab4_
 |  _5_
-:  _Command_
 :[
 :  _SelectTab5_
 |  _6_
-:  _Command_
 :[
 :  _SelectTab6_
 |  _7_
-:  _Command_
 :[
 :  _SelectTab7_
 |  _8_
-:  _Command_
 :[
 :  _SelectTab8_
 |  _9_
-:  _Command_
+:[
+:  _SelectTab9_
+|  _0_
 :[
 :  _SelectLastTab_
+|  _,_
+:[
+:  _MoveTabLeft_
+|  _._
+:[
+:  _MoveTabRight_
+|  _\\_
+:[
+:  _SplitRight_
+|  _-_
+:[
+:  _SplitDown_
+|  _X_
+:[
+:  _ClosePane_
+|  _Z_
+:[
+:  _TogglePaneZoom_
+|  _O_
+:[
+:  _FocusNextPane_
+|  _;_
+:[
+:  _FocusPreviousPane_
+|  _ArrowLeft_
+:[
+:  _FocusPaneLeft_
+|  _ArrowRight_
+:[
+:  _FocusPaneRight_
+|  _ArrowUp_
+:[
+:  _FocusPaneUp_
+|  _ArrowDown_
+:[
+:  _FocusPaneDown_
+|  _ArrowLeft_
+:  _Control_
+:  _ResizePaneLeft_
+|  _ArrowRight_
+:  _Control_
+:  _ResizePaneRight_
+|  _ArrowUp_
+:  _Control_
+:  _ResizePaneUp_
+|  _ArrowDown_
+:  _Control_
+:  _ResizePaneDown_
+|  _Space_
+:[
+:  _ShowCommandPalette_
+|  _E_
+:[
+:  _ShowProfiles_
+
+## Tabby and WezTerm presets on macOS
+
+[[ *key*
+:[ *mods*
+:< *action*
+|  _T_
+:  _Command_
+:  _CreateNewTab_
+|  _W_
+:  _Command_
+:  _CloseTab_
+|  _]_
+:  _Command|Shift_
+:  _SelectNextTab_
+|  _[_
+:  _Command|Shift_
+:  _SelectPreviousTab_
+|  _Tab_
+:  _Command_
+:  _SelectNextTab_
+|  _Tab_
+:  _Command|Shift_
+:  _SelectPreviousTab_
+|  _1_
+:  _Command_
+:  _SelectTab1_
+|  _2_
+:  _Command_
+:  _SelectTab2_
+|  _3_
+:  _Command_
+:  _SelectTab3_
+|  _4_
+:  _Command_
+:  _SelectTab4_
+|  _5_
+:  _Command_
+:  _SelectTab5_
+|  _6_
+:  _Command_
+:  _SelectTab6_
+|  _7_
+:  _Command_
+:  _SelectTab7_
+|  _8_
+:  _Command_
+:  _SelectTab8_
+|  _9_
+:  _Command_
+:  _SelectLastTab_
+|  _D_
+:  _Command_
+:  _SplitRight_
+|  _D_
+:  _Command|Shift_
+:  _SplitDown_
+|  _W_
+:  _Command|Shift_
+:  _ClosePane_
+|  _Enter_
+:  _Command|Shift_
+:  _TogglePaneZoom_
+|  _ArrowLeft_
+:  _Command|Alt_
+:  _FocusPaneLeft_
+|  _ArrowRight_
+:  _Command|Alt_
+:  _FocusPaneRight_
+|  _ArrowUp_
+:  _Command|Alt_
+:  _FocusPaneUp_
+|  _ArrowDown_
+:  _Command|Alt_
+:  _FocusPaneDown_
+|  _P_
+:  _Command|Shift_
+:  _ShowCommandPalette_
+|  _E_
+:  _Command|Shift_
+:  _ShowProfiles_
+
+## Leader preset on macOS
+
+Only these keys run their action directly; the keys after the leader key are
+listed above.
+
+[[ *key*
+:[ *mods*
+:< *action*
+|  _T_
+:  _Command_
+:  _CreateNewTab_
+|  _D_
+:  _Command_
+:  _SplitRight_
+|  _D_
+:  _Command|Shift_
+:  _SplitDown_
 
 # SEE ALSO
 

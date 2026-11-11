@@ -19,3 +19,6 @@ iced_graphics = { version = "0.14.0", default-features = false }
 open = "5.4.5"
 tankterm_terminal = { path = "../tankterm_terminal", version = "0.26.1-dev" }
 tokio = { version = "1.54.1", features = ["full"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

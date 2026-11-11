@@ -4,7 +4,7 @@ use crate::bindings::{Binding, BindingAction, BindingsLayout, InputKind};
 use crate::font::TermFont;
 use crate::settings::{FontSettings, Settings, ThemeSettings};
 use crate::theme::{ColorPalette, Theme};
-use crate::AlacrittyEvent;
+use crate::{AlacrittyEvent, TermMode};
 use iced::futures::stream::BoxStream;
 use iced::futures::{SinkExt, StreamExt};
 use iced::widget::canvas::Cache;
@@ -17,6 +17,9 @@ use tokio::sync::Mutex;
 #[derive(Debug, Clone)]
 pub enum Event {
     BackendCall(u64, backend::Command),
+    /// The mouse button was released after selecting text in the terminal
+    /// with this ID; [`Terminal::selection`] has the text.
+    SelectionFinished(u64),
 }
 
 #[derive(Debug, Clone)]
@@ -89,6 +92,33 @@ impl Terminal {
     /// where the window happened to be split. Trailing blanks are trimmed.
     pub fn text(&self) -> Vec<String> {
         self.backend.text()
+    }
+
+    /// The terminal's current modes, like whether the application in it asked
+    /// for bracketed paste or mouse reports.
+    pub fn mode(&self) -> TermMode {
+        self.backend.mode()
+    }
+
+    /// The selected text, if any text is selected.
+    pub fn selection(&self) -> Option<String> {
+        self.backend.selection()
+    }
+
+    /// ID of the process started in the terminal.
+    ///
+    /// Only known on Unix.
+    pub fn child_pid(&self) -> Option<u32> {
+        self.backend.child_pid()
+    }
+
+    /// The process group in the foreground of the terminal.
+    ///
+    /// While the shell waits at its prompt this is the shell's own group,
+    /// which has the same number as [`Self::child_pid`]; while a command runs
+    /// it is the command's. Only known on Unix.
+    pub fn foreground_process_group(&self) -> Option<u32> {
+        self.backend.foreground_process_group()
     }
 
     pub fn handle(&mut self, cmd: Command) -> Action {

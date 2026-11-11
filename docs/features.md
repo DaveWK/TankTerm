@@ -79,6 +79,114 @@ file. If an application captures your mouse clicks, which is indicated by a
 change in mouse cursor shape, you're required to hold <kbd>Shift</kbd> to bypass
 that.
 
+## Tabs and Panes
+
+A TankTerm window holds tabs, and every tab can be split into panes that each
+run their own terminal, like in Tabby and WezTerm.
+
+New tabs are opened with <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>T</kbd>
+(<kbd>Command</kbd> <kbd>T</kbd> on macOS) or the `+` button of the tab bar.
+<kbd>Ctrl</kbd> <kbd>Tab</kbd> and <kbd>Ctrl</kbd> <kbd>Shift</kbd>
+<kbd>Tab</kbd> switch between tabs and <kbd>Alt</kbd> <kbd>1</kbd> to
+<kbd>9</kbd> select a tab by its position. The tab bar is only shown while there
+is more than one tab; the `[tabs]` section of the configuration file changes
+that and can move it to the bottom of the window.
+
+<kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>S</kbd> splits the current pane and
+opens a terminal on its right, <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>D</kbd>
+opens one below it. Focus moves between panes with <kbd>Ctrl</kbd>
+<kbd>Alt</kbd> and the arrow keys or with a click, and the focused pane of a
+split tab is framed. Dividers are dragged with the mouse or moved with
+<kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>Alt</kbd> and the arrow keys.
+<kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>Z</kbd> zooms the current pane to fill
+the tab until it is pressed again.
+
+On Linux, new tabs and panes start in the directory the shell of the current
+pane is in, unless `inherit_working_directory = false` is set in the `[tabs]`
+section. With `restore = true` there, TankTerm opens the tabs and panes of the
+last window again when it starts, in the directories their shells were in; the
+shells themselves are started fresh.
+
+A pane closes when its shell exits, a tab closes with its last pane and the
+window closes with its last tab.
+
+### Key presets
+
+The keys above are those of the default `"Tabby"` preset. `preset` in the
+`[keyboard]` section of the configuration file selects another set of default
+keys for tabs and panes:
+
+- `"Tabby"`: <kbd>Alt</kbd> and a digit selects a tab, <kbd>Ctrl</kbd>
+  <kbd>Alt</kbd> and an arrow key moves between panes.
+- `"WezTerm"`: everything is on <kbd>Ctrl</kbd> <kbd>Shift</kbd>, with a digit
+  to select a tab and with an arrow key to move between panes.
+- `"Leader"`: like tmux, only opening a tab and the two splits have keys of
+  their own. Everything else is the leader key, <kbd>Ctrl</kbd> <kbd>A</kbd>,
+  followed by a second key: <kbd>C</kbd> opens a tab, <kbd>N</kbd> and
+  <kbd>P</kbd> switch tabs, a digit selects one, the arrow keys move between
+  panes, <kbd>X</kbd> closes the pane and <kbd>Z</kbd> zooms it. Pressing the
+  leader key twice sends it to the shell.
+
+The leader key is set with `leader = { key = "B", mods = "Control" }`, and any
+key binding with `mode = "Leader"` is a key pressed after it, whatever the
+preset. All tab and pane keys are regular key bindings that can be replaced or
+unset; see the actions in the [tankTerm(5) manpage] and the keys of every
+preset in the [tankTerm-bindings(5) manpage].
+
+### Activity and finished commands
+
+Tabs that aren't shown are marked with `*` in the tab bar when they print
+something. A terminal that rings the bell or finishes a command while it isn't
+looked at marks its tab with `!` and gets a bright frame, and the desktop is
+asked to draw attention to the window if that doesn't have focus. Finished
+commands are noticed without shell integration, by watching which process has
+the terminal; this works on Unix with shells that have job control.
+
+[tankTerm(5) manpage]: ../extra/man/tankTerm.5.scd
+[tankTerm-bindings(5) manpage]: ../extra/man/tankTerm-bindings.5.scd
+
+## Copying and Pasting
+
+Selected text is put on the selection clipboard, where the platform has one,
+and with `save_to_clipboard = true` in the `[selection]` section also on the
+regular clipboard. The middle mouse button and <kbd>Shift</kbd>
+<kbd>Insert</kbd> paste the selection, <kbd>Ctrl</kbd> <kbd>Shift</kbd>
+<kbd>V</kbd> pastes the clipboard. To paste with the right mouse button, bind
+it:
+
+```toml
+[mouse]
+bindings = [{ mouse = "Right", action = "Paste" }]
+```
+
+Before text with line breaks is pasted into a program that didn't turn on
+bracketed paste, where every line break would act as the <kbd>Enter</kbd> key,
+TankTerm shows the text and asks. `confirm_multiline_paste = false` in the
+`[terminal]` section turns the question off.
+
+## Command Palette and Profiles
+
+<kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>P</kbd> (<kbd>Command</kbd>
+<kbd>Shift</kbd> <kbd>P</kbd> on macOS) opens the command palette, a list of
+the tab and pane actions with their key bindings. Type to filter it, move with
+the arrow keys, run the selected action with <kbd>Enter</kbd> and close it with
+<kbd>Escape</kbd>.
+
+Profiles are named shells with their own command, working directory,
+environment and theme, set up in `[[profiles]]` tables of the configuration
+file:
+
+```toml
+[[profiles]]
+name = "Build server"
+shell = { program = "ssh", args = ["build.example.com"] }
+theme = "dracula"
+```
+
+<kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>E</kbd> (<kbd>Command</kbd>
+<kbd>Shift</kbd> <kbd>E</kbd> on macOS) opens the profile selector, which works
+like the command palette and opens the chosen profile in a new tab.
+
 ## Multi-Window
 
 TankTerm supports running multiple terminal emulators from the same TankTerm

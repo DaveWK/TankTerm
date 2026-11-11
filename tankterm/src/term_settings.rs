@@ -13,6 +13,8 @@ use crate::cli::Options;
 use crate::config::UiConfig;
 use crate::config::color::Colors;
 use crate::config::font::FontDescription;
+use crate::config::profile::Profile;
+use crate::config::ui_config::Program;
 use crate::display::color::{DIM_FACTOR, Rgb};
 
 /// Logical pixels per typographic point.
@@ -33,6 +35,19 @@ pub fn settings(config: &UiConfig, options: &Options) -> Settings {
         theme: ThemeSettings::new(Box::new(palette(&config.colors))),
         backend: backend_settings(config, options, std::env::var("SHELL").ok()),
     }
+}
+
+/// Settings for the terminals of new tabs and panes.
+///
+/// These run the configured shell, not the command the first terminal was started with on the
+/// command line.
+pub fn tab_settings(config: &UiConfig, options: &Options) -> Settings {
+    let mut settings = settings(config, options);
+    let (program, args) = shell(None, config, std::env::var("SHELL").ok());
+    settings.backend.program = program;
+    settings.backend.args = args;
+
+    settings
 }
 
 fn font_settings(config: &UiConfig) -> FontSettings {
@@ -87,6 +102,25 @@ fn family_installed(name: &str) -> bool {
         .any(|face| face.families.iter().any(|(family, _)| family.eq_ignore_ascii_case(name)))
 }
 
+/// Settings for the terminals of a profile.
+///
+/// `config` is the configuration with the profile's theme, if it has one. What the profile
+/// doesn't set is the same as for other new tabs.
+pub fn profile_settings(profile: &Profile, config: &UiConfig, options: &Options) -> Settings {
+    let mut settings = tab_settings(config, options);
+
+    if let Some(shell) = &profile.shell {
+        settings.backend.program = shell.program().to_owned();
+        settings.backend.args = shell.args().to_vec();
+    }
+    if let Some(directory) = &profile.working_directory {
+        settings.backend.working_directory = Some(directory.clone());
+    }
+    settings.backend.env.extend(profile.env.clone());
+
+    settings
+}
+
 /// Size of a terminal cell, measured the same way `iced_tterm` measures its grid.
 pub fn cell_size(font: &FontSettings) -> Size {
     Paragraph::with_text(Text {
@@ -116,6 +150,12 @@ pub fn padding(config: &UiConfig, cell: Size) -> Padding {
 pub fn background(config: &UiConfig) -> Color {
     let background = config.colors.primary.background;
     Color::from_rgb8(background.r, background.g, background.b)
+}
+
+/// Text color of the window, used for the tab bar and pane frames.
+pub fn foreground(config: &UiConfig) -> Color {
+    let foreground = config.colors.primary.foreground;
+    Color::from_rgb8(foreground.r, foreground.g, foreground.b)
 }
 
 /// Convert the configured colors into an `iced_tterm` palette.
@@ -171,11 +211,7 @@ fn backend_settings(
 ) -> BackendSettings {
     let terminal_options = &options.window_options.terminal_options;
 
-    let (program, args) = match terminal_options.command().or_else(|| config.terminal.shell.clone())
-    {
-        Some(program) => (program.program().to_owned(), program.args().to_vec()),
-        None => (env_shell.unwrap_or_else(|| FALLBACK_SHELL.into()), Vec::new()),
-    };
+    let (program, args) = shell(terminal_options.command(), config, env_shell);
 
     let working_directory = terminal_options
         .working_directory
@@ -184,6 +220,20 @@ fn backend_settings(
         .or_else(|| config.general.working_directory.clone());
 
     BackendSettings { program, args, env: config.env.clone(), working_directory }
+}
+
+/// The program to run in a terminal and its arguments.
+///
+/// This is `command` if there is one, then `terminal.shell` in the config, then `env_shell`.
+fn shell(
+    command: Option<Program>,
+    config: &UiConfig,
+    env_shell: Option<String>,
+) -> (String, Vec<String>) {
+    match command.or_else(|| config.terminal.shell.clone()) {
+        Some(program) => (program.program().to_owned(), program.args().to_vec()),
+        None => (env_shell.unwrap_or_else(|| FALLBACK_SHELL.into()), Vec::new()),
+    }
 }
 
 /// Window title, with the CLI `--title` taking precedence over the config.
@@ -419,5 +469,43 @@ mod tests {
 
         assert_eq!(window_class(&config, &options(&[])), "TankTerm");
         assert_eq!(window_class(&config, &options(&["--class", "MyClass"])), "MyClass");
+    }
+    #[test]
+    fn profiles_override_the_shell_directory_and_environment() {
+        let config: UiConfig = toml::from_str(
+            r#"
+            [env]
+            SHARED = "config"
+            EDITOR = "vi"
+
+            [terminal]
+            shell = "zsh"
+
+            [[profiles]]
+            name = "Server"
+            shell = { program = "ssh", args = ["server"] }
+            working_directory = "/srv"
+            env = { EDITOR = "nano" }
+
+            [[profiles]]
+            name = "Plain"
+            "#,
+        )
+        .unwrap();
+        // The command the window was started with isn't used for profiles.
+        let options = options(&["-e", "htop"]);
+
+        let server = profile_settings(&config.profiles[0], &config, &options).backend;
+        assert_eq!(
+            (server.program.as_str(), server.args.as_slice()),
+            ("ssh", &["server".to_owned()][..])
+        );
+        assert_eq!(server.working_directory, Some(PathBuf::from("/srv")));
+        assert_eq!(server.env["EDITOR"], "nano");
+        assert_eq!(server.env["SHARED"], "config");
+
+        let plain = profile_settings(&config.profiles[1], &config, &options).backend;
+        assert_eq!((plain.program.as_str(), plain.args.len()), ("zsh", 0));
+        assert_eq!(plain.env["EDITOR"], "vi");
     }
 }

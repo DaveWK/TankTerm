@@ -7,7 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- `BackendCommand::Paste(String)`, which pastes text the way the application in the terminal
+  expects it: wrapped in bracketed paste markers, or with line breaks sent as carriage returns
+- `Terminal::mode()`, the terminal's current modes
+- `BindingAction::PasteSelection`, bound to `Shift+Insert` (except on macOS) and to the middle
+  mouse button; it pastes the selection clipboard, or the regular one where there is none
+- Mouse bindings for the middle and right buttons with the `Paste` and `PasteSelection` actions
+- `Terminal::selection()`, the selected text, and `Event::SelectionFinished`, sent when the mouse
+  button is released after selecting
+- `Terminal::child_pid()` and `Terminal::foreground_process_group()`, for telling whether a
+  command is running in the shell; only known on Unix
+
 ### Changed
+
+- (**breaking changes**) The paste bindings now publish `BackendCommand::Paste` with the clipboard
+  text instead of `BackendCommand::Write` with the bytes to send, so applications can hold a paste
+  back before passing it on to `Terminal::handle`
+- (**breaking changes**) `Event` has a new `SelectionFinished` variant
+- Pastes without bracketed paste send line breaks as carriage returns, like the Enter key
+- Releasing the mouse button outside the terminal ends a selection drag
 
 - Renamed from `iced_term` to `iced_tterm` and moved into the TankTerm repository as a workspace
   crate; `tankterm_terminal` is now a path dependency

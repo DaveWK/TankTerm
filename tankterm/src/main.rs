@@ -33,17 +33,21 @@ mod cli;
 #[allow(dead_code, unused_imports)]
 mod config;
 mod display;
+mod hotkeys;
 mod logging;
 #[cfg(target_os = "macos")]
 mod macos;
 mod migrate;
+mod palette;
 #[cfg(windows)]
 mod panic;
+mod session;
 mod term_settings;
 
-use crate::app::{App, Layout};
+use crate::app::{App, AppOptions, Layout, Profile};
 use crate::cli::{Options, Subcommands};
 use crate::config::UiConfig;
+use crate::hotkeys::Hotkeys;
 #[cfg(target_os = "macos")]
 use crate::macos::locale;
 
@@ -139,11 +143,47 @@ fn tankterm(mut options: Options) -> Result<(), Box<dyn Error>> {
     let title = term_settings::window_title(&config, &options);
     let settings = term_settings::settings(&config, &options);
     let cell = term_settings::cell_size(&settings.font);
-    let layout = Layout {
-        padding: term_settings::padding(&config, cell),
-        background: term_settings::background(&config),
+    // Profiles with a theme of their own get their colors from the configuration loaded with it.
+    let profiles = config.profiles.clone().into_iter().map(|profile| {
+        let themed =
+            profile.theme.as_deref().map(|theme| config::load_with_theme(&mut options, theme));
+        let config = themed.as_ref().unwrap_or(&config);
+        let settings = term_settings::profile_settings(&profile, config, &options);
+        let detail = [settings.backend.program.clone()]
+            .into_iter()
+            .chain(settings.backend.args.iter().cloned())
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        Profile {
+            name: profile.name,
+            detail,
+            settings,
+            background: term_settings::background(config),
+        }
+    });
+    let profiles: Vec<_> = profiles.collect();
+
+    let app_options = AppOptions {
+        title,
+        dynamic_title: config.window.dynamic_title,
+        layout: Layout {
+            padding: term_settings::padding(&config, cell),
+            background: term_settings::background(&config),
+            foreground: term_settings::foreground(&config),
+        },
+        tabs: config.tabs,
+        hotkeys: Hotkeys::from_config(&config),
+        // A window started for a single command isn't a session worth remembering.
+        session_file: session::default_path().filter(|_| {
+            config.tabs.restore && options.window_options.terminal_options.command().is_none()
+        }),
+        profiles,
+        confirm_multiline_paste: config.terminal.confirm_multiline_paste,
+        copy_on_select: config.selection.save_to_clipboard,
+        bindings: hotkeys::mouse_bindings(config.mouse_bindings()),
     };
-    let app = App::new(title, config.window.dynamic_title, settings, layout)?;
+    let app = App::new(app_options, settings, term_settings::tab_settings(&config, &options))?;
 
     // iced takes a reusable boot function, but the application is only booted once.
     let app = Mutex::new(Some(app));

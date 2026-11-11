@@ -16,10 +16,12 @@ pub mod cursor;
 pub mod debug;
 pub mod font;
 pub mod general;
+pub mod profile;
 pub mod scrolling;
 pub mod selection;
 pub mod serde_utils;
 pub mod style;
+pub mod tabs;
 pub mod terminal;
 pub mod theme;
 pub mod ui_config;
@@ -32,8 +34,8 @@ use crate::cli::Options;
 #[cfg(test)]
 pub use crate::config::bindings::Binding;
 pub use crate::config::bindings::{
-    Action, BindingKey, BindingMode, KeyBinding, KeyLocation, MouseAction, MouseEvent,
-    SearchAction, ViAction,
+    Action, BindingKey, BindingMode, KeyBinding, KeyLocation, LeaderKey, MouseAction, MouseBinding,
+    MouseEvent, SearchAction, ViAction,
 };
 pub use crate::config::ui_config::UiConfig;
 use crate::display::color::ColorContext;
@@ -150,6 +152,17 @@ pub fn load(options: &mut Options) -> UiConfig {
         });
 
     after_loading(&mut config, options);
+
+    config
+}
+
+/// Load the configuration file with `theme` in place of the selected theme.
+///
+/// This is how the configuration looks for a profile with its own theme.
+pub fn load_with_theme(options: &mut Options, theme: &str) -> UiConfig {
+    let selected = options.theme.replace(theme.to_owned());
+    let config = load(options);
+    options.theme = selected;
 
     config
 }
@@ -620,6 +633,33 @@ mod tests {
             let config = load_themed("", Some(name));
             assert!(config.colors.primary.background != config.colors.primary.foreground, "{name}");
         }
+    }
+
+    #[test]
+    fn profile_themes_replace_the_selected_theme_for_that_load_only() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("tankterm.toml");
+        fs::write(
+            &path,
+            "theme = 'green_screen'\n\n[[profiles]]\nname = 'Dracula'\ntheme = 'dracula'\n",
+        )
+        .unwrap();
+
+        let mut options = Options::default();
+        options.config_file = Some(path);
+        let config = load(&mut options);
+        assert_eq!(config.profiles[0].theme.as_deref(), Some("dracula"));
+
+        let themed = load_with_theme(&mut options, "dracula");
+        assert_ne!(themed.colors.primary.background, config.colors.primary.background);
+        assert_eq!(
+            themed.colors.primary.background,
+            load_themed("", Some("dracula")).colors.primary.background
+        );
+
+        // The window's own theme is unchanged afterwards.
+        assert_eq!(options.theme, None);
+        assert_eq!(load(&mut options).colors.primary.background, config.colors.primary.background);
     }
 
     /// Load a config file with CLI `-o` options, through TankTerm's startup path.

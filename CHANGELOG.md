@@ -12,6 +12,37 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 
 ### Added
 
+- Tabs: a tab bar, shown while there is more than one tab, with `CreateNewTab`, `CloseTab`,
+    `SelectNextTab`, `SelectPreviousTab`, `SelectTab1` to `SelectTab9`, `SelectLastTab`,
+    `MoveTabLeft` and `MoveTabRight` key binding actions, like in Tabby and WezTerm
+- Split panes: `SplitRight`, `SplitDown`, `ClosePane`, `FocusPaneLeft`/`Right`/`Up`/`Down`,
+    `FocusNextPane`, `FocusPreviousPane`, `TogglePaneZoom` and `ResizePaneLeft`/`Right`/`Up`/`Down`
+    key binding actions; dividers can also be dragged with the mouse
+- `[tabs]` config section with `show` (`Always`, `Multiple`, `Never`) and `position` (`Top`,
+    `Bottom`) for the tab bar
+- Command palette (`ShowCommandPalette`, `Ctrl+Shift+P`) listing the tab and pane actions with
+    their key bindings, like in Tabby and WezTerm
+- Shell profiles in `[[profiles]]` with their own `shell`, `working_directory`, `env` and `theme`,
+    opened in a new tab from the profile selector (`ShowProfiles`, `Ctrl+Shift+E`)
+- `tabs.restore` to open the tabs and split panes of the last window on startup, like Tabby's
+    tab recovery; the layout is remembered, the shells are started fresh
+- `tabs.inherit_working_directory`, on by default, starts the shells of new tabs and panes in the
+    directory of the current pane's shell; restored panes start in their directories too. Both
+    only work on Linux
+- Tabs that aren't shown are marked in the tab bar when they print something (`*`)
+- Terminals that ring the bell or finish a command while they aren't looked at mark their tab
+    (`!`) and pane, and ask the desktop for attention if the window isn't focused. Finished
+    commands are noticed on Unix without shell integration
+- `keyboard.preset` selects the default tab and pane keys: `Tabby` (default), `WezTerm` or
+    `Leader`, which reaches most actions through a leader key like tmux
+- `keyboard.leader`, the leader key (`Control+A` by default) with its timeout, and the `Leader`
+    binding mode for keys pressed after it
+- `terminal.confirm_multiline_paste`, on by default, asks before pasting text with line breaks
+    into a program without bracketed paste
+- Mouse bindings of the middle and right buttons to `Paste` and `PasteSelection`, for example
+    for pasting with a right click; the middle button and `Shift+Insert` paste the selection
+- Selected text is put on the selection clipboard, and `selection.save_to_clipboard` copies it
+    to the clipboard as well
 - `Spring` visual bell animation with `bell.spring`, a damped spring like Charm's Harmonica
 - `general.accessible`, or `ACCESSIBLE`/`TANKTERM_ACCESSIBLE` like Huh, turns off cursor blinking and
     the visual bell
@@ -39,6 +70,14 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 - Default config location is now `tankterm/tankterm.toml`; `alacritty` config locations are still
     used as a fallback
 - Default window title and class are now `TankTerm`
+- `Command+W` closes the current tab instead of quitting on macOS; the window still closes with
+    its last tab
+- With the default `Tabby` key preset, `Alt+1` to `Alt+9`, `Control+Alt+Arrow` and the other tab
+    and pane keys no longer reach the applications in the terminal; bind a key to `ReceiveChar` to
+    give it back to them
+- Pasted line breaks are sent as carriage returns, like the Enter key, to programs without
+    bracketed paste
+- The terminal has keyboard focus when the window opens, without clicking it first
 - New TankTerm logo replaces the Alacritty one in the window, application and installer icons
 - Default font is now `Iosevka Term`; if it can't be loaded, the system monospace font is
     used
@@ -53,7 +92,8 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 ### Removed
 
 - IPC (`tankTerm msg`, `--socket`), `--daemon` and live config reload
-- Custom key and mouse bindings, hints, vi mode, search and the message bar
+- Custom key and mouse bindings other than tab and pane actions and pasting with the mouse,
+    hints, vi mode, search and the message bar
 - `--embed`, `--hold`, `--print-events` and `--ref-test`
 
 ### Fixed

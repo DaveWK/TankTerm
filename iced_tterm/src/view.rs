@@ -108,6 +108,7 @@ impl<'a> TerminalView<'a> {
     fn handle_mouse_event(
         &self,
         state: &mut TerminalViewState,
+        clipboard: &mut dyn iced_graphics::core::Clipboard,
         layout_position: Point,
         cursor_position: Point,
         event: &iced::mouse::Event,
@@ -117,6 +118,18 @@ impl<'a> TerminalView<'a> {
         let terminal_mode = terminal_content.terminal_mode;
 
         match event {
+            iced_core::mouse::Event::ButtonPressed(
+                button @ (iced_core::mouse::Button::Middle
+                | iced_core::mouse::Button::Right),
+            ) => {
+                let kind = mouse_paste(
+                    &self.term.bindings,
+                    *button,
+                    state.keyboard_modifiers,
+                    terminal_mode,
+                );
+                commands.extend(kind.and_then(|kind| paste(clipboard, kind)));
+            },
             iced_core::mouse::Event::ButtonPressed(
                 iced_core::mouse::Button::Left,
             ) => {
@@ -375,14 +388,7 @@ impl<'a> TerminalView<'a> {
             last_content.terminal_mode,
         )? {
             KeyOutput::Write(bytes) => Some(Command::Write(bytes)),
-            KeyOutput::Paste => {
-                let data = clipboard.read(ClipboardKind::Standard)?;
-                let input: Vec<u8> = data.bytes().collect();
-                let bracketed = last_content
-                    .terminal_mode
-                    .contains(TermMode::BRACKETED_PASTE);
-                Some(Command::Write(wrap_bracketed_paste(input, bracketed)))
-            },
+            KeyOutput::Paste(kind) => paste(clipboard, kind),
             KeyOutput::Copy => {
                 clipboard.write(
                     ClipboardKind::Standard,
@@ -394,6 +400,53 @@ impl<'a> TerminalView<'a> {
     }
 }
 
+/// The command pasting a clipboard, unless it is empty.
+///
+/// Where there is no selection clipboard, the regular one stands in for it,
+/// like in Alacritty.
+fn paste(
+    clipboard: &mut dyn iced_graphics::core::Clipboard,
+    kind: ClipboardKind,
+) -> Option<Command> {
+    let text = clipboard.read(kind).or_else(|| match kind {
+        ClipboardKind::Primary => clipboard.read(ClipboardKind::Standard),
+        ClipboardKind::Standard => None,
+    })?;
+
+    (!text.is_empty()).then_some(Command::Paste(text))
+}
+
+/// The clipboard a press of a mouse button other than the left one pastes,
+/// going by the mouse bindings.
+///
+/// While the application in the terminal asks for mouse reports, clicks belong
+/// to it; holding Shift takes them back, as usual.
+fn mouse_paste(
+    bindings: &BindingsLayout,
+    button: mouse::Button,
+    modifiers: Modifiers,
+    terminal_mode: TermMode,
+) -> Option<ClipboardKind> {
+    let modifiers = if terminal_mode.intersects(TermMode::MOUSE_MODE) {
+        if !modifiers.contains(Modifiers::SHIFT) {
+            return None;
+        }
+        modifiers - Modifiers::SHIFT
+    } else {
+        modifiers
+    };
+
+    match bindings.get_action(
+        InputKind::Mouse(button),
+        modifiers,
+        terminal_mode,
+    ) {
+        BindingAction::Paste => Some(ClipboardKind::Standard),
+        BindingAction::PasteSelection => Some(ClipboardKind::Primary),
+        _ => None,
+    }
+}
+
 /// What a key event turns into.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum KeyOutput {
@@ -401,8 +454,8 @@ enum KeyOutput {
     Write(Vec<u8>),
     /// Copy the selection.
     Copy,
-    /// Paste the clipboard.
-    Paste,
+    /// Paste this clipboard.
+    Paste(ClipboardKind),
 }
 
 /// The binding table's action for a key. Character keys are looked up by
@@ -454,9 +507,14 @@ fn key_output(
             return Some(KeyOutput::Copy);
         },
         BindingAction::Paste if input.state != KeyState::Released => {
-            return Some(KeyOutput::Paste);
+            return Some(KeyOutput::Paste(ClipboardKind::Standard));
         },
-        BindingAction::Copy | BindingAction::Paste => return None,
+        BindingAction::PasteSelection if input.state != KeyState::Released => {
+            return Some(KeyOutput::Paste(ClipboardKind::Primary));
+        },
+        BindingAction::Copy
+        | BindingAction::Paste
+        | BindingAction::PasteSelection => return None,
         _ => {},
     }
 
@@ -772,14 +830,36 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
         let is_cursor_in_layout = self.is_cursor_in_layout(cursor, layout);
         self.handle_focus(event, state, is_cursor_in_layout);
 
+        // Releasing the left button ends a selection, wherever the pointer
+        // is by then, unless the drag was reported to the application.
+        let released_left = matches!(
+            event,
+            iced::Event::Mouse(mouse::Event::ButtonReleased(
+                mouse::Button::Left
+            ))
+        );
+        let selection_finished = released_left
+            && state.is_dragged
+            && !self
+                .term
+                .backend
+                .renderable_content()
+                .terminal_mode
+                .intersects(TermMode::MOUSE_MODE);
+
         let commands = match event {
             iced::Event::Mouse(mouse_event) if is_cursor_in_layout => self
                 .handle_mouse_event(
                     state,
+                    clipboard,
                     layout.position(),
                     cursor.position().unwrap(),
                     mouse_event,
                 ),
+            iced::Event::Mouse(_) if released_left => {
+                state.is_dragged = false;
+                Vec::new()
+            },
             iced::Event::Keyboard(keyboard_event) => {
                 if !state.is_focused() {
                     return;
@@ -798,6 +878,10 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
 
         for cmd in commands {
             shell.publish(Event::BackendCall(self.term.id, cmd));
+        }
+
+        if selection_finished {
+            shell.publish(Event::SelectionFinished(self.term.id));
         }
     }
 
@@ -943,29 +1027,6 @@ impl BackgroundRect {
     fn extend(&mut self, value: f32) {
         self.width += value;
     }
-}
-
-// Wrap pasted text in bracketed paste when the target application has enabled the mode. The markers
-// `\x1b[200~` / `\x1b[201~` make the application (readline, TUIs) receive the paste as a single BLOCK, so
-// inner newlines are not interpreted as Enter (a multi-line paste is not submitted line by line). When
-// the mode is off, the bytes are written unchanged (historical behavior).
-//
-// ESC (0x1b) and Ctrl-C (0x03) are stripped from the pasted text first, mirroring Alacritty: otherwise a
-// clipboard that itself contains `\x1b[201~` would close the bracketed paste early (the rest would be
-// interpreted as keystrokes), and some shells terminate bracketed paste on 0x03.
-fn wrap_bracketed_paste(input: Vec<u8>, bracketed: bool) -> Vec<u8> {
-    if !bracketed {
-        return input;
-    }
-    let filtered: Vec<u8> = input
-        .into_iter()
-        .filter(|&b| b != 0x1b && b != 0x03)
-        .collect();
-    let mut out = Vec::with_capacity(filtered.len() + 12);
-    out.extend_from_slice(b"\x1b[200~");
-    out.extend_from_slice(&filtered);
-    out.extend_from_slice(b"\x1b[201~");
-    out
 }
 
 #[cfg(test)]
@@ -1201,7 +1262,7 @@ mod tests {
                 );
                 assert_eq!(
                     press_char("v", v, "\x16", mods, mode),
-                    Some(KeyOutput::Paste)
+                    Some(KeyOutput::Paste(ClipboardKind::Standard))
                 );
                 // Nor is the shortcut's release reported.
                 let release = output(
@@ -1217,28 +1278,149 @@ mod tests {
         }
     }
 
-    mod wrap_bracketed_paste_tests {
+    mod paste_tests {
         use super::*;
+        use iced_core::keyboard::key::Named;
 
-        #[test]
-        fn wraps_only_when_active() {
-            let input = b"line 1\nline 2".to_vec();
-            assert_eq!(wrap_bracketed_paste(input.clone(), false), input);
-            let wrapped = wrap_bracketed_paste(input.clone(), true);
-            assert!(wrapped.starts_with(b"\x1b[200~"));
-            assert!(wrapped.ends_with(b"\x1b[201~"));
-            assert_eq!(&wrapped[6..wrapped.len() - 6], input.as_slice());
+        /// A clipboard with a regular and, optionally, a selection clipboard.
+        struct TestClipboard {
+            standard: Option<String>,
+            primary: Option<String>,
+        }
+
+        impl iced_graphics::core::Clipboard for TestClipboard {
+            fn read(&self, kind: ClipboardKind) -> Option<String> {
+                match kind {
+                    ClipboardKind::Standard => self.standard.clone(),
+                    ClipboardKind::Primary => self.primary.clone(),
+                }
+            }
+
+            fn write(&mut self, kind: ClipboardKind, contents: String) {
+                match kind {
+                    ClipboardKind::Standard => self.standard = Some(contents),
+                    ClipboardKind::Primary => self.primary = Some(contents),
+                }
+            }
+        }
+
+        fn pasted(command: Option<Command>) -> Option<String> {
+            match command {
+                Some(Command::Paste(text)) => Some(text),
+                Some(command) => panic!("not a paste: {command:?}"),
+                None => None,
+            }
         }
 
         #[test]
-        fn filters_escape_and_ctrl_c() {
-            // A clipboard containing `\x1b[201~` must not be able to close the bracketed paste early.
-            let wrapped =
-                wrap_bracketed_paste(b"a\x1b[201~b\x03c".to_vec(), true);
-            let body = &wrapped[6..wrapped.len() - 6];
-            assert_eq!(body, b"a[201~bc");
-            assert!(!body.contains(&0x1b));
-            assert!(!body.contains(&0x03));
+        fn pastes_the_requested_clipboard() {
+            let mut clipboard = TestClipboard {
+                standard: Some("copied".into()),
+                primary: Some("selected".into()),
+            };
+
+            let standard = paste(&mut clipboard, ClipboardKind::Standard);
+            assert_eq!(pasted(standard).as_deref(), Some("copied"));
+            let primary = paste(&mut clipboard, ClipboardKind::Primary);
+            assert_eq!(pasted(primary).as_deref(), Some("selected"));
+        }
+
+        #[test]
+        fn regular_clipboard_stands_in_for_a_missing_selection_clipboard() {
+            let mut clipboard = TestClipboard {
+                standard: Some("copied".into()),
+                primary: None,
+            };
+
+            let primary = paste(&mut clipboard, ClipboardKind::Primary);
+            assert_eq!(pasted(primary).as_deref(), Some("copied"));
+        }
+
+        #[test]
+        fn empty_clipboards_paste_nothing() {
+            let mut clipboard = TestClipboard {
+                standard: Some(String::new()),
+                primary: None,
+            };
+
+            assert!(paste(&mut clipboard, ClipboardKind::Standard).is_none());
+            assert!(paste(&mut clipboard, ClipboardKind::Primary).is_none());
+        }
+
+        #[cfg(not(target_os = "macos"))]
+        #[test]
+        fn shift_insert_pastes_the_selection() {
+            let input = KeyInput {
+                key: &Key::Named(Named::Insert),
+                modified_key: &Key::Named(Named::Insert),
+                location: iced_core::keyboard::Location::Standard,
+                modifiers: Modifiers::SHIFT,
+                text: None,
+                state: KeyState::Pressed,
+            };
+
+            let output = key_output(
+                &BindingsLayout::default(),
+                Modifiers::SHIFT,
+                &input,
+                TermMode::empty(),
+            );
+            assert_eq!(output, Some(KeyOutput::Paste(ClipboardKind::Primary)));
+        }
+
+        #[test]
+        fn middle_click_pastes_the_selection_by_default() {
+            let bindings = BindingsLayout::default();
+            let paste = |button, modifiers, mode| {
+                mouse_paste(&bindings, button, modifiers, mode)
+            };
+            let none = Modifiers::empty();
+
+            assert_eq!(
+                paste(mouse::Button::Middle, none, TermMode::empty()),
+                Some(ClipboardKind::Primary)
+            );
+            assert_eq!(
+                paste(mouse::Button::Right, none, TermMode::empty()),
+                None
+            );
+        }
+
+        #[test]
+        fn mouse_paste_follows_added_bindings() {
+            let mut bindings = BindingsLayout::default();
+            bindings.add_bindings(vec![(
+                crate::bindings::Binding {
+                    target: InputKind::Mouse(mouse::Button::Right),
+                    modifiers: Modifiers::empty(),
+                    terminal_mode_include: TermMode::empty(),
+                    terminal_mode_exclude: TermMode::empty(),
+                },
+                BindingAction::Paste,
+            )]);
+
+            assert_eq!(
+                mouse_paste(
+                    &bindings,
+                    mouse::Button::Right,
+                    Modifiers::empty(),
+                    TermMode::empty()
+                ),
+                Some(ClipboardKind::Standard)
+            );
+        }
+
+        #[test]
+        fn clicks_belong_to_applications_reporting_the_mouse() {
+            let bindings = BindingsLayout::default();
+            let mode = TermMode::MOUSE_REPORT_CLICK;
+            let paste = |modifiers| {
+                mouse_paste(&bindings, mouse::Button::Middle, modifiers, mode)
+            };
+
+            assert_eq!(paste(Modifiers::empty()), None);
+            // Shift takes the click back from the application.
+            assert_eq!(paste(Modifiers::SHIFT), Some(ClipboardKind::Primary));
         }
     }
 

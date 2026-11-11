@@ -222,6 +222,63 @@ pub enum Action {
     /// Select the last tab.
     SelectLastTab,
 
+    /// Close the current tab and all of its panes.
+    CloseTab,
+
+    /// Move the current tab one position to the left.
+    MoveTabLeft,
+
+    /// Move the current tab one position to the right.
+    MoveTabRight,
+
+    /// Split the current pane, with the new pane on its right.
+    SplitRight,
+
+    /// Split the current pane, with the new pane below it.
+    SplitDown,
+
+    /// Close the current pane.
+    ClosePane,
+
+    /// Focus the pane left of the current one.
+    FocusPaneLeft,
+
+    /// Focus the pane right of the current one.
+    FocusPaneRight,
+
+    /// Focus the pane above the current one.
+    FocusPaneUp,
+
+    /// Focus the pane below the current one.
+    FocusPaneDown,
+
+    /// Focus the next pane of the tab.
+    FocusNextPane,
+
+    /// Focus the previous pane of the tab.
+    FocusPreviousPane,
+
+    /// Let the current pane fill the tab, or restore the split layout.
+    TogglePaneZoom,
+
+    /// Move the nearest divider left of or right of the current pane to the left.
+    ResizePaneLeft,
+
+    /// Move the nearest divider left of or right of the current pane to the right.
+    ResizePaneRight,
+
+    /// Move the nearest divider above or below the current pane up.
+    ResizePaneUp,
+
+    /// Move the nearest divider above or below the current pane down.
+    ResizePaneDown,
+
+    /// Show the command palette, a filterable list of the tab and pane actions.
+    ShowCommandPalette,
+
+    /// Show the profile selector, to open a profile in a new tab.
+    ShowProfiles,
+
     /// Create a new TankTerm window.
     CreateNewWindow,
 
@@ -591,21 +648,6 @@ pub fn platform_key_bindings() -> Vec<KeyBinding> {
     bindings!(
         KeyBinding;
         Insert, ModifiersState::SHIFT, ~BindingMode::VI, ~BindingMode::SEARCH; Action::Esc("\x1b[2;2~".into());
-        // Tabbing api.
-        "t",    ModifiersState::SUPER;                                         Action::CreateNewTab;
-        "]",    ModifiersState::SUPER | ModifiersState::SHIFT;                 Action::SelectNextTab;
-        "[",    ModifiersState::SUPER | ModifiersState::SHIFT;                 Action::SelectPreviousTab;
-        Tab,    ModifiersState::SUPER;                                         Action::SelectNextTab;
-        Tab,    ModifiersState::SUPER | ModifiersState::SHIFT;                 Action::SelectPreviousTab;
-        "1",    ModifiersState::SUPER;                                         Action::SelectTab1;
-        "2",    ModifiersState::SUPER;                                         Action::SelectTab2;
-        "3",    ModifiersState::SUPER;                                         Action::SelectTab3;
-        "4",    ModifiersState::SUPER;                                         Action::SelectTab4;
-        "5",    ModifiersState::SUPER;                                         Action::SelectTab5;
-        "6",    ModifiersState::SUPER;                                         Action::SelectTab6;
-        "7",    ModifiersState::SUPER;                                         Action::SelectTab7;
-        "8",    ModifiersState::SUPER;                                         Action::SelectTab8;
-        "9",    ModifiersState::SUPER;                                         Action::SelectLastTab;
         "0",    ModifiersState::SUPER;                                         Action::ResetFontSize;
         "=",    ModifiersState::SUPER;                                         Action::IncreaseFontSize;
         "+",    ModifiersState::SUPER;                                         Action::IncreaseFontSize;
@@ -622,13 +664,241 @@ pub fn platform_key_bindings() -> Vec<KeyBinding> {
         "h",    ModifiersState::SUPER   | ModifiersState::ALT;                 Action::HideOtherApplications;
         "m",    ModifiersState::SUPER;                                         Action::Minimize;
         "q",    ModifiersState::SUPER;                                         Action::Quit;
-        "w",    ModifiersState::SUPER;                                         Action::Quit;
         "f",    ModifiersState::SUPER, ~BindingMode::SEARCH;                   Action::SearchForward;
         "b",    ModifiersState::SUPER, ~BindingMode::SEARCH;                   Action::SearchBackward;
         "h",    ModifiersState::SUPER   | ModifiersState::SHIFT;               Action::ToggleHelp;
         "+" => KeyLocation::Numpad, ModifiersState::SUPER;                     Action::IncreaseFontSize;
         "-" => KeyLocation::Numpad, ModifiersState::SUPER;                     Action::DecreaseFontSize;
     )
+}
+
+/// Which default keys tabs and panes get.
+#[derive(ConfigDeserialize, serde::Serialize, Default, Debug, Copy, Clone, PartialEq, Eq)]
+pub enum KeyPreset {
+    /// Tabby's keys: `Alt` and a digit selects a tab, `Control|Alt` and an arrow a pane.
+    #[default]
+    Tabby,
+    /// WezTerm's keys: everything is on `Control|Shift`.
+    WezTerm,
+    /// tmux's way: the leader key, then a second key.
+    Leader,
+}
+
+/// The leader key: the key pressed before the keys of bindings with the `Leader` mode.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LeaderKey {
+    pub key: BindingKey,
+    pub mods: ModifiersState,
+    /// How long the leader key waits for the next key, in milliseconds.
+    pub timeout: u64,
+    /// The value this was read from, for writing it back.
+    raw: Option<SerdeValue>,
+}
+
+impl Default for LeaderKey {
+    fn default() -> Self {
+        Self {
+            key: BindingKey::Keycode {
+                key: Key::Character("a".into()),
+                location: KeyLocation::Any,
+            },
+            mods: ModifiersState::CONTROL,
+            timeout: 1000,
+            raw: None,
+        }
+    }
+}
+
+impl<'a> Deserialize<'a> for LeaderKey {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'a>,
+    {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Fields {
+            key: BindingKey,
+            #[serde(default)]
+            mods: ModsWrapper,
+            timeout: Option<u64>,
+        }
+
+        let raw = SerdeValue::deserialize(deserializer)?;
+        let Fields { key, mods, timeout } =
+            Fields::deserialize(raw.clone()).map_err(D::Error::custom)?;
+        let timeout = timeout.unwrap_or(Self::default().timeout);
+
+        Ok(Self { key, mods: mods.into_inner(), timeout, raw: Some(raw) })
+    }
+}
+
+impl tankterm_config::SerdeReplace for LeaderKey {
+    fn replace(&mut self, value: SerdeValue) -> Result<(), Box<dyn std::error::Error>> {
+        *self = Self::deserialize(value)?;
+
+        Ok(())
+    }
+}
+
+impl serde::Serialize for LeaderKey {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        // Without a configured value this is the default, which is written like this.
+        let default = || {
+            let mut leader = toml::Table::new();
+            leader.insert("key".into(), "A".into());
+            leader.insert("mods".into(), "Control".into());
+            leader.insert("timeout".into(), SerdeValue::Integer(1000));
+            SerdeValue::Table(leader)
+        };
+
+        self.raw.clone().unwrap_or_else(default).serialize(serializer)
+    }
+}
+
+/// The default tab and pane bindings of a preset.
+///
+/// `macos` selects the `Command` keys used there; it is a parameter so both sets can be tested.
+pub fn preset_key_bindings(preset: KeyPreset, macos: bool) -> Vec<KeyBinding> {
+    const CTRL_SHIFT: ModifiersState = ModifiersState::CONTROL.union(ModifiersState::SHIFT);
+    const CTRL_ALT: ModifiersState = ModifiersState::CONTROL.union(ModifiersState::ALT);
+    const CTRL_SHIFT_ALT: ModifiersState = CTRL_SHIFT.union(ModifiersState::ALT);
+    const CMD_SHIFT: ModifiersState = ModifiersState::SUPER.union(ModifiersState::SHIFT);
+    const CMD_ALT: ModifiersState = ModifiersState::SUPER.union(ModifiersState::ALT);
+
+    // Keys that stay direct in every preset.
+    let mut bindings = if macos {
+        bindings!(
+            KeyBinding;
+            "t", ModifiersState::SUPER; Action::CreateNewTab;
+            "d", ModifiersState::SUPER; Action::SplitRight;
+            "d", CMD_SHIFT;             Action::SplitDown;
+        )
+    } else {
+        bindings!(
+            KeyBinding;
+            "t", CTRL_SHIFT; Action::CreateNewTab;
+            "s", CTRL_SHIFT; Action::SplitRight;
+            "d", CTRL_SHIFT; Action::SplitDown;
+        )
+    };
+
+    if preset == KeyPreset::Leader {
+        // After the leader key. Only keys that need no Shift are used, so they are the same on
+        // every keyboard layout.
+        bindings.extend(bindings!(
+            KeyBinding;
+            "c",        +BindingMode::LEADER; Action::CreateNewTab;
+            "k",        +BindingMode::LEADER; Action::CloseTab;
+            "n",        +BindingMode::LEADER; Action::SelectNextTab;
+            "p",        +BindingMode::LEADER; Action::SelectPreviousTab;
+            "1",        +BindingMode::LEADER; Action::SelectTab1;
+            "2",        +BindingMode::LEADER; Action::SelectTab2;
+            "3",        +BindingMode::LEADER; Action::SelectTab3;
+            "4",        +BindingMode::LEADER; Action::SelectTab4;
+            "5",        +BindingMode::LEADER; Action::SelectTab5;
+            "6",        +BindingMode::LEADER; Action::SelectTab6;
+            "7",        +BindingMode::LEADER; Action::SelectTab7;
+            "8",        +BindingMode::LEADER; Action::SelectTab8;
+            "9",        +BindingMode::LEADER; Action::SelectTab9;
+            "0",        +BindingMode::LEADER; Action::SelectLastTab;
+            ",",        +BindingMode::LEADER; Action::MoveTabLeft;
+            ".",        +BindingMode::LEADER; Action::MoveTabRight;
+            "\\",       +BindingMode::LEADER; Action::SplitRight;
+            "-",        +BindingMode::LEADER; Action::SplitDown;
+            "x",        +BindingMode::LEADER; Action::ClosePane;
+            "z",        +BindingMode::LEADER; Action::TogglePaneZoom;
+            "o",        +BindingMode::LEADER; Action::FocusNextPane;
+            ";",        +BindingMode::LEADER; Action::FocusPreviousPane;
+            ArrowLeft,  +BindingMode::LEADER; Action::FocusPaneLeft;
+            ArrowRight, +BindingMode::LEADER; Action::FocusPaneRight;
+            ArrowUp,    +BindingMode::LEADER; Action::FocusPaneUp;
+            ArrowDown,  +BindingMode::LEADER; Action::FocusPaneDown;
+            ArrowLeft,  ModifiersState::CONTROL, +BindingMode::LEADER; Action::ResizePaneLeft;
+            ArrowRight, ModifiersState::CONTROL, +BindingMode::LEADER; Action::ResizePaneRight;
+            ArrowUp,    ModifiersState::CONTROL, +BindingMode::LEADER; Action::ResizePaneUp;
+            ArrowDown,  ModifiersState::CONTROL, +BindingMode::LEADER; Action::ResizePaneDown;
+            Space,      +BindingMode::LEADER; Action::ShowCommandPalette;
+            "e",        +BindingMode::LEADER; Action::ShowProfiles;
+        ));
+
+        return bindings;
+    }
+
+    if macos {
+        // The same keys for both presets, as other macOS terminals have them.
+        bindings.extend(bindings!(
+            KeyBinding;
+            "w",        ModifiersState::SUPER; Action::CloseTab;
+            "]",        CMD_SHIFT;             Action::SelectNextTab;
+            "[",        CMD_SHIFT;             Action::SelectPreviousTab;
+            Tab,        ModifiersState::SUPER; Action::SelectNextTab;
+            Tab,        CMD_SHIFT;             Action::SelectPreviousTab;
+            "1",        ModifiersState::SUPER; Action::SelectTab1;
+            "2",        ModifiersState::SUPER; Action::SelectTab2;
+            "3",        ModifiersState::SUPER; Action::SelectTab3;
+            "4",        ModifiersState::SUPER; Action::SelectTab4;
+            "5",        ModifiersState::SUPER; Action::SelectTab5;
+            "6",        ModifiersState::SUPER; Action::SelectTab6;
+            "7",        ModifiersState::SUPER; Action::SelectTab7;
+            "8",        ModifiersState::SUPER; Action::SelectTab8;
+            "9",        ModifiersState::SUPER; Action::SelectLastTab;
+            "w",        CMD_SHIFT;             Action::ClosePane;
+            Enter,      CMD_SHIFT;             Action::TogglePaneZoom;
+            ArrowLeft,  CMD_ALT;               Action::FocusPaneLeft;
+            ArrowRight, CMD_ALT;               Action::FocusPaneRight;
+            ArrowUp,    CMD_ALT;               Action::FocusPaneUp;
+            ArrowDown,  CMD_ALT;               Action::FocusPaneDown;
+            "p",        CMD_SHIFT;             Action::ShowCommandPalette;
+            "e",        CMD_SHIFT;             Action::ShowProfiles;
+        ));
+
+        return bindings;
+    }
+
+    // Shared by the Tabby and WezTerm presets.
+    bindings.extend(bindings!(
+        KeyBinding;
+        "w",        CTRL_SHIFT;              Action::CloseTab;
+        Tab,        ModifiersState::CONTROL; Action::SelectNextTab;
+        Tab,        CTRL_SHIFT;              Action::SelectPreviousTab;
+        PageUp,     CTRL_SHIFT;              Action::MoveTabLeft;
+        PageDown,   CTRL_SHIFT;              Action::MoveTabRight;
+        "w",        CTRL_ALT;                Action::ClosePane;
+        "z",        CTRL_SHIFT;              Action::TogglePaneZoom;
+        ArrowLeft,  CTRL_SHIFT_ALT;          Action::ResizePaneLeft;
+        ArrowRight, CTRL_SHIFT_ALT;          Action::ResizePaneRight;
+        ArrowUp,    CTRL_SHIFT_ALT;          Action::ResizePaneUp;
+        ArrowDown,  CTRL_SHIFT_ALT;          Action::ResizePaneDown;
+        "p",        CTRL_SHIFT;              Action::ShowCommandPalette;
+        "e",        CTRL_SHIFT;              Action::ShowProfiles;
+    ));
+
+    // Where the presets differ: selecting tabs by number and moving between panes.
+    let (tabs, last_tab, panes) = match preset {
+        KeyPreset::Tabby => (ModifiersState::ALT, Action::SelectTab9, CTRL_ALT),
+        _ => (CTRL_SHIFT, Action::SelectLastTab, CTRL_SHIFT),
+    };
+    bindings.extend(bindings!(
+        KeyBinding;
+        "1",        tabs;  Action::SelectTab1;
+        "2",        tabs;  Action::SelectTab2;
+        "3",        tabs;  Action::SelectTab3;
+        "4",        tabs;  Action::SelectTab4;
+        "5",        tabs;  Action::SelectTab5;
+        "6",        tabs;  Action::SelectTab6;
+        "7",        tabs;  Action::SelectTab7;
+        "8",        tabs;  Action::SelectTab8;
+        "9",        tabs;  last_tab.clone();
+        ArrowLeft,  panes; Action::FocusPaneLeft;
+        ArrowRight, panes; Action::FocusPaneRight;
+        ArrowUp,    panes; Action::FocusPaneUp;
+        ArrowDown,  panes; Action::FocusPaneDown;
+    ));
+
+    bindings
 }
 
 // Don't return any bindings for tests since they are commented-out by default.
@@ -777,6 +1047,8 @@ bitflags! {
         const SEARCH                 = 0b0001_0000;
         const DISAMBIGUATE_ESC_CODES = 0b0010_0000;
         const REPORT_ALL_KEYS_AS_ESC = 0b0100_0000;
+        /// The leader key was pressed and this is the key after it.
+        const LEADER                 = 0b1000_0000;
     }
 }
 
@@ -818,7 +1090,8 @@ impl<'a> Deserialize<'a> for ModeWrapper {
 
             fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 f.write_str(
-                    "a combination of AppCursor | AppKeypad | Alt | Vi, possibly with negation (~)",
+                    "a combination of AppCursor | AppKeypad | Alt | Vi | Leader, possibly with \
+                     negation (~)",
                 )
             }
 
@@ -841,6 +1114,8 @@ impl<'a> Deserialize<'a> for ModeWrapper {
                         "~vi" => res.not_mode |= BindingMode::VI,
                         "search" => res.mode |= BindingMode::SEARCH,
                         "~search" => res.not_mode |= BindingMode::SEARCH,
+                        "leader" => res.mode |= BindingMode::LEADER,
+                        "~leader" => res.not_mode |= BindingMode::LEADER,
                         _ => return Err(E::invalid_value(Unexpected::Str(modifier), &self)),
                     }
                 }

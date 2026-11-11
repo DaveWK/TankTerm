@@ -26,11 +26,45 @@ use tankterm_terminal::vte::ansi::Rgb;
 use tankterm_terminal::{tty, Grid};
 use tokio::sync::mpsc;
 
+/// The bytes to send for pasted text.
+///
+/// With bracketed paste the text goes between `\x1b[200~` and `\x1b[201~`,
+/// which makes the application (readline, TUIs) take the paste as one block:
+/// line breaks in it are not read as Enter. ESC (0x1b) and Ctrl-C (0x03) are
+/// stripped first, mirroring Alacritty: otherwise a clipboard that itself
+/// contains `\x1b[201~` would end the bracketed paste early, with the rest
+/// read as keystrokes, and some shells end bracketed paste on 0x03.
+///
+/// Without bracketed paste the application sees the text as if it was typed,
+/// so line breaks are sent as the carriage return the Enter key sends, like
+/// Alacritty does.
+pub(crate) fn paste_bytes(text: &str, bracketed: bool) -> Vec<u8> {
+    if !bracketed {
+        return text.replace("\r\n", "\r").replace('\n', "\r").into_bytes();
+    }
+
+    let filtered = text.bytes().filter(|&b| b != 0x1b && b != 0x03);
+    let mut out = Vec::with_capacity(text.len() + 12);
+    out.extend_from_slice(b"\x1b[200~");
+    out.extend(filtered);
+    out.extend_from_slice(b"\x1b[201~");
+    out
+}
+
 const URL_REGEX: &str = r#"(ipfs:|ipns:|magnet:|mailto:|gemini://|gopher://|https://|http://|news:|file://|git://|ssh:|ftp://)[^\u{0000}-\u{001F}\u{007F}-\u{009F}<>"\s{-}\^⟨⟩`]+"#;
 
 #[derive(Debug, Clone)]
 pub enum Command {
     Write(Vec<u8>),
+    /// Paste text, the way the application running in the terminal expects
+    /// it: wrapped in bracketed paste markers if it enabled them, and with
+    /// line breaks sent as carriage returns otherwise.
+    ///
+    /// The widget publishes this for its paste bindings. An application that
+    /// wants a say in what gets pasted can hold the command back instead of
+    /// passing it on to [`crate::Terminal::handle`]; [`crate::Terminal::mode`]
+    /// tells whether bracketed paste is on.
+    Paste(String),
     Scroll(i32),
     Resize(Option<Size<f32>>, Option<Size<f32>>),
     SelectStart(SelectionType, (f32, f32)),
@@ -141,6 +175,17 @@ pub struct Backend {
     notifier: Notifier,
     last_content: RenderableContent,
     pub(crate) url_regex: RegexSearch,
+    /// The program started in the terminal and the PTY it talks to.
+    #[cfg(unix)]
+    process: Process,
+}
+
+/// The process started in a terminal, as far as it can be asked about.
+#[cfg(unix)]
+struct Process {
+    pid: u32,
+    /// A second handle to the PTY master; the PTY event loop owns the first.
+    master: Option<std::fs::File>,
 }
 
 impl Backend {
@@ -171,6 +216,11 @@ impl Backend {
         let config = term_config();
         let terminal_size = TerminalSize::default();
         let pty = tty::new(&pty_config, terminal_size.into(), id)?;
+        #[cfg(unix)]
+        let process = Process {
+            pid: pty.child().id(),
+            master: pty.file().try_clone().ok(),
+        };
 
         let mut term = Term::new(config, &terminal_size, event_proxy.clone());
         term.set_color_scheme(color_scheme);
@@ -202,7 +252,48 @@ impl Backend {
             notifier,
             last_content: initial_content,
             url_regex: RegexSearch::new(URL_REGEX).expect("invalid url regexp"),
+            #[cfg(unix)]
+            process,
         })
+    }
+
+    /// The terminal's modes as they are right now, not as of the last sync.
+    pub fn mode(&self) -> TermMode {
+        *self.term.lock().mode()
+    }
+
+    /// The selected text, if any text is selected.
+    pub fn selection(&self) -> Option<String> {
+        let text = self.term.lock().selection_to_string()?;
+        (!text.is_empty()).then_some(text)
+    }
+
+    /// ID of the process started in the terminal, where there is one to ask.
+    pub fn child_pid(&self) -> Option<u32> {
+        #[cfg(unix)]
+        return Some(self.process.pid);
+        #[cfg(not(unix))]
+        None
+    }
+
+    /// The process group in the foreground of the terminal: the one that
+    /// reads its input and gets its signals.
+    ///
+    /// This is the shell's own group (the same number as
+    /// [`Self::child_pid`], since the shell leads its session) while it
+    /// waits at its prompt, and the group of a command while one runs.
+    pub fn foreground_process_group(&self) -> Option<u32> {
+        #[cfg(unix)]
+        {
+            use std::os::fd::AsRawFd;
+
+            let master = self.process.master.as_ref()?;
+            // SAFETY: the descriptor is open for as long as `master` lives.
+            let group = unsafe { libc::tcgetpgrp(master.as_raw_fd()) };
+            u32::try_from(group).ok().filter(|group| *group > 0)
+        }
+        #[cfg(not(unix))]
+        None
     }
 
     pub fn handle(&mut self, cmd: Command) -> Action {
@@ -226,6 +317,11 @@ impl Backend {
             },
             Command::Write(input) => {
                 self.write(input);
+                term.scroll_display(Scroll::Bottom);
+            },
+            Command::Paste(text) => {
+                let bracketed = term.mode().contains(TermMode::BRACKETED_PASTE);
+                self.write(paste_bytes(&text, bracketed));
                 term.scroll_display(Scroll::Bottom);
             },
             Command::Scroll(delta) => {
@@ -973,6 +1069,117 @@ mod tests {
             .expect("no reply to the color scheme query");
 
         assert_eq!(reply, "\x1b[?997;2n");
+    }
+
+    #[test]
+    fn bracketed_paste_is_wrapped_and_cannot_be_ended_by_the_text() {
+        let wrapped = paste_bytes("line 1\nline 2", true);
+        assert_eq!(wrapped, b"\x1b[200~line 1\nline 2\x1b[201~");
+
+        // A clipboard containing the end marker or Ctrl-C must not be able
+        // to close the bracketed paste early.
+        let wrapped = paste_bytes("a\x1b[201~b\x03c", true);
+        assert_eq!(wrapped, b"\x1b[200~a[201~bc\x1b[201~");
+    }
+
+    #[test]
+    fn plain_paste_sends_line_breaks_like_the_enter_key() {
+        assert_eq!(
+            paste_bytes("one\ntwo\r\nthree\r", false),
+            b"one\rtwo\rthree\r"
+        );
+        // Without the markers there is nothing for an escape to break out of.
+        assert_eq!(paste_bytes("a\x1bb", false), b"a\x1bb");
+    }
+
+    /// Wait for `condition` to hold for a terminal with a running program.
+    #[cfg(unix)]
+    fn eventually(what: &str, mut condition: impl FnMut() -> bool) {
+        let deadline =
+            std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while !condition() {
+            assert!(std::time::Instant::now() < deadline, "{what}");
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+    }
+
+    #[cfg(unix)]
+    fn backend_running(script: &str) -> Backend {
+        use tankterm_terminal::term::ColorScheme;
+
+        let (proxy, _receiver) = event_channel(100);
+        let settings = BackendSettings {
+            program: "/bin/sh".into(),
+            args: vec!["-c".into(), script.into()],
+            ..BackendSettings::default()
+        };
+        Backend::new(0, proxy, settings, ColorScheme::Dark).unwrap()
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn pastes_follow_the_bracketed_paste_mode() {
+        let mut backend = backend_running("printf '\\033[?2004h'; exec cat");
+        eventually("bracketed paste was not enabled", || {
+            backend.mode().contains(TermMode::BRACKETED_PASTE)
+        });
+
+        // The terminal echoes the markers of the paste in caret notation.
+        backend.handle(Command::Paste("one\ntwo".into()));
+        eventually("the paste was not wrapped", || {
+            backend.text().concat().contains("^[[200~one")
+        });
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn selection_is_the_selected_text() {
+        let mut backend = backend_running("printf 'hello world'; exec cat");
+        eventually("nothing was printed", || {
+            backend.text().concat().contains("hello world")
+        });
+        assert_eq!(backend.selection(), None);
+
+        // Cells of the default size are a pixel wide: drag over five of them.
+        backend.handle(Command::SelectStart(SelectionType::Simple, (0., 0.)));
+        assert_eq!(backend.selection(), None);
+        backend.handle(Command::SelectUpdate((5.6, 0.)));
+        assert_eq!(backend.selection().as_deref(), Some("hello"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn foreground_group_is_the_shell_until_a_command_runs() {
+        // An interactive shell puts every command in a process group of its
+        // own and hands it the terminal.
+        let (proxy, _receiver) = event_channel(100);
+        let settings = BackendSettings {
+            program: "/bin/sh".into(),
+            args: vec!["-i".into()],
+            ..BackendSettings::default()
+        };
+        let mut backend = Backend::new(
+            0,
+            proxy,
+            settings,
+            tankterm_terminal::term::ColorScheme::Dark,
+        )
+        .unwrap();
+
+        let shell = backend.child_pid().unwrap();
+        eventually("the shell never took the terminal", || {
+            backend.foreground_process_group() == Some(shell)
+        });
+
+        backend.handle(Command::Write(b"sleep 1\n".to_vec()));
+        eventually("the command never took the terminal", || {
+            backend
+                .foreground_process_group()
+                .is_some_and(|group| group != shell)
+        });
+        eventually("the shell never got the terminal back", || {
+            backend.foreground_process_group() == Some(shell)
+        });
     }
 
     #[tokio::test]

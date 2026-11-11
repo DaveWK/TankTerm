@@ -21,8 +21,8 @@ use tankterm_terminal::tty::{Options as PtyOptions, Shell};
 use crate::config::LOG_TARGET_CONFIG;
 use crate::config::bell::BellConfig;
 use crate::config::bindings::{
-    self, Action, Binding, BindingKey, KeyBinding, KeyLocation, ModeWrapper, ModsWrapper,
-    MouseBinding,
+    self, Action, Binding, BindingKey, KeyBinding, KeyLocation, KeyPreset, LeaderKey, ModeWrapper,
+    ModsWrapper, MouseBinding,
 };
 use crate::config::color::Colors;
 use crate::config::cursor::Cursor;
@@ -30,9 +30,11 @@ use crate::config::debug::Debug;
 use crate::config::font::Font;
 use crate::config::general::General;
 use crate::config::mouse::Mouse;
+use crate::config::profile::Profile;
 use crate::config::scrolling::Scrolling;
 use crate::config::selection::Selection;
 use crate::config::style::StyleConfig;
+use crate::config::tabs::Tabs;
 use crate::config::terminal::Terminal;
 use crate::config::window::WindowConfig;
 use crate::display::color::ColorContext;
@@ -64,6 +66,12 @@ pub struct UiConfig {
 
     /// Window configuration.
     pub window: WindowConfig,
+
+    /// Tab bar configuration.
+    pub tabs: Tabs,
+
+    /// Shell profiles offered by the profile selector.
+    pub profiles: Vec<Profile>,
 
     /// Mouse configuration.
     pub mouse: Mouse,
@@ -190,6 +198,23 @@ impl UiConfig {
         &self.keyboard.bindings.0
     }
 
+    /// The tab and pane bindings: those of the selected preset on this platform, with the user's
+    /// bindings replacing and unbinding them like any other default binding.
+    pub fn tab_bindings(&self) -> Vec<KeyBinding> {
+        self.tab_bindings_for(cfg!(target_os = "macos"))
+    }
+
+    /// [`Self::tab_bindings`] for macOS or for the other platforms.
+    pub fn tab_bindings_for(&self, macos: bool) -> Vec<KeyBinding> {
+        let preset = bindings::preset_key_bindings(self.keyboard.preset, macos);
+        deserialize_bindings(&mut self.keyboard.bindings.1.clone(), preset)
+    }
+
+    /// The leader key.
+    pub fn leader(&self) -> &LeaderKey {
+        &self.keyboard.leader
+    }
+
     #[inline]
     pub fn mouse_bindings(&self) -> &[MouseBinding] {
         &self.mouse.bindings.bindings
@@ -212,6 +237,12 @@ impl UiConfig {
 struct Keyboard {
     /// Keybindings.
     bindings: KeyBindings,
+
+    /// Which default keys tabs and panes get.
+    preset: KeyPreset,
+
+    /// The key pressed before the keys of bindings with the `Leader` mode.
+    leader: LeaderKey,
 }
 
 /// Active keybindings and the user's binding entries they were created from.

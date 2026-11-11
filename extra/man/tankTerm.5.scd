@@ -269,6 +269,123 @@ dynamic_padding = _true_++
 opacity = _0.9_
 
 
+# TABS
+
+This section documents the *[tabs]* table of the configuration file.
+
+A window holds one or more tabs, and every tab holds one or more terminals in
+split panes. Tabs and panes are controlled with the key bindings listed in
+*tankTerm-bindings*(5) and with the tab bar, where a tab is selected by clicking
+it and closed with its close button or a middle click.
+
+A tab that isn't shown is marked with _\*_ when one of its terminals prints
+something, until the tab is shown again. A terminal that rings the bell or
+finishes a command while it isn't looked at marks its tab with _!_ and gets a
+bright frame in a split tab, until its pane has focus in the shown tab and the
+window has focus; if the window doesn't have focus, the desktop is also asked to
+draw attention to it. A command counts as finished when the shell gets the
+terminal back from it, which needs no shell integration but is only known on
+Unix, for shells with job control, and within about a second.
+
+*show* = _"Always"_ | _"Multiple"_ | _"Never"_
+
+	When the tab bar is shown.
+
+	*Always*
+		Always show the tab bar.
+	*Multiple*
+		Only show the tab bar while there is more than one tab.
+	*Never*
+		Never show the tab bar.
+
+	Default: _"Multiple"_
+
+*position* = _"Top"_ | _"Bottom"_
+
+	Edge of the window the tab bar is placed at.
+
+	Default: _"Top"_
+
+*restore* = _true_ | _false_
+
+	Open the tabs and split panes the last window had when TankTerm starts.
+
+	The layout is remembered, in _$XDG_STATE_HOME/tankterm/session.json_
+	(_%LOCALAPPDATA%\\tankterm\\session.json_ on Windows), and on Linux also the
+	directory every shell was in; the shells themselves are started fresh.
+	Nothing is restored or remembered when TankTerm is started with a command to
+	run.
+
+	Default: _false_
+
+*inherit_working_directory* = _true_ | _false_
+
+	Start the shells of new tabs and panes in the directory the shell of the
+	current pane is in. Profiles aren't affected.
+
+	The directory is read from _/proc_, so this only works on Linux; elsewhere
+	new shells start in *general.working_directory* as before.
+
+	Default: _true_
+
+Example:
+	*[tabs]*++
+show = _"Always"_++
+position = _"Bottom"_++
+restore = _true_
+
+
+# PROFILES
+
+This section documents the *[[profiles]]* tables of the configuration file.
+
+A profile is a named shell that the profile selector (see _ShowProfiles_) opens
+in a new tab. Everything a profile doesn't set is taken from the rest of the
+configuration. Tabs opened by _CreateNewTab_, splits and restored tabs always run
+the regular shell.
+
+*name* = _"<string>"_
+
+	Name shown in the profile selector. This field is required.
+
+*shell* = _"<string>"_ | { program = _"<string>"_, args = [_"<string>"_,] }
+
+	Program to run instead of *terminal.shell*, like _ssh_ with a host.
+
+	Default: _None_
+
+*working_directory* = _"<string>"_
+
+	Directory the program is started in.
+
+	Default: _None_
+
+*env* = { _<name>_ = _"<string>"_ }
+
+	Environment variables set in addition to the *[env]* section.
+
+	Default: _{}_
+
+*theme* = _"<string>"_
+
+	Theme used for the terminals of this profile in place of the configuration's
+	*theme*, by name or path. Like any theme it is layered underneath the
+	configuration, so colors set in the configuration file itself still apply.
+
+	Default: _None_
+
+Example:
+	*[[profiles]]*++
+name = _"Build server"_++
+shell = { program = _"ssh"_, args = [_"build.example.com"_] }++
+theme = _"dracula"_
+
+	*[[profiles]]*++
+name = _"Project"_++
+working_directory = _"/home/user/project"_++
+env = { EDITOR = _"hx"_ }
+
+
 # SCROLLING
 
 This section documents the *[scrolling]* table of the configuration file.
@@ -723,6 +840,8 @@ This section documents the *[selection]* table of the configuration file.
 *save_to_clipboard* = _true_ | _false_
 
 	When set to _true_, selected text will be copied to the primary clipboard.
+	Selected text is always put on the selection clipboard, which the middle
+	mouse button and _Shift+Insert_ paste, where the platform has one.
 
 	Default: _false_
 
@@ -810,6 +929,18 @@ Windows: _"powershell"_
 
 	Default: _"OnlyCopy"_
 
+*confirm_multiline_paste* = _true_ | _false_
+
+	Ask before pasting text with line breaks into a program that didn't turn on
+	bracketed paste. Such a program takes every line break as the _Enter_ key,
+	so a shell would run the pasted lines one by one. The question shows the
+	text and is answered with _Enter_ to paste or _Escape_ to cancel.
+
+	Programs with bracketed paste, like most interactive shells and editors,
+	get the text as one block and aren't asked about.
+
+	Default: _true_
+
 # MOUSE
 
 This section documents the *[mouse]* table of the configuration file.
@@ -839,10 +970,15 @@ This section documents the *[mouse]* table of the configuration file.
 		*ExpandSelection*
 			Expand the selection to the current mouse cursor location.
 
+	Of the mouse bindings, only those of the middle and right buttons to the
+	_Paste_ and _PasteSelection_ actions have an effect so far; a _mode_ isn't
+	supported for them. The middle button pastes the selection by default.
+	Binding either button to another action keeps it from pasting.
+
 	Example:
 		*[mouse]*++
 bindings = [++
-	{ mouse = _"Right"_, mods = _"Control"_, action = _"Paste"_ },++
+	{ mouse = _"Right"_, action = _"Paste"_ },++
 ]
 
 # HINTS
@@ -936,6 +1072,43 @@ regex =
 
 This section documents the *[keyboard]* table of the configuration file.
 
+*preset* = _"Tabby"_ | _"WezTerm"_ | _"Leader"_
+
+	Which default keys tabs and panes get. The keys of every preset are listed
+	in *tankTerm-bindings*(5). Entries in _bindings_ replace and unset them like
+	any other default binding.
+
+	*Tabby*
+		Keys like Tabby's: _Alt_ and a digit selects a tab, _Control|Alt_ and an
+		arrow key moves between panes. _Control|Shift_ and the arrow keys are
+		left to the applications in the terminal.
+	*WezTerm*
+		Keys like WezTerm's, all on _Control|Shift_: with a digit to select a
+		tab and with an arrow key to move between panes. _Alt_ and the digits
+		are left to the applications in the terminal.
+	*Leader*
+		Keys like tmux's: only opening a tab and splitting have keys of their
+		own. Everything else is reached by pressing the leader key and then a
+		second key.
+
+	On macOS the _Tabby_ and _WezTerm_ presets have the same _Command_ keys.
+
+	Default: _"Tabby"_
+
+*leader* = { key = _"<string>"_, mods = _"<string>"_, timeout = _<integer>_ }
+
+	The leader key: the key pressed before the key of a binding with the
+	_Leader_ mode. Neither the leader key nor the key after it reach the shell.
+	A key without a _Leader_ binding ends the sequence, as does waiting longer
+	than _timeout_ milliseconds for the second key. Pressing the leader key
+	twice sends it to the shell once.
+
+	_key_ and _mods_ are written like in _bindings_; _mods_ and _timeout_ are
+	optional. While there are no bindings with the _Leader_ mode, the leader key
+	is an ordinary key.
+
+	Default: { key = _"A"_, mods = _"Control"_, timeout = _1000_ }
+
 *bindings* = [{ *<key>*, *<mods>*, *<mode>*, *<command>* | *<chars>* | *<action>* },]
 
 	To unset a default binding, you can use the action _"ReceiveChar"_ to remove
@@ -965,10 +1138,14 @@ _https://docs.rs/winit/latest/winit/keyboard/enum.Key.html_
 		Multiple modifiers can be combined using _|_, like this: _"Control |
 		Shift"_.
 
-	*mode* = _"AppCursor"_ | _"AppKeypad"_ | _"Search"_ | _"Alt"_ | _"Vi"_
+	*mode* = _"AppCursor"_ | _"AppKeypad"_ | _"Search"_ | _"Alt"_ | _"Vi"_ | _"Leader"_
 
 		This defines a terminal mode which must be active for this binding to
 		have an effect.
+
+		_Leader_ isn't a terminal mode: a binding with it takes effect when its
+		key is pressed after the leader key (see _leader_). It is for the tab
+		and pane actions and can't be combined with other modes.
 
 		Prepending _~_ to a mode will require the mode to *not* = be active for
 		the binding to take effect.
@@ -1152,18 +1329,16 @@ _https://docs.rs/winit/latest/winit/keyboard/enum.Key.html_
 		*SearchHistoryNext*
 			Go to the next regex in the search history.
 
-		_macOS exclusive:_
+		_Tab and pane actions:_
 
-		*ToggleSimpleFullscreen*
-			Enter fullscreen without occupying another space.
-		*HideOtherApplications*
-			Hide all windows other than TankTerm.
 		*CreateNewTab*
-			Create new window in a tab.
+			Open a new tab after the last one.
+		*CloseTab*
+			Close the current tab and all of its panes.
 		*SelectNextTab*
-			Select next tab.
+			Select the next tab, or the first one after the last.
 		*SelectPreviousTab*
-			Select previous tab.
+			Select the previous tab, or the last one before the first.
 		*SelectTab1*
 			Select the first tab.
 		*SelectTab2*
@@ -1184,6 +1359,57 @@ _https://docs.rs/winit/latest/winit/keyboard/enum.Key.html_
 			Select the ninth tab.
 		*SelectLastTab*
 			Select the last tab.
+		*MoveTabLeft*
+			Move the current tab one position to the left.
+		*MoveTabRight*
+			Move the current tab one position to the right.
+		*SplitRight*
+			Split the current pane and open a new terminal on its right.
+		*SplitDown*
+			Split the current pane and open a new terminal below it.
+		*ClosePane*
+			Close the current pane. Closing the last pane of a tab closes the tab.
+		*FocusPaneLeft*
+			Focus the pane left of the current one.
+		*FocusPaneRight*
+			Focus the pane right of the current one.
+		*FocusPaneUp*
+			Focus the pane above the current one.
+		*FocusPaneDown*
+			Focus the pane below the current one.
+		*FocusNextPane*
+			Focus the next pane of the tab, from left to right and top to bottom.
+		*FocusPreviousPane*
+			Focus the previous pane of the tab.
+		*TogglePaneZoom*
+			Let the current pane fill the tab, or show the other panes again.
+			Focusing another pane or splitting also ends the zoom.
+		*ResizePaneLeft*
+			Move the nearest divider left or right of the current pane to the left.
+		*ResizePaneRight*
+			Move the nearest divider left or right of the current pane to the right.
+		*ResizePaneUp*
+			Move the nearest divider above or below the current pane up.
+		*ResizePaneDown*
+			Move the nearest divider above or below the current pane down.
+
+		*ShowCommandPalette*
+			Show the command palette, a list of the tab and pane actions with their
+			key bindings. Typing filters the list, the arrow keys move the selection,
+			_Enter_ runs the selected action and _Escape_ closes the list.
+		*ShowProfiles*
+			Show the profile selector, which opens the regular shell or one of the
+			*[[profiles]]* in a new tab. It is used like the command palette.
+
+		Tab and pane bindings can't be limited to a _mode_ other than
+		_Leader_.
+
+		_macOS exclusive:_
+
+		*ToggleSimpleFullscreen*
+			Enter fullscreen without occupying another space.
+		*HideOtherApplications*
+			Hide all windows other than TankTerm.
 
 		_Linux/BSD exclusive:_
 
