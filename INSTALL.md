@@ -6,11 +6,11 @@ If you're just interested in the TankTerm binary and you don't need the
 install it directly through cargo:
 
 ```sh
-cargo install --git https://github.com/DaveWK/TankTerm --branch staging tankterm
+cargo install --git https://github.com/DaveWK/TankTerm tankterm
 ```
 
-This installs the `tankTerm` binary with the OpenGL front end from the `staging`
-branch. The default `main` branch uses the iced front end.
+This installs the `tankTerm` binary. For the OpenGL front end, add
+`--branch staging`.
 
 Note that you will still need to install the dependencies for your OS of choice,
 and the default [font](#font). Please refer to the [Dependencies](#dependencies)
@@ -57,11 +57,11 @@ section.
 ### Clone the source code
 
 Before compiling TankTerm, you'll have to first clone the source code. The
-`staging` branch has the OpenGL front end; the default `main` branch uses the
-iced front end.
+default `main` branch uses the iced front end; the `staging` branch has the
+OpenGL front end.
 
 ```sh
-git clone --branch staging https://github.com/DaveWK/TankTerm.git
+git clone https://github.com/DaveWK/TankTerm.git
 cd TankTerm
 ```
 
