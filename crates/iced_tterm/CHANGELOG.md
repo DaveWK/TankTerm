@@ -26,6 +26,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and how many lines the view is scrolled back
 - `Command::RemoveClipboardKeys` takes the widget's copy and paste keys out of its bindings, for
   applications that bind these actions themselves
+- Cursor shapes and blinking: the cursor is drawn as a block, underline or beam, as the
+  application in the terminal asks for with DECSCUSR, and blinks if it is set to.
+  `Settings::cursor` (`CursorSettings`) has the default shape, whether and how fast the cursor
+  blinks, the blink timeout, the thickness of the thin shapes and whether an unfocused cursor
+  is hollow; `Command::ChangeCursor` changes them for a running terminal
+- `Command::Focus(bool)` tells a terminal whether it has the keyboard focus, which the hollow
+  cursor and the blinking go by
+- `Terminal::cursor_shape()` and `Terminal::cursor_blinks()`: the shape the cursor is drawn with
+  right now and whether it is blinking; `CursorShape` is re-exported from `tankterm_terminal`
+- `BackendCommand::BlinkCursor`, which `Terminal::subscription()` sends every blink interval
+  while the cursor blinks; pass it on to `Terminal::handle` like the other backend calls
 - `Settings::scroll` (`ScrollSettings`): `history`, the most lines the scrollback buffer keeps,
   and `multiplier`, the lines scrolled for every step of the mouse wheel; `Command::ChangeScroll`
   changes both for a running terminal
@@ -36,7 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   text instead of `BackendCommand::Write` with the bytes to send, so applications can hold a paste
   back before passing it on to `Terminal::handle`
 - (**breaking changes**) `Event` has a new `SelectionFinished` variant
-- (**breaking changes**) `Settings` has a new `scroll` field
+- (**breaking changes**) `Settings` has new `scroll` and `cursor` fields
 - Pastes without bracketed paste send line breaks as carriage returns, like the Enter key
 - Releasing the mouse button outside the terminal ends a selection drag
 

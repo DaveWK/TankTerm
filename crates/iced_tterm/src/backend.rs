@@ -22,7 +22,7 @@ use tankterm_terminal::term::{
     self, cell::Cell, color::Colors, test::TermSize, viewport_to_point, Term,
     TermMode,
 };
-use tankterm_terminal::vte::ansi::{ClearMode, Handler, Rgb};
+use tankterm_terminal::vte::ansi::{ClearMode, CursorStyle, Handler, Rgb};
 use tankterm_terminal::{tty, Grid};
 use tokio::sync::mpsc;
 
@@ -73,6 +73,9 @@ pub enum Command {
     ScrollDisplay(Scroll),
     /// Drop the scrollback buffer, keeping what is on the screen.
     ClearHistory,
+    /// The cursor's blink interval passed. The widget's subscription sends
+    /// this while the cursor blinks.
+    BlinkCursor,
     Resize(Option<Size<f32>>, Option<Size<f32>>),
     SelectStart(SelectionType, (f32, f32)),
     SelectUpdate((f32, f32)),
@@ -209,13 +212,15 @@ impl Backend {
     /// Spawn the shell.
     ///
     /// `color_scheme` is set before the PTY reader starts, so the shell can query it right away.
-    /// `scrollback` is the most lines the scrollback buffer keeps.
+    /// `scrollback` is the most lines the scrollback buffer keeps and
+    /// `cursor_style` the cursor's style until the application sets one.
     pub fn new(
         id: u64,
         event_proxy: EventProxy,
         settings: BackendSettings,
         color_scheme: tankterm_terminal::term::ColorScheme,
         scrollback: usize,
+        cursor_style: CursorStyle,
     ) -> Result<Self> {
         let pty_config = tty::Options {
             shell: Some(tty::Shell::new(settings.program, settings.args)),
@@ -224,7 +229,7 @@ impl Backend {
             ..tty::Options::default()
         };
 
-        let config = term_config(scrollback);
+        let config = term_config(scrollback, cursor_style);
         let terminal_size = TerminalSize::default();
         let pty = tty::new(&pty_config, terminal_size.into(), id)?;
         #[cfg(unix)]
@@ -245,6 +250,7 @@ impl Backend {
             terminal_mode: *term.mode(),
             terminal_size,
             cursor: cursor.clone(),
+            cursor_style: term.cursor_style(),
             hovered_hyperlink: None,
             colors: *term.colors(),
         };
@@ -278,6 +284,17 @@ impl Backend {
         }
 
         self.config.scrolling_history = scrollback;
+        self.term.lock().set_options(self.config.clone());
+    }
+
+    /// Change the style the cursor has while the application in the
+    /// terminal hasn't set one.
+    pub(crate) fn set_default_cursor_style(&mut self, style: CursorStyle) {
+        if self.config.default_cursor_style == style {
+            return;
+        }
+
+        self.config.default_cursor_style = style;
         self.term.lock().set_options(self.config.clone());
     }
 
@@ -362,6 +379,8 @@ impl Backend {
             Command::ClearHistory => {
                 term.clear_screen(ClearMode::Saved);
             },
+            // The cursor's blinking is the widget's, not the terminal's.
+            Command::BlinkCursor => {},
             Command::Resize(layout_size, font_measure) => {
                 self.resize(&mut term, layout_size, font_measure);
             },
@@ -687,6 +706,7 @@ impl Backend {
         self.last_content.grid = terminal.grid().clone();
         self.last_content.selectable_range = selectable_range;
         self.last_content.cursor = cursor.clone();
+        self.last_content.cursor_style = terminal.cursor_style();
         self.last_content.terminal_mode = *terminal.mode();
         self.last_content.terminal_size = self.size;
         self.last_content.colors = *terminal.colors();
@@ -711,10 +731,11 @@ impl Backend {
 }
 
 /// The configuration of the widget's `Term`, keeping at most `scrollback`
-/// lines of history.
-fn term_config(scrollback: usize) -> term::Config {
+/// lines of history and showing the cursor with `cursor_style` by default.
+fn term_config(scrollback: usize, cursor_style: CursorStyle) -> term::Config {
     term::Config {
         scrolling_history: scrollback,
+        default_cursor_style: cursor_style,
         // Let applications opt into the kitty keyboard protocol; keys are
         // encoded for whatever flags they enable (see `crate::keyboard`), and
         // nothing changes for applications that don't.
@@ -762,6 +783,9 @@ pub struct RenderableContent {
     pub hovered_hyperlink: Option<RangeInclusive<Point>>,
     pub selectable_range: Option<SelectionRange>,
     pub cursor: Cell,
+    /// The cursor's shape and whether it blinks, as the application in the
+    /// terminal set them or else as configured.
+    pub cursor_style: CursorStyle,
     pub terminal_mode: TermMode,
     pub terminal_size: TerminalSize,
     /// Colors the application changed at runtime (OSC 4/10/11/12); `None`
@@ -776,6 +800,7 @@ impl Default for RenderableContent {
             hovered_hyperlink: None,
             selectable_range: None,
             cursor: Cell::default(),
+            cursor_style: CursorStyle::default(),
             terminal_mode: TermMode::empty(),
             terminal_size: TerminalSize::default(),
             colors: Colors::default(),
@@ -886,7 +911,7 @@ mod tests {
         fn new() -> Self {
             let events = EventCollector::default();
             let term = Term::new(
-                term_config(10_000),
+                term_config(10_000, CursorStyle::default()),
                 &TermSize::new(80, 24),
                 events.clone(),
             );
@@ -1091,9 +1116,15 @@ mod tests {
             args: vec!["-c".into(), "printf '\\033[?996n'; sleep 2".into()],
             ..BackendSettings::default()
         };
-        let _backend =
-            Backend::new(0, proxy, settings, ColorScheme::Light, 10_000)
-                .unwrap();
+        let _backend = Backend::new(
+            0,
+            proxy,
+            settings,
+            ColorScheme::Light,
+            10_000,
+            CursorStyle::default(),
+        )
+        .unwrap();
 
         let reply =
             tokio::time::timeout(std::time::Duration::from_secs(5), async {
@@ -1159,7 +1190,15 @@ mod tests {
             args: vec!["-c".into(), script.into()],
             ..BackendSettings::default()
         };
-        Backend::new(0, proxy, settings, ColorScheme::Dark, scrollback).unwrap()
+        Backend::new(
+            0,
+            proxy,
+            settings,
+            ColorScheme::Dark,
+            scrollback,
+            CursorStyle::default(),
+        )
+        .unwrap()
     }
 
     #[cfg(unix)]
@@ -1229,6 +1268,38 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
+    fn cursor_style_is_the_applications_or_the_default() {
+        use tankterm_terminal::vte::ansi::CursorShape;
+
+        let style = |shape, blinking| CursorStyle { shape, blinking };
+        let synced = |backend: &mut Backend| {
+            backend.sync();
+            backend.renderable_content().cursor_style
+        };
+
+        // DECSCUSR 5 is a blinking beam; the shell then waits to be told
+        // to go back to the default with DECSCUSR 0.
+        let script =
+            "printf '\\033[5 q'; read line; printf '\\033[0 q'; exec cat";
+        let mut backend = backend_running(script);
+        eventually("the cursor never became a beam", || {
+            synced(&mut backend) == style(CursorShape::Beam, true)
+        });
+
+        // A new default doesn't replace what the application asked for.
+        backend.set_default_cursor_style(style(CursorShape::Underline, false));
+        assert_eq!(synced(&mut backend), style(CursorShape::Beam, true));
+
+        backend.handle(Command::Write(b"\n".to_vec()));
+        eventually("the cursor never went back to the default", || {
+            synced(&mut backend) == style(CursorShape::Underline, false)
+        });
+        backend.set_default_cursor_style(style(CursorShape::Block, true));
+        assert_eq!(synced(&mut backend), style(CursorShape::Block, true));
+    }
+
+    #[cfg(unix)]
+    #[test]
     fn cells_of_a_tiny_font_are_a_pixel() {
         let mut backend = backend_running("exec cat");
         backend.handle(Command::Resize(
@@ -1291,6 +1362,7 @@ mod tests {
             settings,
             tankterm_terminal::term::ColorScheme::Dark,
             10_000,
+            CursorStyle::default(),
         )
         .unwrap();
 

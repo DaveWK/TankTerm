@@ -3,6 +3,7 @@ pub mod bindings;
 pub mod settings;
 
 mod backend;
+mod cursor;
 mod font;
 mod keyboard;
 mod terminal;
@@ -16,6 +17,7 @@ pub use tankterm_terminal::grid::Scroll;
 pub use tankterm_terminal::index::Point as AlacrittyPoint;
 pub use tankterm_terminal::selection::SelectionType;
 pub use tankterm_terminal::term::TermMode;
+pub use tankterm_terminal::vte::ansi::CursorShape;
 pub use terminal::{Command, Event, Terminal};
 pub use theme::{ColorPalette, Theme};
 pub use view::TerminalView;

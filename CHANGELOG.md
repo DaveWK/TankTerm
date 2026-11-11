@@ -98,6 +98,12 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 - The font size actions change the font size of every terminal in the window, a pixel at a
     time and down to four pixels
 - Tab and pane key bindings can be limited to the `AppCursor`, `AppKeypad` and `Alt` modes
+- `cursor.style`, `cursor.blink_interval`, `cursor.blink_timeout`, `cursor.unfocused_hollow` and
+    `cursor.thickness` apply to the iced front end, and so do the cursor shapes and blinking
+    applications ask for
+- The cursor only blinks in the terminal that has the keyboard focus, and with
+    `cursor.unfocused_hollow` it is hollow in the panes that don't have it, not only in a window
+    without focus
 
 ### Removed
 

@@ -1,7 +1,9 @@
+use std::time::Duration;
 use std::{collections::HashMap, path::PathBuf};
 
 use crate::ColorPalette;
 use iced::Font;
+use tankterm_terminal::vte::ansi::CursorShape;
 
 #[cfg(target_os = "windows")]
 const DEFAULT_SHELL: &str = "wsl.exe";
@@ -15,6 +17,55 @@ pub struct Settings {
     pub theme: ThemeSettings,
     pub backend: BackendSettings,
     pub scroll: ScrollSettings,
+    pub cursor: CursorSettings,
+}
+
+/// How the cursor looks and blinks.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CursorSettings {
+    /// The shape of the cursor until the application in the terminal asks
+    /// for another one (DECSCUSR).
+    pub shape: CursorShape,
+    /// Whether the cursor blinks.
+    pub blinking: CursorBlinking,
+    /// How long the cursor is lit and dark for while it blinks.
+    pub blink_interval: Duration,
+    /// How long the cursor blinks before it stays lit, until something is
+    /// typed; `None` lets it blink forever.
+    pub blink_timeout: Option<Duration>,
+    /// Draw the cursor of a terminal without the keyboard focus as a hollow
+    /// block.
+    pub unfocused_hollow: bool,
+    /// Thickness of the beam, underline and hollow block cursors, relative
+    /// to the width of a cell.
+    pub thickness: f32,
+}
+
+impl Default for CursorSettings {
+    fn default() -> Self {
+        Self {
+            shape: CursorShape::Block,
+            blinking: CursorBlinking::Off,
+            blink_interval: Duration::from_millis(750),
+            blink_timeout: Some(Duration::from_secs(5)),
+            unfocused_hollow: true,
+            thickness: 0.15,
+        }
+    }
+}
+
+/// Whether the cursor blinks.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum CursorBlinking {
+    /// Never, whatever the application in the terminal asks for.
+    Never,
+    /// Not until the application asks for a blinking cursor.
+    #[default]
+    Off,
+    /// Until the application asks for a steady cursor.
+    On,
+    /// Always, whatever the application asks for.
+    Always,
 }
 
 /// The scrollback buffer and how far the mouse wheel scrolls.

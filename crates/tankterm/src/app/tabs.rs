@@ -200,6 +200,8 @@ impl App {
             busy: false,
             working_directory,
             attention: false,
+            // A new terminal takes itself to have the keyboard focus.
+            focused: true,
         };
         self.next_terminal += 1;
         self.terminals.insert(id, shell);

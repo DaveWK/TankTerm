@@ -2,6 +2,7 @@ use crate::backend::{
     Backend, Command, LinkAction, MouseButton, RenderableContent,
 };
 use crate::bindings::{BindingAction, BindingsLayout, InputKind};
+use crate::cursor::cursor_rectangles;
 use crate::keyboard::{self, KeyInput, KeyState, KittyOutput};
 use crate::terminal::{Event, Terminal};
 use crate::theme::TerminalStyle;
@@ -22,7 +23,7 @@ use iced_graphics::geometry::Stroke;
 use tankterm_terminal::index::Point as TerminalGridPoint;
 use tankterm_terminal::selection::SelectionType;
 use tankterm_terminal::term::{cell, TermMode};
-use tankterm_terminal::vte::ansi::{self as ansi, NamedColor};
+use tankterm_terminal::vte::ansi::{self as ansi, CursorShape, NamedColor};
 
 pub struct TerminalView<'a> {
     term: &'a Terminal,
@@ -636,6 +637,11 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                 overrides,
             );
 
+            // Hidden while the application hides the cursor and in the
+            // dark half of a blink.
+            let cursor_shape = self.term.cursor_shape();
+            let cursor_thickness = self.term.cursor.settings.thickness;
+
             let mut last_line: Option<i32> = None;
             let mut bg_batch_rect = BackgroundRect::default();
 
@@ -749,9 +755,8 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                 }
 
                 // Handle cursor rendering
-                if content.grid.cursor.point == indexed.point
-                    && content.terminal_mode.contains(TermMode::SHOW_CURSOR)
-                {
+                let is_cursor = content.grid.cursor.point == indexed.point;
+                if is_cursor {
                     // An application-set cursor color (OSC 12) wins;
                     // otherwise the cursor takes the cell's foreground.
                     let cursor_color = match overrides[NamedColor::Cursor] {
@@ -761,9 +766,18 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                             overrides,
                         ),
                     };
-                    let cursor_rect =
-                        Path::rectangle(Point::new(x, y), cell_size);
-                    frame.fill(&cursor_rect, cursor_color);
+                    for rectangle in cursor_rectangles(
+                        cursor_shape,
+                        Point::new(x, y),
+                        cell_size,
+                        cursor_thickness,
+                    ) {
+                        frame.fill_rectangle(
+                            rectangle.position(),
+                            rectangle.size(),
+                            cursor_color,
+                        );
+                    }
                 }
 
                 // Draw text
@@ -774,9 +788,8 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                     // APP_CURSOR, a keypad mode unrelated to rendering —
                     // made the glyph invisible whenever the cell was
                     // INVERSE or inside a selection.
-                    if content.grid.cursor.point == indexed.point
-                        && content.terminal_mode.contains(TermMode::SHOW_CURSOR)
-                    {
+                    // The other cursor shapes leave the glyph as it is.
+                    if is_cursor && cursor_shape == CursorShape::Block {
                         fg = cell_bg;
                     }
                     // Resolve font style (bold/italic) from cell flags

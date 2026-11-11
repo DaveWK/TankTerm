@@ -1,10 +1,13 @@
 use crate::actions::Action;
 use crate::backend;
 use crate::bindings::{Binding, BindingAction, BindingsLayout, InputKind};
+use crate::cursor::Cursor;
 use crate::font::TermFont;
-use crate::settings::{FontSettings, ScrollSettings, Settings, ThemeSettings};
+use crate::settings::{
+    CursorSettings, FontSettings, ScrollSettings, Settings, ThemeSettings,
+};
 use crate::theme::{ColorPalette, Theme};
-use crate::{AlacrittyEvent, TermMode};
+use crate::{AlacrittyEvent, CursorShape, TermMode};
 use iced::futures::stream::BoxStream;
 use iced::futures::{SinkExt, StreamExt};
 use iced::widget::canvas::Cache;
@@ -12,6 +15,7 @@ use iced::Subscription;
 use std::hash::{Hash, Hasher};
 use std::io::Result;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 
 #[derive(Debug, Clone)]
@@ -29,6 +33,13 @@ pub enum Command {
     /// Change the size of the scrollback buffer and how far the mouse wheel
     /// scrolls. Lines the smaller buffer has no room for are dropped.
     ChangeScroll(ScrollSettings),
+    /// Change how the cursor looks and blinks. A shape the application in
+    /// the terminal asked for is kept.
+    ChangeCursor(CursorSettings),
+    /// Tell the terminal whether it has the keyboard focus. Without it the
+    /// cursor doesn't blink and is drawn hollow, if the settings say so. A
+    /// new terminal has the focus.
+    Focus(bool),
     AddBindings(Vec<(Binding<InputKind>, BindingAction)>),
     /// Take the widget's own keys for copying and pasting away, for
     /// applications that bind these actions themselves. The keys are sent
@@ -46,6 +57,7 @@ pub struct Terminal {
     pub(crate) bindings: BindingsLayout,
     /// Lines scrolled for every step of the mouse wheel.
     pub(crate) scroll_multiplier: f32,
+    pub(crate) cursor: Cursor,
     pub(crate) backend: backend::Backend,
     backend_event_rx: Arc<Mutex<backend::EventReceiver>>,
 }
@@ -55,12 +67,14 @@ impl Terminal {
         let (backend_event_tx, backend_event_rx) = backend::event_channel(100);
         let theme = Theme::new(settings.theme);
         let font = TermFont::new(settings.font);
+        let cursor = Cursor::new(settings.cursor, Instant::now());
         let backend = backend::Backend::new(
             id,
             backend_event_tx,
             settings.backend,
             theme.color_scheme(),
             settings.scroll.history,
+            cursor.default_style(),
         )?;
 
         Ok(Self {
@@ -70,6 +84,7 @@ impl Terminal {
             theme,
             bindings: BindingsLayout::default(),
             scroll_multiplier: settings.scroll.multiplier,
+            cursor,
             cache: Cache::default(),
             backend,
             backend_event_rx: Arc::new(Mutex::new(backend_event_rx)),
@@ -85,8 +100,41 @@ impl Terminal {
             id: self.id,
             event_receiver: self.backend_event_rx.clone(),
         };
+        let events = Subscription::run_with(data, terminal_subscription_stream);
 
-        Subscription::run_with(data, terminal_subscription_stream)
+        if !self.cursor_blinks() {
+            return events;
+        }
+
+        // The timer only runs while the cursor blinks, so a terminal with a
+        // steady cursor is never woken up for it.
+        let blink = BlinkSubscriptionData {
+            id: self.id,
+            interval: self.cursor.settings.blink_interval,
+        };
+        Subscription::batch([
+            events,
+            Subscription::run_with(blink, blink_subscription_stream),
+        ])
+    }
+
+    /// The shape the cursor is drawn with right now:
+    /// [`CursorShape::Hidden`] while the application in the terminal hides
+    /// it and in the dark half of a blink, [`CursorShape::HollowBlock`]
+    /// without the keyboard focus, and otherwise the shape the application
+    /// asked for or the one from the settings.
+    pub fn cursor_shape(&self) -> CursorShape {
+        let content = self.backend.renderable_content();
+        let shown = content.terminal_mode.contains(TermMode::SHOW_CURSOR);
+        self.cursor.shape(content.cursor_style, shown)
+    }
+
+    /// Whether the cursor is blinking: it is set to, by the settings or the
+    /// application in the terminal, the terminal has the keyboard focus and
+    /// the blink timeout hasn't passed since something was typed.
+    pub fn cursor_blinks(&self) -> bool {
+        self.cursor
+            .blinks(self.backend.renderable_content().cursor_style)
     }
 
     /// The terminal's text, scrollback first and the visible screen last, one
@@ -159,6 +207,26 @@ impl Terminal {
                 self.scroll_multiplier = scroll.multiplier;
                 self.backend.set_scrollback(scroll.history);
             },
+            Command::ChangeCursor(settings) => {
+                self.cursor.settings = settings;
+                self.cursor.restart(Instant::now());
+                self.backend
+                    .set_default_cursor_style(self.cursor.default_style());
+            },
+            Command::Focus(focused) => {
+                self.cursor.set_focused(focused, Instant::now());
+            },
+            Command::ProxyToBackend(backend::Command::BlinkCursor) => {
+                let shape = self.cursor_shape();
+                let style = self.backend.renderable_content().cursor_style;
+                self.cursor.blink(style, Instant::now());
+
+                // A blink of a cursor the application hides, or one that
+                // stays lit while something is typed, changes nothing.
+                if self.cursor_shape() == shape {
+                    return action;
+                }
+            },
             Command::AddBindings(bindings) => {
                 self.bindings.add_bindings(bindings);
             },
@@ -179,6 +247,17 @@ impl Terminal {
                 );
             },
             Command::ProxyToBackend(cmd) => {
+                match &cmd {
+                    backend::Command::Write(_) | backend::Command::Paste(_) => {
+                        self.cursor.typed(Instant::now());
+                    },
+                    // The application changed whether the cursor blinks.
+                    backend::Command::ProcessAlacrittyEvent(
+                        AlacrittyEvent::CursorBlinkingChange,
+                    ) => self.cursor.restart(Instant::now()),
+                    _ => {},
+                }
+
                 action = self.backend.handle(cmd);
             },
         };
@@ -202,6 +281,37 @@ impl Terminal {
     fn redraw(&mut self) {
         self.cache.clear();
     }
+}
+
+/// Identifies the timer of a terminal's blinking cursor.
+#[derive(Clone, Hash)]
+struct BlinkSubscriptionData {
+    id: u64,
+    interval: Duration,
+}
+
+/// An event every blink interval, from a thread of its own so that no timer
+/// of an async runtime is needed.
+fn blink_subscription_stream(
+    data: &BlinkSubscriptionData,
+) -> BoxStream<'static, Event> {
+    let (id, interval) = (data.id, data.interval);
+    let (mut sender, receiver) = iced::futures::channel::mpsc::channel(1);
+
+    std::thread::spawn(move || loop {
+        std::thread::sleep(interval);
+        let blink = Event::BackendCall(id, backend::Command::BlinkCursor);
+        // A full channel means the application is behind and doesn't need
+        // another blink; a closed one that the cursor stopped blinking.
+        if sender
+            .try_send(blink)
+            .is_err_and(|err| err.is_disconnected())
+        {
+            break;
+        }
+    });
+
+    receiver.boxed()
 }
 
 #[derive(Clone)]
@@ -247,4 +357,64 @@ fn terminal_subscription_stream(
         }
     })
     .boxed()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn blink_timer_sends_a_blink_every_interval() {
+        let data = BlinkSubscriptionData {
+            id: 7,
+            interval: Duration::from_millis(5),
+        };
+        let mut blinks = blink_subscription_stream(&data);
+
+        for _ in 0..3 {
+            let blink = iced::futures::executor::block_on(blinks.next());
+            assert!(matches!(
+                blink,
+                Some(Event::BackendCall(7, backend::Command::BlinkCursor))
+            ));
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cursor_settings_and_focus_change_for_a_running_terminal() {
+        use crate::settings::{BackendSettings, CursorBlinking};
+
+        let settings = Settings {
+            backend: BackendSettings {
+                program: "cat".into(),
+                ..BackendSettings::default()
+            },
+            ..Settings::default()
+        };
+        let mut terminal = Terminal::new(0, settings).unwrap();
+        assert_eq!(terminal.cursor_shape(), CursorShape::Block);
+        assert!(!terminal.cursor_blinks());
+
+        terminal.handle(Command::ChangeCursor(CursorSettings {
+            shape: CursorShape::Underline,
+            blinking: CursorBlinking::On,
+            ..CursorSettings::default()
+        }));
+        assert_eq!(terminal.cursor_shape(), CursorShape::Underline);
+        assert!(terminal.cursor_blinks());
+
+        let blink = Command::ProxyToBackend(backend::Command::BlinkCursor);
+        terminal.handle(blink.clone());
+        assert_eq!(terminal.cursor_shape(), CursorShape::Hidden);
+        terminal.handle(blink);
+        assert_eq!(terminal.cursor_shape(), CursorShape::Underline);
+
+        terminal.handle(Command::Focus(false));
+        assert_eq!(terminal.cursor_shape(), CursorShape::HollowBlock);
+        assert!(!terminal.cursor_blinks());
+        terminal.handle(Command::Focus(true));
+        assert_eq!(terminal.cursor_shape(), CursorShape::Underline);
+        assert!(terminal.cursor_blinks());
+    }
 }

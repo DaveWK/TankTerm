@@ -1,5 +1,7 @@
 //! Conversion from the TankTerm configuration to `iced_tterm` settings.
 
+use std::time::Duration;
+
 use iced::font::Family;
 use iced::{Color, Font, Padding, Size};
 use iced_core::alignment::Vertical;
@@ -7,7 +9,8 @@ use iced_core::text::{Alignment, LineHeight, Paragraph as _, Shaping, Text, Wrap
 use iced_graphics::text::paragraph::Paragraph;
 use iced_tterm::ColorPalette;
 use iced_tterm::settings::{
-    BackendSettings, FontSettings, ScrollSettings, Settings, ThemeSettings,
+    BackendSettings, CursorBlinking, CursorSettings, FontSettings, ScrollSettings, Settings,
+    ThemeSettings,
 };
 use log::warn;
 
@@ -37,6 +40,32 @@ pub fn settings(config: &UiConfig, options: &Options) -> Settings {
         theme: ThemeSettings::new(Box::new(palette(&config.colors))),
         backend: backend_settings(config, options, std::env::var("SHELL").ok()),
         scroll: scroll_settings(config),
+        cursor: cursor_settings(config),
+    }
+}
+
+/// The cursor's shape and blinking.
+fn cursor_settings(config: &UiConfig) -> CursorSettings {
+    let cursor = &config.cursor;
+    let style = cursor.style();
+
+    // What the application in the terminal asks for decides unless the config forces blinking
+    // on or off.
+    let blinking = match (cursor.style.blinking_override(), style.blinking) {
+        (Some(false), _) => CursorBlinking::Never,
+        (Some(true), _) => CursorBlinking::Always,
+        (None, false) => CursorBlinking::Off,
+        (None, true) => CursorBlinking::On,
+    };
+    let timeout = cursor.blink_timeout();
+
+    CursorSettings {
+        shape: style.shape,
+        blinking,
+        blink_interval: Duration::from_millis(cursor.blink_interval()),
+        blink_timeout: (!timeout.is_zero()).then_some(timeout),
+        unfocused_hollow: cursor.unfocused_hollow,
+        thickness: cursor.thickness(),
     }
 }
 
@@ -457,6 +486,69 @@ mod tests {
         let config = config("[scrolling]\nhistory = 0\nmultiplier = 7\n");
         assert_eq!(scroll_settings(&config), ScrollSettings { history: 0, multiplier: 7. });
         assert_eq!(settings(&config, &options(&[])).scroll, scroll_settings(&config));
+    }
+
+    #[test]
+    fn cursor_follows_the_config() {
+        use iced_tterm::CursorShape;
+
+        assert_eq!(cursor_settings(&UiConfig::default()), CursorSettings {
+            shape: CursorShape::Block,
+            blinking: CursorBlinking::Off,
+            blink_interval: Duration::from_millis(750),
+            blink_timeout: Some(Duration::from_secs(5)),
+            unfocused_hollow: true,
+            thickness: 0.15,
+        });
+
+        let config = config(concat!(
+            "[cursor]\n",
+            "style = { shape = \"Beam\", blinking = \"Always\" }\n",
+            "blink_interval = 200\n",
+            "blink_timeout = 0\n",
+            "unfocused_hollow = false\n",
+            "thickness = 0.5\n",
+        ));
+        let cursor = cursor_settings(&config);
+        assert_eq!(cursor, CursorSettings {
+            shape: CursorShape::Beam,
+            blinking: CursorBlinking::Always,
+            blink_interval: Duration::from_millis(200),
+            blink_timeout: None,
+            unfocused_hollow: false,
+            thickness: 0.5,
+        });
+        assert_eq!(settings(&config, &options(&[])).cursor, cursor);
+
+        let blinking = |style: &str| {
+            let config = self::config(&format!("[cursor]\nstyle = {style}\n"));
+            let cursor = cursor_settings(&config);
+            (cursor.shape, cursor.blinking)
+        };
+        assert_eq!(blinking("\"Underline\""), (CursorShape::Underline, CursorBlinking::Off));
+        assert_eq!(blinking("{ blinking = \"On\" }"), (CursorShape::Block, CursorBlinking::On));
+        assert_eq!(
+            blinking("{ shape = \"Beam\", blinking = \"Never\" }"),
+            (CursorShape::Beam, CursorBlinking::Never)
+        );
+
+        // The timeout is never shorter than a blink, and the interval never below 10 ms.
+        let config = self::config("[cursor]\nblink_interval = 1\nblink_timeout = 1\n");
+        let cursor = cursor_settings(&config);
+        assert_eq!(cursor.blink_interval, Duration::from_millis(10));
+        assert_eq!(cursor.blink_timeout, Some(Duration::from_secs(1)));
+    }
+
+    #[test]
+    fn accessibility_keeps_the_cursor_from_blinking() {
+        let mut config = config("[cursor]\nstyle = { shape = \"Beam\", blinking = \"Always\" }\n");
+        config.apply_accessibility(true);
+
+        let cursor = cursor_settings(&config);
+        assert_eq!(
+            (cursor.shape, cursor.blinking),
+            (iced_tterm::CursorShape::Beam, CursorBlinking::Never)
+        );
     }
 
     #[test]

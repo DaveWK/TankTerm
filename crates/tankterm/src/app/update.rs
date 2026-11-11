@@ -51,6 +51,7 @@ impl App {
             app.push_tab(terminal);
         }
         app.shown();
+        app.sync_focus();
 
         Ok(app)
     }
@@ -157,6 +158,23 @@ impl App {
         }
     }
 
+    /// Tell the terminals which one of them has the keyboard focus: the focused pane of the
+    /// tab that is shown, while the window has focus and nothing lies over the terminals.
+    ///
+    /// The others draw their cursor hollow and don't blink it.
+    fn sync_focus(&mut self) {
+        let typing = self.window_focused && self.palette.is_none() && self.pending_paste.is_none();
+        let focused = self.focused_terminal().filter(|_| typing);
+
+        for (id, shell) in &mut self.terminals {
+            let has_focus = focused == Some(*id);
+            if shell.focused != has_focus {
+                shell.focused = has_focus;
+                shell.terminal.handle(iced_tterm::Command::Focus(has_focus));
+            }
+        }
+    }
+
     pub fn title(&self) -> String {
         let title = self.tabs.get(self.active).map(|tab| self.tab_title(tab));
         title.unwrap_or(&self.options.title).to_owned()
@@ -187,6 +205,7 @@ impl App {
         let task = self.handle(message);
 
         self.shown();
+        self.sync_focus();
         self.save_session(tick);
 
         task

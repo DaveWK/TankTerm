@@ -161,6 +161,8 @@ struct Shell {
     working_directory: Option<PathBuf>,
     /// The terminal rang the bell or finished a command while nobody was looking at it.
     attention: bool,
+    /// Whether the terminal was last told that it has the keyboard focus.
+    focused: bool,
 }
 
 /// How terminals are placed in the window.

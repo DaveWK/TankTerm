@@ -9,7 +9,7 @@ use iced::{Event, Size, Task, Theme, window};
 use iced_core::clipboard::Kind;
 use iced_test::simulator::Simulator;
 use iced_tterm::settings::ScrollSettings;
-use iced_tterm::{BackendCommand, SelectionType, TermMode};
+use iced_tterm::{BackendCommand, CursorShape, SelectionType, TermMode};
 use iced_winit::runtime;
 
 use super::tab_tests::{app_with, key, perform, type_keys, wait_for_text, wait_until, wakeup};
@@ -417,4 +417,148 @@ fn window_actions_toggle_fullscreen_and_maximized() {
         window::Mode::Windowed
     )]);
     assert_eq!(toggle(AppAction::ToggleMaximized, window::Mode::Windowed), [Asked::ToggleMaximize]);
+}
+
+/// The shape the cursor of a terminal is drawn with.
+fn cursor(app: &App, terminal: u64) -> CursorShape {
+    app.terminals[&terminal].terminal.cursor_shape()
+}
+
+/// The blink interval of a terminal's cursor passed.
+fn blink(app: &mut App, terminal: u64) {
+    let blink = iced_tterm::Event::BackendCall(terminal, BackendCommand::BlinkCursor);
+    let _ = app.update(Message::Terminal(blink));
+}
+
+#[test]
+fn cursor_is_hollow_without_the_keyboard_focus() {
+    let mut app = app_with("", Hotkeys::default());
+    assert_eq!(cursor(&app, 0), CursorShape::Block);
+
+    // Only the pane that is typed into has a solid cursor.
+    perform(&mut app, &[AppAction::Split(iced::widget::pane_grid::Axis::Vertical)]);
+    assert_eq!((cursor(&app, 0), cursor(&app, 1)), (CursorShape::HollowBlock, CursorShape::Block));
+    perform(&mut app, &[AppAction::PreviousPane]);
+    assert_eq!((cursor(&app, 0), cursor(&app, 1)), (CursorShape::Block, CursorShape::HollowBlock));
+
+    // No pane is typed into while the window doesn't have focus, or while a list or the
+    // paste warning takes the keys.
+    let _ = app.update(Message::WindowFocused(false));
+    assert_eq!(cursor(&app, 0), CursorShape::HollowBlock);
+    let _ = app.update(Message::WindowFocused(true));
+    assert_eq!(cursor(&app, 0), CursorShape::Block);
+
+    perform(&mut app, &[AppAction::ShowCommands]);
+    assert_eq!(cursor(&app, 0), CursorShape::HollowBlock);
+    perform(&mut app, &[AppAction::PaletteClose]);
+    assert_eq!(cursor(&app, 0), CursorShape::Block);
+
+    // The terminals of new tabs are told as well, and those of tabs that aren't shown.
+    perform(&mut app, &[AppAction::NewTab]);
+    assert_eq!((cursor(&app, 0), cursor(&app, 2)), (CursorShape::HollowBlock, CursorShape::Block));
+}
+
+#[test]
+fn cursor_keeps_its_shape_without_unfocused_hollow() {
+    let config = "[cursor]\nstyle = \"Underline\"\nunfocused_hollow = false\n";
+    let mut app = app_with(config, Hotkeys::default());
+    perform(&mut app, &[AppAction::Split(iced::widget::pane_grid::Axis::Vertical)]);
+    let _ = app.update(Message::WindowFocused(false));
+
+    assert_eq!(cursor(&app, 0), CursorShape::Underline);
+    assert_eq!(cursor(&app, 1), CursorShape::Underline);
+}
+
+/// Configuration whose shell sends `sequence` and then waits.
+fn shell_sending(sequence: &str) -> String {
+    format!(
+        "[terminal]\nshell = {{ program = \"sh\", args = [\"-c\", \"printf '{sequence}'; exec \
+         cat\"] }}\n"
+    )
+}
+
+/// Let the first terminal show what its shell printed until `condition` holds.
+fn shown_until(app: &mut App, what: &str, condition: impl Fn(&App) -> bool) {
+    wait_until(what, || {
+        let _ = app.update(wakeup(0));
+        condition(app)
+    });
+}
+
+#[test]
+fn applications_set_the_shape_of_the_cursor() {
+    // DECSCUSR 4 is a steady underline, DECSCUSR 6 a steady beam.
+    let config = format!("[cursor]\nstyle = \"Beam\"\n{}", shell_sending("\\\\033[4 q"));
+    let mut app = app_with(&config, Hotkeys::default());
+    shown_until(&mut app, "the cursor never became an underline", |app| {
+        cursor(app, 0) == CursorShape::Underline
+    });
+
+    let mut app = app_with(&shell_sending("\\\\033[6 q"), Hotkeys::default());
+    shown_until(&mut app, "the cursor never became a beam", |app| {
+        cursor(app, 0) == CursorShape::Beam
+    });
+
+    // A hidden cursor (DECTCEM) has no shape.
+    let mut app = app_with(&shell_sending("\\\\033[?25l"), Hotkeys::default());
+    shown_until(&mut app, "the cursor was never hidden", |app| {
+        cursor(app, 0) == CursorShape::Hidden
+    });
+}
+
+#[test]
+fn cursor_blinks_in_the_terminal_with_the_keyboard_focus() {
+    let config = "[cursor]\nstyle = { shape = \"Beam\", blinking = \"Always\" }\n";
+    let mut app = app_with(config, Hotkeys::default());
+    perform(&mut app, &[AppAction::Split(iced::widget::pane_grid::Axis::Vertical)]);
+    let blinks = |app: &App, terminal: u64| app.terminals[&terminal].terminal.cursor_blinks();
+    assert!(!blinks(&app, 0) && blinks(&app, 1));
+
+    // Every interval turns the cursor off or on.
+    blink(&mut app, 1);
+    assert_eq!(cursor(&app, 1), CursorShape::Hidden);
+    blink(&mut app, 1);
+    assert_eq!(cursor(&app, 1), CursorShape::Beam);
+
+    // Typing lights the cursor, and it stays lit for the interval that follows.
+    blink(&mut app, 1);
+    assert_eq!(cursor(&app, 1), CursorShape::Hidden);
+    let typed = iced_tterm::Event::BackendCall(1, BackendCommand::Write(b"x".to_vec()));
+    let _ = app.update(Message::Terminal(typed));
+    assert_eq!(cursor(&app, 1), CursorShape::Beam);
+    blink(&mut app, 1);
+    assert_eq!(cursor(&app, 1), CursorShape::Beam);
+
+    // The blinking moves with the focus, and the cursor left behind is lit.
+    blink(&mut app, 1);
+    blink(&mut app, 1);
+    perform(&mut app, &[AppAction::PreviousPane]);
+    assert!(blinks(&app, 0) && !blinks(&app, 1));
+    assert_eq!(cursor(&app, 1), CursorShape::HollowBlock);
+    blink(&mut app, 1);
+    assert_eq!(cursor(&app, 1), CursorShape::HollowBlock);
+}
+
+#[test]
+fn applications_turn_blinking_on_unless_it_is_never() {
+    let blinks = |app: &App| app.terminals[&0].terminal.cursor_blinks();
+
+    // DECSCUSR 5 is a blinking beam.
+    let mut app = app_with(&shell_sending("\\\\033[5 q"), Hotkeys::default());
+    shown_until(&mut app, "the cursor never blinked", blinks);
+    assert_eq!(cursor(&app, 0), CursorShape::Beam);
+
+    // DECSCUSR 2 is a steady block, which turns the configured blinking off.
+    let config =
+        format!("[cursor]\nstyle = {{ blinking = \"On\" }}\n{}", shell_sending("\\\\033[2 q"));
+    let mut app = app_with(&config, Hotkeys::default());
+    shown_until(&mut app, "the cursor never stopped blinking", |app| !blinks(app));
+
+    let config =
+        format!("[cursor]\nstyle = {{ blinking = \"Never\" }}\n{}", shell_sending("\\\\033[5 q"));
+    let mut app = app_with(&config, Hotkeys::default());
+    shown_until(&mut app, "the cursor never became a beam", |app| {
+        cursor(app, 0) == CursorShape::Beam
+    });
+    assert!(!blinks(&app));
 }

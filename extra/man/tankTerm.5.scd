@@ -867,6 +867,10 @@ This section documents the *[cursor]* table of the configuration file.
 
 		Default: _"Off"_
 
+	The shape and blinking are those of the cursor until the application in
+	the terminal asks for another cursor. The cursor only blinks in the
+	terminal that has the keyboard focus.
+
 *vi_mode_style* = { *<shape>*, *<blinking>* } | _"None"_
 
 	If the vi mode cursor style is _"None"_ or not specified, it will fall back to
@@ -882,7 +886,8 @@ This section documents the *[cursor]* table of the configuration file.
 
 *blink_timeout* = _<integer>_
 
-	Time after which cursor stops blinking, in seconds.
+	Time after which cursor stops blinking, in seconds. It blinks again once
+	something is typed.
 
 	Specifying _0_ will disable timeout for blinking.
 
@@ -891,14 +896,16 @@ This section documents the *[cursor]* table of the configuration file.
 *unfocused_hollow* = _true_ | _false_
 
 	When this is _true_, the cursor will be rendered as a hollow box when the
-	window is not focused.
+	window is not focused, and in every pane other than the one that is typed
+	into.
 
 	Default: _true_
 
 *thickness* = _<float>_
 
-	Thickness of the cursor relative to the cell width as floating point number
-	from _0.0_ to _1.0_.
+	Thickness of the _Underline_, _Beam_ and hollow cursors relative to the
+	cell width as floating point number from _0.0_ to _1.0_. They are at least
+	one pixel thick.
 
 	Default: _0.15_
 
