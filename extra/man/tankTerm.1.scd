@@ -30,17 +30,9 @@ set of features with high performance.
 	Theme to use, by built-in name or file path; see *tankTerm*(5). Overrides
 	the configuration's _theme_ and can also be set with _$TANKTERM\_THEME_.
 
-*--print-events*
-
-	Print all events to STDOUT.
-
 *-q*
 
 	Reduces the level of verbosity (the min level is *-qq*).
-
-*--ref-test*
-
-	Generates ref test
 
 *-v*
 
@@ -82,10 +74,6 @@ set of features with high performance.
 	On Windows, the config file will be looked for in:
 
 		. _%APPDATA%\\tankterm\\tankterm.toml_
-
-*--embed* _<PARENT>_
-
-	X11 window ID to embed TankTerm within (decimal or hexadecimal with _0x_ prefix).
 
 *-o, --option* _<OPTION>..._
 

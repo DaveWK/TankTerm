@@ -218,12 +218,6 @@ fn unsupported_options(options: &Options) -> Result<(), &'static str> {
 
     if options.daemon {
         Err("--daemon")
-    } else if options.embed.is_some() {
-        Err("--embed")
-    } else if options.print_events {
-        Err("--print-events")
-    } else if options.ref_test {
-        Err("--ref-test")
     } else if options.window_options.terminal_options.hold {
         Err("--hold")
     } else {
@@ -291,7 +285,6 @@ mod tests {
     fn unsupported_options_are_rejected() {
         assert_eq!(unsupported_options(&options(&["--daemon"])), Err("--daemon"));
         assert_eq!(unsupported_options(&options(&["--hold"])), Err("--hold"));
-        assert_eq!(unsupported_options(&options(&["--print-events"])), Err("--print-events"));
         #[cfg(unix)]
         assert_eq!(unsupported_options(&options(&["--socket", "/tmp/s"])), Err("--socket"));
     }

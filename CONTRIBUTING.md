@@ -50,12 +50,9 @@ Additionally if there's any functionality included which would lend itself to ad
 new tests should be added. These can either be in the form of Rust tests using the `#[test]`
 annotation, or TankTerm's ref tests.
 
-To record a new ref test, a release version of the patched binary should be created and run with the
-`--ref-test` flag. After closing the TankTerm window, or killing it (`exit` and `^D` do not work),
-some new files should have been generated in the working directory. Those can then be copied to the
-`./tests/ref/NEW_TEST_NAME` directory and the test can be enabled by editing the `ref_tests!` macro
-in the `./tests/ref.rs` file. When fixing a bug, it should be checked that the ref test does not
-complete correctly with the unpatched version, to make sure the test case is covered properly.
+The ref tests in `crates/tankterm_terminal/tests/ref` replay recorded terminal output and compare
+the resulting grid. New ones cannot be recorded at the moment: the `--ref-test` flag that wrote
+the recordings was part of the OpenGL front end.
 
 ### Performance
 

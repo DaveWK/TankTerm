@@ -15,7 +15,6 @@ _tankTerm() {
 
     local context curcontext="$curcontext" state line
     _arguments "${_arguments_options[@]}" : \
-'--embed=[X11 window ID to embed TankTerm within (decimal or hexadecimal with "0x" prefix)]:EMBED:_default' \
 '--config-file=[Specify alternative configuration file \[default\: \$XDG_CONFIG_HOME/tankterm/tankterm.toml\]]:CONFIG_FILE:_files' \
 '--socket=[Path for IPC socket creation]:SOCKET:_files' \
 '--theme=[Theme to use, by built-in name or file path. Overrides the configuration'\''s theme]:NAME|PATH:_default' \
@@ -27,8 +26,6 @@ _tankTerm() {
 '--class=[Defines window class/app_id on X11/Wayland \[default\: TankTerm\]]:general> | <general>,<instance:_default' \
 '*-o+[Override configuration file options \[example\: '\''cursor.style="Beam"'\''\]]:OPTION:_default' \
 '*--option=[Override configuration file options \[example\: '\''cursor.style="Beam"'\''\]]:OPTION:_default' \
-'--print-events[Print all events to STDOUT]' \
-'(--daemon)--ref-test[Generates ref test]' \
 '(-v)*-q[Reduces the level of verbosity (the min level is -qq)]' \
 '(-q)*-v[Increases the level of verbosity (the max level is -vvv)]' \
 '--daemon[Do not spawn an initial window]' \

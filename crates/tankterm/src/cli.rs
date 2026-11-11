@@ -21,18 +21,6 @@ use crate::logging::LOG_TARGET_IPC_CONFIG;
 #[derive(Parser, Default, Debug)]
 #[clap(name = "tankTerm", author, about, version = env!("VERSION"))]
 pub struct Options {
-    /// Print all events to STDOUT.
-    #[clap(long)]
-    pub print_events: bool,
-
-    /// Generates ref test.
-    #[clap(long, conflicts_with("daemon"))]
-    pub ref_test: bool,
-
-    /// X11 window ID to embed TankTerm within (decimal or hexadecimal with "0x" prefix).
-    #[clap(long)]
-    pub embed: Option<String>,
-
     /// Specify alternative configuration file [default:
     /// $XDG_CONFIG_HOME/tankterm/tankterm.toml].
     #[cfg(not(any(target_os = "macos", windows)))]
@@ -100,14 +88,7 @@ impl Options {
             config.ipc_socket = Some(true);
         }
 
-        config.window.embed = self.embed.as_ref().and_then(|embed| parse_hex_or_decimal(embed));
-        config.debug.print_events |= self.print_events;
         config.debug.log_level = max(config.debug.log_level, self.log_level());
-        config.debug.ref_test |= self.ref_test;
-
-        if config.debug.print_events {
-            config.debug.log_level = max(config.debug.log_level, LevelFilter::Info);
-        }
 
         // Replace CLI options.
         self.config_options.override_config(config);
@@ -116,9 +97,6 @@ impl Options {
     /// Logging filter level.
     pub fn log_level(&self) -> LevelFilter {
         match (self.quiet, self.verbose) {
-            // Force at least `Info` level for `--print-events`.
-            (_, 0) if self.print_events => LevelFilter::Info,
-
             // Default.
             (0, 0) => LevelFilter::Warn,
 
@@ -146,14 +124,6 @@ fn parse_class(input: &str) -> Result<Class, String> {
     };
 
     Ok(Class::new(general, instance))
-}
-
-/// Convert to hex if possible, else decimal
-fn parse_hex_or_decimal(input: &str) -> Option<u32> {
-    input
-        .strip_prefix("0x")
-        .and_then(|value| u32::from_str_radix(value, 16).ok())
-        .or_else(|| input.parse().ok())
 }
 
 /// Terminal specific cli options which can be passed to new windows via IPC.
@@ -516,24 +486,6 @@ mod tests {
     fn parse_invalid_class() {
         let class = parse_class("one,two,three");
         assert!(class.is_err());
-    }
-
-    #[test]
-    fn valid_decimal() {
-        let value = parse_hex_or_decimal("10485773");
-        assert_eq!(value, Some(10485773));
-    }
-
-    #[test]
-    fn valid_hex_to_decimal() {
-        let value = parse_hex_or_decimal("0xa0000d");
-        assert_eq!(value, Some(10485773));
-    }
-
-    #[test]
-    fn invalid_hex_to_decimal() {
-        let value = parse_hex_or_decimal("0xa0xx0d");
-        assert_eq!(value, None);
     }
 
     #[cfg(target_os = "linux")]

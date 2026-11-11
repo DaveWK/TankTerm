@@ -1438,12 +1438,6 @@ Debug options are meant to help troubleshoot issues with TankTerm. These can
 change or be removed entirely without warning, so their stability shouldn't be
 relied upon.
 
-*render_timer* = _true_ | _false_
-
-	Display the time it takes to draw each frame.
-
-	Default: _false_
-
 *persistent_logging* = _true_ | _false_
 
 	Keep the log file after quitting TankTerm.
@@ -1459,32 +1453,6 @@ relied upon.
 
 	Example:
 		_TANKTERM_EXTRA_LOG_TARGETS="winit;vte" tankTerm -vvv_
-
-*renderer* = _"glsl3"_ | _"gles2"_ | _"gles2pure"_ | _"None"_
-
-	Force use of a specific renderer, _"None"_ will use the highest available
-	one.
-
-	Default: _"None"_
-
-*print_events* = _true_ | _false_
-
-	Log all received window events.
-
-	Default: _false_
-
-*highlight_damage* = _true_ | _false_
-
-	Highlight window damage information.
-
-	Default: _false_
-
-*prefer_egl* = _true_ | _false_
-
-	Use EGL as display API if the current platform allows it. Note that
-	transparency may not work with EGL on Linux/BSD.
-
-	Default: _false_
 
 # SEE ALSO
 

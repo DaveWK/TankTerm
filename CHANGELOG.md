@@ -94,7 +94,10 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 - IPC (`tankTerm msg`, `--socket`), `--daemon` and live config reload
 - Custom key and mouse bindings other than tab and pane actions and pasting with the mouse,
     hints, vi mode, search and the message bar
-- `--embed`, `--hold`, `--print-events` and `--ref-test`
+- `--hold`
+- `--embed`, `--print-events`, `--ref-test` and the `debug.renderer`, `debug.prefer_egl`,
+    `debug.render_timer`, `debug.highlight_damage` and `debug.print_events` options, which only
+    applied to the OpenGL front end
 
 ### Fixed
 

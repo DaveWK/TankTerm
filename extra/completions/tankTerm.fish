@@ -1,6 +1,6 @@
 # Print an optspec for argparse to handle cmd's options that are independent of any subcommand.
 function __fish_tankTerm_global_optspecs
-    string join \n print-events ref-test embed= config-file= socket= q v daemon theme= working-directory= hold e/command= T/title= class= o/option= h/help V/version
+    string join \n config-file= socket= q v daemon theme= working-directory= hold e/command= T/title= class= o/option= h/help V/version
 end
 
 function __fish_tankTerm_needs_command
@@ -24,7 +24,6 @@ function __fish_tankTerm_using_subcommand
     contains -- $cmd[1] $argv
 end
 
-complete -c tankTerm -n "__fish_tankTerm_needs_command" -l embed -d 'X11 window ID to embed TankTerm within (decimal or hexadecimal with "0x" prefix)' -r
 complete -c tankTerm -n "__fish_tankTerm_needs_command" -l config-file -d 'Specify alternative configuration file [default: $XDG_CONFIG_HOME/tankterm/tankterm.toml]' -r -F
 complete -c tankTerm -n "__fish_tankTerm_needs_command" -l socket -d 'Path for IPC socket creation' -r -F
 complete -c tankTerm -n "__fish_tankTerm_needs_command" -l theme -d 'Theme to use, by built-in name or file path. Overrides the configuration\'s theme' -r
@@ -33,8 +32,6 @@ complete -c tankTerm -n "__fish_tankTerm_needs_command" -s e -l command -d 'Comm
 complete -c tankTerm -n "__fish_tankTerm_needs_command" -s T -l title -d 'Defines the window title [default: TankTerm]' -r
 complete -c tankTerm -n "__fish_tankTerm_needs_command" -l class -d 'Defines window class/app_id on X11/Wayland [default: TankTerm]' -r
 complete -c tankTerm -n "__fish_tankTerm_needs_command" -s o -l option -d 'Override configuration file options [example: \'cursor.style="Beam"\']' -r
-complete -c tankTerm -n "__fish_tankTerm_needs_command" -l print-events -d 'Print all events to STDOUT'
-complete -c tankTerm -n "__fish_tankTerm_needs_command" -l ref-test -d 'Generates ref test'
 complete -c tankTerm -n "__fish_tankTerm_needs_command" -s q -d 'Reduces the level of verbosity (the min level is -qq)'
 complete -c tankTerm -n "__fish_tankTerm_needs_command" -s v -d 'Increases the level of verbosity (the max level is -vvv)'
 complete -c tankTerm -n "__fish_tankTerm_needs_command" -l daemon -d 'Do not spawn an initial window'

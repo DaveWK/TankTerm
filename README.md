@@ -46,7 +46,7 @@ This front end is new and doesn't support everything the OpenGL one did yet:
 - Live config reload
 - Custom key and mouse bindings, hints, vi mode and search
 - Most `[window]`, `[cursor]`, `[mouse]`, `[bell]` and `[scrolling]` options
-- `--embed`, `--hold`, `--print-events` and `--ref-test`
+- `--hold`
 
 Command line options that aren't supported yet fail with an error; config
 options that aren't supported yet are ignored.
