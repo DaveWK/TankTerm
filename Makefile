@@ -7,7 +7,7 @@ MANPAGE-MSG = $(ASSETS_DIR)/man/tankTerm-msg.1.scd
 MANPAGE-CONFIG = $(ASSETS_DIR)/man/tankTerm.5.scd
 MANPAGE-CONFIG-BINDINGS = $(ASSETS_DIR)/man/tankTerm-bindings.5.scd
 MANPAGE-ESCAPES = $(ASSETS_DIR)/man/tankTerm-escapes.7.scd
-TERMINFO = $(ASSETS_DIR)/alacritty.info
+TERMINFO = $(ASSETS_DIR)/tankterm.info
 COMPLETIONS_DIR = $(ASSETS_DIR)/completions
 COMPLETIONS = $(COMPLETIONS_DIR)/_tankTerm \
 	$(COMPLETIONS_DIR)/tankTerm.bash \

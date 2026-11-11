@@ -14,8 +14,8 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 
 - Renamed the project to TankTerm; the binary is now `tankTerm`
 - Renamed manpages and shell completions to match the `tankTerm` command
-- Renamed the desktop entry to `TankTerm.desktop` and the AppStream ID to `io.github.davewk.TankTerm`
-- Renamed the macOS app bundle to `TankTerm.app` with bundle ID `io.github.davewk.TankTerm`
+- Renamed the desktop entry to `TankTerm.desktop` and the AppStream ID to `net.xitely.TankTerm`
+- Renamed the macOS app bundle to `TankTerm.app` with bundle ID `net.xitely.TankTerm`
 - New Windows installer upgrade code, so the TankTerm installer no longer replaces Alacritty
 - Renamed the `alacritty_config` and `alacritty_config_derive` crates to `tankterm_config` and
     `tankterm_config_derive`
