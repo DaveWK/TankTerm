@@ -9,8 +9,7 @@ install it directly through cargo:
 cargo install --git https://git.infra.xitely.net/xitely/TankTerm tankterm
 ```
 
-This installs the `tankTerm` binary. For the OpenGL front end, add
-`--branch staging`.
+This installs the `tankTerm` binary.
 
 Note that you will still need to install the dependencies for your OS of choice,
 and the default [font](#font). Please refer to the [Dependencies](#dependencies)
@@ -56,9 +55,7 @@ section.
 
 ### Clone the source code
 
-Before compiling TankTerm, you'll have to first clone the source code. The
-default `main` branch uses the iced front end; the `staging` branch has the
-OpenGL front end.
+Before compiling TankTerm, you'll have to first clone the source code.
 
 ```sh
 git clone https://git.infra.xitely.net/xitely/TankTerm.git
