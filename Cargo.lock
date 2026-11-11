@@ -1649,7 +1649,7 @@ dependencies = [
 [[package]]
 name = "iced_term"
 version = "0.8.0"
-source = "git+https://github.com/DaveWK/iced_term?branch=tankterm#aecba74f861dc7326d3aff1c922a6835fe8a35d6"
+source = "git+ssh://git@git.infra.xitely.net:2222/xitely/iced_term.git?branch=tankterm#f6db061ac6ed47b33fe1223bcfd44a7679d8d52e"
 dependencies = [
  "anyhow",
  "iced",
