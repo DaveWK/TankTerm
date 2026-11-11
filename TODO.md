@@ -6,8 +6,6 @@ Approved and waiting their turn, in this order.
 
 1. Delete the `xitely/iced_term` repository and the merged `forgejo-ci` branch on Forgejo.
 2. Config options the iced front end ignores:
-   - Remove the OpenGL-only ones: `debug.renderer`, `debug.prefer_egl`, `debug.render_timer`,
-     `debug.highlight_damage`, `window.embed` / `--embed`, `--print-events`, `--ref-test`.
    - Port first: window basics (`dimensions`, `position`, `startup_mode`, `decorations`,
      `opacity`, `level`), key binding actions (copy, paste, font size, scrolling, clear history,
      fullscreen), scrolling, cursor and bell options, and live config reload.
@@ -121,6 +119,18 @@ of sending one it may not know.
     terminal for capabilities directly.
   - How this fits profiles that run `ssh`, and nested cases such as `sudo`, `su` and containers.
 - Outcome: a recommendation and a size estimate. No implementation.
+
+### Ref test recorder
+
+The 45 ref tests in `crates/tankterm_terminal/tests/ref` still run, but new ones cannot be
+recorded: the `--ref-test` flag that wrote the recordings went away with the OpenGL front end.
+
+- A recording is the raw PTY output (`tankterm.recording`) plus the resulting grid, terminal size
+  and config (`grid.json`, `size.json`, `config.json`).
+- Options: a hidden flag in the iced front end that records a session the same way, or a small
+  headless tool in `tankterm_terminal` that runs a command in a PTY at a given size and writes
+  the four files, with no window involved.
+- Update the ref test section of `CONTRIBUTING.md` when this exists.
 
 ### Built-in SSH, serial and vault (requirements open)
 
