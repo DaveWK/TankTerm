@@ -204,7 +204,7 @@ The following command can be used to get a shell with all development
 dependencies on [NixOS](https://nixos.org).
 
 ```sh
-nix-shell -A alacritty '<nixpkgs>'
+nix-shell -p cmake pkg-config freetype fontconfig xorg.libxcb libxkbcommon python3
 ```
 
 #### Gentoo
@@ -214,7 +214,7 @@ command should install all of them. If something is still found to be missing,
 please open an issue.
 
 ```sh
-emerge --onlydeps x11-terms/alacritty
+emerge --ask dev-build/cmake virtual/pkgconfig media-libs/freetype media-libs/fontconfig x11-libs/libxcb x11-libs/libxkbcommon
 ```
 
 #### GNU Guix
@@ -223,7 +223,7 @@ The following command can be used to get a shell with all development
 dependencies on [GNU Guix](https://guix.gnu.org/).
 
 ```sh
-guix environment alacritty
+guix shell cmake pkg-config freetype fontconfig libxcb libxkbcommon python
 ```
 
 #### Alpine Linux
@@ -313,9 +313,10 @@ repository.
 
 ### Terminfo
 
-To make sure TankTerm works correctly, either the `alacritty` or
-`alacritty-direct` terminfo must be used. The `alacritty` terminfo will be
-picked up automatically if it is installed.
+TankTerm uses the `alacritty` or `alacritty-direct` terminfo, which TankTerm
+inherited from Alacritty. It ships with ncurses, so programs on other machines,
+such as over SSH, already know it. The `alacritty` terminfo will be picked up
+automatically if it is installed.
 
 If the following command returns without any errors, the `alacritty` terminfo is
 already installed:
@@ -328,7 +329,7 @@ If it is not present already, you can install it globally with the following
 command:
 
 ```
-sudo tic -xe alacritty,alacritty-direct extra/alacritty.info
+sudo tic -xe alacritty,alacritty-direct extra/tankterm.info
 ```
 
 ### Desktop Entry
@@ -338,7 +339,7 @@ to system menus. This will install the desktop entry for TankTerm:
 
 ```sh
 sudo cp target/release/tankTerm /usr/local/bin # or anywhere else in $PATH
-sudo cp extra/logo/alacritty-term.svg /usr/share/pixmaps/TankTerm.svg
+sudo cp extra/logo/tankterm-term.svg /usr/share/pixmaps/TankTerm.svg
 sudo desktop-file-install extra/linux/TankTerm.desktop
 sudo update-desktop-database
 ```
