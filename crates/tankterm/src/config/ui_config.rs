@@ -18,6 +18,7 @@ use tankterm_terminal::term::search::RegexSearch;
 use tankterm_terminal::term::{ColorScheme, Config as TermConfig};
 use tankterm_terminal::tty::{Options as PtyOptions, Shell};
 
+use crate::color::ColorContext;
 use crate::config::LOG_TARGET_CONFIG;
 use crate::config::bell::BellConfig;
 use crate::config::bindings::{
@@ -37,7 +38,6 @@ use crate::config::style::StyleConfig;
 use crate::config::tabs::Tabs;
 use crate::config::terminal::Terminal;
 use crate::config::window::WindowConfig;
-use crate::display::color::ColorContext;
 
 /// Regex used for the default URL hint.
 #[rustfmt::skip]

@@ -22,8 +22,8 @@ use serde::{Deserialize, Serialize};
 use tankterm_config::SerdeReplace;
 use tankterm_config_derive::{ConfigDeserialize, SerdeReplace};
 
+use crate::color::{CellRgb, ColorContext, Rgb};
 use crate::config::color::{BarColors, CellColors, Colors};
-use crate::display::color::{CellRgb, ColorContext, Rgb};
 use crate::logging::LOG_TARGET_CONFIG;
 
 /// The `[style]` table.
@@ -424,7 +424,7 @@ pub struct ElementStyles {
 
 /// Default colors of each element, matching the green screen color scheme.
 mod defaults {
-    use crate::display::color::{CellRgb, Rgb};
+    use crate::color::{CellRgb, Rgb};
 
     const BLACK: CellRgb = CellRgb::Rgb(Rgb::new(0x00, 0x00, 0x00));
     const fn rgb(r: u8, g: u8, b: u8) -> CellRgb {

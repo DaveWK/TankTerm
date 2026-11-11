@@ -1,3 +1,7 @@
+//! Colors as they are written in the configuration and resolved for drawing.
+
+pub mod charmtone;
+
 use std::cell::RefCell;
 use std::fmt::{self, Display, Formatter};
 use std::ops::{Add, Deref, Mul};
@@ -10,7 +14,6 @@ use tankterm_config_derive::SerdeReplace;
 use tankterm_terminal::vte::ansi::Rgb as VteRgb;
 
 use crate::config::color::{ColorMode, Colors};
-use crate::display::charmtone;
 
 /// Factor for automatic computation of dim colors.
 pub const DIM_FACTOR: f32 = 0.66;

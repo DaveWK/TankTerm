@@ -31,6 +31,7 @@ mod bindings;
 mod mouse;
 
 use crate::cli::Options;
+use crate::color::ColorContext;
 #[cfg(test)]
 pub use crate::config::bindings::Binding;
 pub use crate::config::bindings::{
@@ -38,7 +39,6 @@ pub use crate::config::bindings::{
     MouseEvent, SearchAction, ViAction,
 };
 pub use crate::config::ui_config::UiConfig;
-use crate::display::color::ColorContext;
 use crate::logging::LOG_TARGET_CONFIG;
 
 /// Maximum number of depth for the configuration file imports.
@@ -469,7 +469,7 @@ mod tests {
     use super::*;
 
     use crate::cli::ParsedOptions;
-    use crate::display::color::{CellRgb, Rgb};
+    use crate::color::{CellRgb, Rgb};
 
     #[test]
     fn empty_config() {

@@ -12,7 +12,6 @@ use tankterm_config_derive::{ConfigDeserialize, SerdeReplace};
 
 use crate::config::LOG_TARGET_CONFIG;
 use crate::config::ui_config::{Delta, Percentage};
-use crate::display::WindowPadding;
 
 /// Default TankTerm name, used for window title and class.
 pub const DEFAULT_NAME: &str = "TankTerm";
@@ -437,6 +436,22 @@ impl<'de> Deserialize<'de> for Spacing {
         }
 
         deserializer.deserialize_any(SpacingVisitor)
+    }
+}
+
+/// Window padding in pixels, which can differ on every side.
+#[derive(Debug, Copy, Clone, Default, PartialEq)]
+pub struct WindowPadding {
+    pub top: f32,
+    pub right: f32,
+    pub bottom: f32,
+    pub left: f32,
+}
+
+impl WindowPadding {
+    /// The same padding on the left and right, and on the top and bottom.
+    pub const fn symmetric(horizontal: f32, vertical: f32) -> Self {
+        Self { top: vertical, right: horizontal, bottom: vertical, left: horizontal }
     }
 }
 

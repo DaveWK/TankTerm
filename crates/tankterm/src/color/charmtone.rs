@@ -2,7 +2,7 @@
 //!
 //! The names and values are from `charmbracelet/x/exp/charmtone`.
 
-use crate::display::color::Rgb;
+use crate::color::Rgb;
 
 /// Every CharmTone color, by lowercase name.
 const COLORS: &[(&str, Rgb)] = &[

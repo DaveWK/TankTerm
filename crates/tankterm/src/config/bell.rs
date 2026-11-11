@@ -4,8 +4,8 @@ use serde::Serialize;
 
 use tankterm_config_derive::ConfigDeserialize;
 
+use crate::color::Rgb;
 use crate::config::ui_config::Program;
-use crate::display::color::Rgb;
 
 #[derive(ConfigDeserialize, Serialize, Clone, Debug, PartialEq)]
 pub struct BellConfig {

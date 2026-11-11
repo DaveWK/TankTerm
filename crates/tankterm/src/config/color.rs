@@ -3,7 +3,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 use tankterm_config_derive::ConfigDeserialize;
 
-use crate::display::color::{CellRgb, Rgb};
+use crate::color::{CellRgb, Rgb};
 
 /// The `[colors]` table.
 ///

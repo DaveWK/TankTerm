@@ -11,10 +11,10 @@ use toml::Value;
 
 use tankterm_terminal::tty::Options as PtyOptions;
 
+use crate::color::ColorContext;
 use crate::config::UiConfig;
 use crate::config::ui_config::{Program, accessible_env};
 use crate::config::window::{Class, Identity};
-use crate::display::color::ColorContext;
 use crate::logging::LOG_TARGET_IPC_CONFIG;
 
 /// CLI options for the main TankTerm executable.

@@ -10,12 +10,12 @@ use iced_tterm::settings::{BackendSettings, FontSettings, Settings, ThemeSetting
 use log::warn;
 
 use crate::cli::Options;
+use crate::color::{DIM_FACTOR, Rgb};
 use crate::config::UiConfig;
 use crate::config::color::Colors;
 use crate::config::font::FontDescription;
 use crate::config::profile::Profile;
 use crate::config::ui_config::Program;
-use crate::display::color::{DIM_FACTOR, Rgb};
 
 /// Logical pixels per typographic point.
 ///

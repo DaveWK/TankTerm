@@ -28,11 +28,11 @@ use tankterm_terminal::tty;
 
 mod app;
 mod cli;
+mod color;
 // Most configuration options belong to the previous OpenGL front end and aren't read by the iced
 // front end yet, but are still parsed so existing config files keep loading without errors.
 #[allow(dead_code, unused_imports)]
 mod config;
-mod display;
 mod hotkeys;
 mod logging;
 #[cfg(target_os = "macos")]
