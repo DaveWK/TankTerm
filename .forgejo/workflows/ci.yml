@@ -1,0 +1,95 @@
+# Basic checks for pull requests, run on the Fedora podman runner: rustfmt,
+# clippy and the tests at the minimum supported Rust version, and shellcheck.
+# A pull request is merged into main after review once these pass.
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # The rustfmt options in rustfmt.toml need a nightly toolchain.
+  RUSTFMT_TOOLCHAIN: nightly-2026-09-08
+  # git.infra.xitely.net's SSH host key, for fetching private git dependencies.
+  FORGEJO_HOST_KEY: '[git.infra.xitely.net]:2222 ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDNoa7fScva0kgUa9sTogC4RUUsFBwSQFvWt5IEaESofJN+gEF3DUQi2zBeUNj93Vsls8Y+dO4IKvt34JPH2/s7QesZTxO5C2NublCxtMP3RHtcgoV8+aoPTpwBQWu0wQRut7DR8W7isb6NyBoOZlsfKx0PBxKT42GAIdQx7HhZjVYed8pFV7/856o2d190Z8EM2XlZZ+UczHK/X5PQsFlLreiASQboUKMmq4yChvb0WFsvcv0DG5Ff3o5MQVLLL0DWBywLjGShWGswtle6aczhmv8nC0eQi6J6KhihrR06uHjeInv05h7wvpDGg8du0VucdAn/9DUDKfc+yGfx19dHF+V5IHw3vu8pmzJSBcONO6UM8vRzW9KeyeIKtwnIwh6m9kIYREe/QLEK7bZhjNxMwbxJfS7KH+kVAScNB5wMiBfrE4Yg6qF2GNnwMPuElb4X9X4Q8aHp0NnXN2iODeF4RyLja1iXkLsJH14dttGJGA8SgJOalycnnZz0+WUJFgOQOpNZ4v0QkdX2P+Ur5Hj0b4qmOZbJcXzErrjF7lzUSJPGVmFRtBmlPRCJhHuxfWxLWJb/P+lOVy0tfqPMhTUKuh2MeLATBaheSTELDkyZzFtFt2gizmVcIvnUYhq0aHBgdqQeA//YPYOcyvLKYxt7FECIpkOIQPdZ8/PPVjQ+Yw=='  # yamllint disable-line rule:line-length
+
+jobs:
+  checks:
+    name: Checks
+    runs-on: podman
+    timeout-minutes: 60
+    container:
+      image: registry.fedoraproject.org/fedora@sha256:1a3e9520cfa817cbafb3cb7086e666b8116d4b710deca853f68f871d53e7fe40  # yamllint disable-line rule:line-length
+      env:
+        CARGO_TARGET_DIR: /cache/target-ci/tankterm
+        PATH: /root/.cargo/bin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin
+      volumes:
+        - /cache/cargo-registry:/root/.cargo/registry
+        - /cache/cargo-git:/root/.cargo/git
+        - /cache/target-ci:/cache/target-ci
+
+    steps:
+      - name: Install system dependencies
+        run: >-
+          dnf install -y
+          nodejs git-core openssh-clients gcc-c++ cmake pkgconf-pkg-config
+          freetype-devel fontconfig-devel libxcb-devel libxkbcommon-devel
+          dejavu-sans-mono-fonts ShellCheck
+
+      - name: Check out the repository
+        uses: https://data.forgejo.org/actions/checkout@v6
+
+      - name: Install the Rust toolchains
+        shell: bash
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+            | sh -s -- -y --profile minimal --default-toolchain none
+          msrv="$(sed -n 's/^rust-version = "\(.*\)"/\1/p' Cargo.toml)"
+          rustup toolchain install "${msrv}" --profile minimal --component clippy
+          rustup default "${msrv}"
+          rustup toolchain install "${RUSTFMT_TOOLCHAIN}" --profile minimal --component rustfmt
+
+      - name: Check formatting
+        run: cargo "+${RUSTFMT_TOOLCHAIN}" fmt --all -- --check
+
+      # The iced front end depends on the private xitely/iced_term repository.
+      # Its read-only deploy key is the ICED_TERM_READ_KEY secret; it's written
+      # to a temporary file for this step only.
+      - name: Fetch locked dependencies
+        shell: bash
+        env:
+          ICED_TERM_READ_KEY: ${{ secrets.ICED_TERM_READ_KEY }}
+        run: |
+          set -euo pipefail
+          if grep -q '^source = "git+ssh://git@git.infra.xitely.net:2222/' Cargo.lock; then
+            if [[ -z "${ICED_TERM_READ_KEY}" ]]; then
+              echo "::error::secret ICED_TERM_READ_KEY missing"
+              exit 1
+            fi
+            umask 077
+            key="$(mktemp)" known_hosts="$(mktemp)"
+            trap 'rm -f "${key}" "${known_hosts}"' EXIT
+            printf '%s\n' "${ICED_TERM_READ_KEY}" > "${key}"
+            printf '%s\n' "${FORGEJO_HOST_KEY}" > "${known_hosts}"
+            export CARGO_NET_GIT_FETCH_WITH_CLI=true
+            export GIT_SSH_COMMAND="ssh -i ${key} -o IdentitiesOnly=yes \
+              -o UserKnownHostsFile=${known_hosts} -o StrictHostKeyChecking=yes \
+              -o BatchMode=yes"
+          fi
+          cargo fetch --locked
+
+      - name: Run Clippy
+        run: cargo clippy --workspace --all-targets --locked --offline -- -D warnings
+
+      - name: Run tests
+        run: cargo test --workspace --locked --offline
+
+      - name: Run tankterm_terminal tests without default features
+        run: cargo test -p tankterm_terminal --no-default-features --locked --offline
+
+      - name: Run shellcheck
+        run: git ls-files -z '*.sh' '*.bash' | xargs -0 shellcheck
