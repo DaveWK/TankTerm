@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- SPDX-License-Identifier: MIT -->
 <component type="desktop-application">
-  <id>io.github.davewk.TankTerm</id>
+  <id>net.xitely.TankTerm</id>
 
   <developer_name>DaveWK</developer_name>
-  <developer id="io.github.davewk">
+  <developer id="net.xitely">
     <name>DaveWK</name>
   </developer>
 
@@ -34,7 +34,7 @@
 
   <screenshots>
     <screenshot type="default">
-      <image>https://git.infra.xitely.net/xitely/TankTerm/raw/branch/main/extra/promo/alacritty-readme.png</image>
+      <image>https://git.infra.xitely.net/xitely/TankTerm/raw/branch/main/extra/promo/tankterm-readme.png</image>
       <caption>TankTerm with default theme showing neovim</caption>
     </screenshot>
   </screenshots>
