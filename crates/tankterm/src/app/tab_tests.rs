@@ -321,6 +321,16 @@ fn actions_do_nothing_after_the_last_tab_is_closed() {
         AppAction::PaletteClose,
         AppAction::PasteConfirm,
         AppAction::PasteCancel,
+        AppAction::Copy,
+        AppAction::Paste,
+        AppAction::PasteSelection,
+        AppAction::IncreaseFontSize,
+        AppAction::DecreaseFontSize,
+        AppAction::ResetFontSize,
+        AppAction::Scroll(crate::hotkeys::ScrollTo::PageUp),
+        AppAction::ClearHistory,
+        AppAction::ToggleFullscreen,
+        AppAction::ToggleMaximized,
     ]);
 
     assert!(app.tabs.is_empty() && app.terminals.is_empty());
@@ -848,7 +858,7 @@ fn run(app: &mut App, terminal: u64, line: &str) {
 }
 
 /// Output of a terminal, as the application is told about it.
-fn wakeup(terminal: u64) -> Message {
+pub(super) fn wakeup(terminal: u64) -> Message {
     let wakeup = BackendCommand::ProcessAlacrittyEvent(AlacrittyEvent::Wakeup);
     Message::Terminal(iced_tterm::Event::BackendCall(terminal, wakeup))
 }
@@ -1127,7 +1137,7 @@ const PAUSE: Duration = Duration::from_millis(80);
 /// Press and release keys in a focused terminal of `app`, pausing where a key is `None`.
 ///
 /// Returns the actions the keys ran and the bytes they sent to the shell.
-fn type_keys(app: &App, keys: &[Option<(Key, Modifiers)>]) -> (Vec<AppAction>, Vec<u8>) {
+pub(super) fn type_keys(app: &App, keys: &[Option<(Key, Modifiers)>]) -> (Vec<AppAction>, Vec<u8>) {
     use iced::keyboard::key::{NativeCode, Physical};
     use iced::keyboard::{Event, Location};
 
@@ -1184,7 +1194,7 @@ fn type_keys(app: &App, keys: &[Option<(Key, Modifiers)>]) -> (Vec<AppAction>, V
     (actions, written)
 }
 
-fn key(character: &str) -> Option<(Key, Modifiers)> {
+pub(super) fn key(character: &str) -> Option<(Key, Modifiers)> {
     Some((Key::Character(character.into()), Modifiers::empty()))
 }
 

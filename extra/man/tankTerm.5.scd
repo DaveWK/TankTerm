@@ -1116,6 +1116,14 @@ This section documents the *[keyboard]* table of the configuration file.
 	Multiple keybindings can be triggered by a single key press and will be
 	executed in the order they are defined in.
 
+	The iced front end runs the tab and pane actions and _Paste_, _Copy_,
+	_PasteSelection_, _IncreaseFontSize_, _DecreaseFontSize_, _ResetFontSize_,
+	the _Scroll_ actions, _ClearHistory_, _ToggleFullscreen_ and
+	_ToggleMaximized_. Bindings to the other actions, to _command_ and _chars_
+	and to scancodes are ignored for now, and their keys are sent to the
+	terminal. A character key is matched as it is without _Shift_: _"="_ with
+	_"Control|Shift"_ on a US keyboard, not _"+"_.
+
 	*key* = _"<string>"_
 
 		The regular keys like _"A"_, _"0"_, and _"Я"_ can be mapped directly
@@ -1143,8 +1151,11 @@ _https://docs.rs/winit/latest/winit/keyboard/enum.Key.html_
 		have an effect.
 
 		_Leader_ isn't a terminal mode: a binding with it takes effect when its
-		key is pressed after the leader key (see _leader_). It is for the tab
-		and pane actions and can't be combined with other modes.
+		key is pressed after the leader key (see _leader_).
+
+		There is no vi mode or search in the iced front end yet: bindings that
+		require _Vi_ or _Search_ never take effect, and _~Vi_ and _~Search_ are
+		always met.
 
 		Prepending _~_ to a mode will require the mode to *not* = be active for
 		the binding to take effect.
@@ -1176,9 +1187,10 @@ _https://docs.rs/winit/latest/winit/keyboard/enum.Key.html_
 		*Copy*
 			Store current selection into clipboard.
 		*IncreaseFontSize*
-			Increase font size.
+			Increase the font size of every terminal in the window by one pixel.
 		*DecreaseFontSize*
-			Decrease font size.
+			Decrease the font size of every terminal in the window by one pixel,
+			down to four pixels.
 		*ResetFontSize*
 			Reset font size to the config value.
 		*ScrollPageUp*
@@ -1400,9 +1412,6 @@ _https://docs.rs/winit/latest/winit/keyboard/enum.Key.html_
 			Show the profile selector, which opens the regular shell or one of the
 			*[[profiles]]* in a new tab. It is used like the command palette.
 
-		Tab and pane bindings can't be limited to a _mode_ other than
-		_Leader_.
-
 		_macOS exclusive:_
 
 		*ToggleSimpleFullscreen*
@@ -1415,7 +1424,8 @@ _https://docs.rs/winit/latest/winit/keyboard/enum.Key.html_
 		*CopySelection*
 			Copy from the selection buffer.
 		*PasteSelection*
-			Paste from the selection buffer.
+			Paste from the selection buffer. On platforms without one it pastes
+			the system clipboard.
 
 Default: See *tankTerm-bindings*(5)
 

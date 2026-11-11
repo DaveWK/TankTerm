@@ -6,11 +6,11 @@ Approved and waiting their turn, in this order.
 
 1. Delete the `xitely/iced_term` repository and the merged `forgejo-ci` branch on Forgejo.
 2. Config options the iced front end ignores:
-   - Port first: `window.opacity` (needs the widget to draw its background with alpha), key
-     binding actions (copy, paste, font size, scrolling, clear history, fullscreen), cursor and
-     bell options, and live config reload.
+   - Port first: `window.opacity` (needs the widget to draw its background with alpha), cursor
+     and bell options, and live config reload.
    - Port after those: font faces and offsets, the remaining colour options, selection and mouse
-     options, `--hold`.
+     options, `--hold`, and the key binding actions that need no feature of their own: `chars`,
+     `command`, `Quit`, `Hide`, `Minimize`, `ClearSelection` and `CopySelection`.
    - Port later, low priority: `window.blur`, `window.resize_increments`,
      `window.dynamic_padding`, `window.option_as_alt`.
 3. `tankTerm msg` in the iced front end: spawn, split, send-text, get-text, list, activate.

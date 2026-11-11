@@ -30,6 +30,10 @@ pub enum Command {
     /// scrolls. Lines the smaller buffer has no room for are dropped.
     ChangeScroll(ScrollSettings),
     AddBindings(Vec<(Binding<InputKind>, BindingAction)>),
+    /// Take the widget's own keys for copying and pasting away, for
+    /// applications that bind these actions themselves. The keys are sent
+    /// to the terminal like any other key; the mouse bindings are kept.
+    RemoveClipboardKeys,
     ProxyToBackend(backend::Command),
 }
 
@@ -112,6 +116,18 @@ impl Terminal {
         self.backend.selection()
     }
 
+    /// How many lines the terminal's screen has, which is a page for
+    /// scrolling.
+    pub fn screen_lines(&self) -> usize {
+        self.backend.screen_lines()
+    }
+
+    /// How many lines the view is scrolled back into the scrollback buffer;
+    /// `0` while it shows the screen.
+    pub fn display_offset(&self) -> usize {
+        self.backend.renderable_content().grid.display_offset()
+    }
+
     /// ID of the process started in the terminal.
     ///
     /// Only known on Unix.
@@ -145,6 +161,9 @@ impl Terminal {
             },
             Command::AddBindings(bindings) => {
                 self.bindings.add_bindings(bindings);
+            },
+            Command::RemoveClipboardKeys => {
+                self.bindings.remove_clipboard_keys();
             },
             Command::ProxyToBackend(
                 backend::Command::ProcessAlacrittyEvent(

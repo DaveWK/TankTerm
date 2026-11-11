@@ -607,7 +607,7 @@ pub fn default_key_bindings() -> Vec<KeyBinding> {
     bindings
 }
 
-#[cfg(not(any(target_os = "macos", test)))]
+#[cfg(not(target_os = "macos"))]
 fn common_keybindings() -> Vec<KeyBinding> {
     bindings!(
         KeyBinding;
@@ -628,12 +628,12 @@ fn common_keybindings() -> Vec<KeyBinding> {
     )
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "windows", test)))]
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 pub fn platform_key_bindings() -> Vec<KeyBinding> {
     common_keybindings()
 }
 
-#[cfg(all(target_os = "windows", not(test)))]
+#[cfg(target_os = "windows")]
 pub fn platform_key_bindings() -> Vec<KeyBinding> {
     let mut bindings = bindings!(
         KeyBinding;
@@ -643,7 +643,7 @@ pub fn platform_key_bindings() -> Vec<KeyBinding> {
     bindings
 }
 
-#[cfg(all(target_os = "macos", not(test)))]
+#[cfg(target_os = "macos")]
 pub fn platform_key_bindings() -> Vec<KeyBinding> {
     bindings!(
         KeyBinding;
@@ -899,12 +899,6 @@ pub fn preset_key_bindings(preset: KeyPreset, macos: bool) -> Vec<KeyBinding> {
     ));
 
     bindings
-}
-
-// Don't return any bindings for tests since they are commented-out by default.
-#[cfg(test)]
-pub fn platform_key_bindings() -> Vec<KeyBinding> {
-    vec![]
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

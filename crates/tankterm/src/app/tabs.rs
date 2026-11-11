@@ -4,10 +4,12 @@ use std::io;
 
 use iced::widget::pane_grid::{self, Direction, Node};
 use iced::{Color, Task, window};
+use iced_core::clipboard::Kind;
 use iced_tterm::BackendCommand;
 use iced_tterm::settings::Settings;
 use log::error;
 
+use super::actions::{FONT_SIZE_STEP, toggle_fullscreen, toggle_maximized};
 use super::{
     App, Message, PendingPaste, RESIZE_LIMITS, RESIZE_STEP, Shell, Tab, working_directory,
 };
@@ -35,7 +37,7 @@ impl App {
         settings
     }
 
-    /// Run a tab or pane action.
+    /// Run an action.
     pub(super) fn perform(&mut self, action: AppAction) -> Task<Message> {
         // The last tab was closed and the window is about to close: nothing is left to act on.
         let tab_count = self.tabs.len();
@@ -151,17 +153,45 @@ impl App {
                 }
             },
             AppAction::PasteCancel => self.pending_paste = None,
+            AppAction::Copy => return self.copy(),
+            AppAction::Paste => return self.paste_clipboard(Kind::Standard),
+            AppAction::PasteSelection => return self.paste_clipboard(Kind::Primary),
+            AppAction::IncreaseFontSize => {
+                self.change_font_size(Some(FONT_SIZE_STEP));
+                return Task::none();
+            },
+            AppAction::DecreaseFontSize => {
+                self.change_font_size(Some(-FONT_SIZE_STEP));
+                return Task::none();
+            },
+            AppAction::ResetFontSize => {
+                self.change_font_size(None);
+                return Task::none();
+            },
+            AppAction::Scroll(to) => {
+                self.scroll(to);
+                return Task::none();
+            },
+            AppAction::ClearHistory => {
+                self.clear_history();
+                return Task::none();
+            },
+            AppAction::ToggleFullscreen => return toggle_fullscreen(),
+            AppAction::ToggleMaximized => return toggle_maximized(),
         }
 
         self.focus()
     }
 
     /// Create a terminal and spawn its shell, returning the terminal's ID.
-    pub(super) fn spawn(&mut self, settings: Settings, background: Color) -> io::Result<u64> {
+    pub(super) fn spawn(&mut self, mut settings: Settings, background: Color) -> io::Result<u64> {
         let id = self.next_terminal;
         let working_directory = settings.backend.working_directory.clone();
+        settings.font = self.zoomed(settings.font);
         let mut terminal = iced_tterm::Terminal::new(id, settings)?;
         terminal.handle(iced_tterm::Command::AddBindings(self.options.bindings.clone()));
+        // Copying and pasting are bound in the configuration, like every other action.
+        terminal.handle(iced_tterm::Command::RemoveClipboardKeys);
 
         let shell = Shell {
             terminal,

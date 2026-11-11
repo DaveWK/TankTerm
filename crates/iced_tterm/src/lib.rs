@@ -12,6 +12,7 @@ mod view;
 pub use backend::Command as BackendCommand;
 pub use backend::{LinkAction, MouseButton};
 pub use tankterm_terminal::event::Event as AlacrittyEvent;
+pub use tankterm_terminal::grid::Scroll;
 pub use tankterm_terminal::index::Point as AlacrittyPoint;
 pub use tankterm_terminal::selection::SelectionType;
 pub use tankterm_terminal::term::TermMode;

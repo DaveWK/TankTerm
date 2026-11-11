@@ -19,6 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   button is released after selecting
 - `Terminal::child_pid()` and `Terminal::foreground_process_group()`, for telling whether a
   command is running in the shell; only known on Unix
+- `BackendCommand::ScrollDisplay(Scroll)`, which moves the view through the scrollback buffer by
+  lines, pages or to either end, and `BackendCommand::ClearHistory`, which drops the buffer;
+  `Scroll` is re-exported from `tankterm_terminal`
+- `Terminal::screen_lines()` and `Terminal::display_offset()`: the height of the screen in lines
+  and how many lines the view is scrolled back
+- `Command::RemoveClipboardKeys` takes the widget's copy and paste keys out of its bindings, for
+  applications that bind these actions themselves
 - `Settings::scroll` (`ScrollSettings`): `history`, the most lines the scrollback buffer keeps,
   and `multiplier`, the lines scrolled for every step of the mouse wheel; `Command::ChangeScroll`
   changes both for a running terminal
@@ -35,6 +42,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Renamed from `iced_term` to `iced_tterm` and moved into the TankTerm repository as a workspace
   crate; `tankterm_terminal` is now a path dependency
+
+### Fixed
+
+- Crash when a font is so small that its cells measure less than a pixel
 
 ## [0.8.0]
 

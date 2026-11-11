@@ -22,7 +22,7 @@ use tankterm_terminal::term::{
     self, cell::Cell, color::Colors, test::TermSize, viewport_to_point, Term,
     TermMode,
 };
-use tankterm_terminal::vte::ansi::Rgb;
+use tankterm_terminal::vte::ansi::{ClearMode, Handler, Rgb};
 use tankterm_terminal::{tty, Grid};
 use tokio::sync::mpsc;
 
@@ -65,7 +65,14 @@ pub enum Command {
     /// passing it on to [`crate::Terminal::handle`]; [`crate::Terminal::mode`]
     /// tells whether bracketed paste is on.
     Paste(String),
+    /// Scroll by this many lines, the way the mouse wheel does: on the
+    /// alternate screen, applications that asked for it get arrow keys
+    /// instead.
     Scroll(i32),
+    /// Move the view through the scrollback buffer.
+    ScrollDisplay(Scroll),
+    /// Drop the scrollback buffer, keeping what is on the screen.
+    ClearHistory,
     Resize(Option<Size<f32>>, Option<Size<f32>>),
     SelectStart(SelectionType, (f32, f32)),
     SelectUpdate((f32, f32)),
@@ -285,6 +292,11 @@ impl Backend {
         (!text.is_empty()).then_some(text)
     }
 
+    /// How many lines the screen has.
+    pub fn screen_lines(&self) -> usize {
+        self.size.num_lines as usize
+    }
+
     /// ID of the process started in the terminal, where there is one to ask.
     pub fn child_pid(&self) -> Option<u32> {
         #[cfg(unix)]
@@ -343,6 +355,12 @@ impl Backend {
             },
             Command::Scroll(delta) => {
                 self.scroll(&mut term, delta);
+            },
+            Command::ScrollDisplay(scroll) => {
+                term.scroll_display(scroll);
+            },
+            Command::ClearHistory => {
+                term.clear_screen(ClearMode::Saved);
             },
             Command::Resize(layout_size, font_measure) => {
                 self.resize(&mut term, layout_size, font_measure);
@@ -560,8 +578,10 @@ impl Backend {
         };
 
         if let Some(size) = font_measure {
-            self.size.cell_height = size.height as u16;
-            self.size.cell_width = size.width as u16;
+            // A font too small to measure a pixel still has cells to divide
+            // the layout by.
+            self.size.cell_height = (size.height as u16).max(1);
+            self.size.cell_width = (size.width as u16).max(1);
         }
 
         let lines = (self.size.layout_height / self.size.cell_height as f32)
@@ -1205,6 +1225,53 @@ mod tests {
         assert_eq!(backend.selection(), None);
         backend.handle(Command::SelectUpdate((5.6, 0.)));
         assert_eq!(backend.selection().as_deref(), Some("hello"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cells_of_a_tiny_font_are_a_pixel() {
+        let mut backend = backend_running("exec cat");
+        backend.handle(Command::Resize(
+            Some(Size::new(120., 40.)),
+            Some(Size::new(0.4, 0.9)),
+        ));
+
+        assert_eq!((backend.size.cell_width, backend.size.cell_height), (1, 1));
+        assert_eq!((backend.size.num_cols, backend.size.num_lines), (120, 40));
+        // Pointing at a cell doesn't divide by zero.
+        let point = Backend::selection_point(5., 5., &backend.size, 0);
+        assert_eq!((point.line.0, point.column.0), (5, 5));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn scrollback_is_paged_through_and_cleared() {
+        let mut backend = backend_running("seq 1 250; printf done; exec cat");
+        eventually("the output never ended", || {
+            backend.text().concat().contains("done")
+        });
+        let offset = |backend: &mut Backend, scroll| {
+            backend.handle(Command::ScrollDisplay(scroll));
+            backend.sync();
+            backend.renderable_content().grid.display_offset()
+        };
+
+        // 250 lines above the line of the cursor, 49 of them on the screen.
+        assert_eq!(backend.screen_lines(), 50);
+        assert_eq!(offset(&mut backend, Scroll::PageUp), 50);
+        assert_eq!(offset(&mut backend, Scroll::Delta(-25)), 25);
+        assert_eq!(offset(&mut backend, Scroll::Delta(1)), 26);
+        assert_eq!(offset(&mut backend, Scroll::Top), 201);
+        assert_eq!(offset(&mut backend, Scroll::PageDown), 151);
+        assert_eq!(offset(&mut backend, Scroll::Bottom), 0);
+
+        // Clearing the history leaves the screen as it is.
+        offset(&mut backend, Scroll::PageUp);
+        backend.handle(Command::ClearHistory);
+        backend.sync();
+        assert_eq!(backend.renderable_content().grid.display_offset(), 0);
+        assert_eq!(backend.text().first().map(String::as_str), Some("202"));
+        assert_eq!(offset(&mut backend, Scroll::Top), 0);
     }
 
     #[cfg(unix)]

@@ -121,6 +121,35 @@ impl BindingsLayout {
         }
     }
 
+    /// Take the platform's keys for copying and pasting out of the layout.
+    ///
+    /// A key the default layout sends to the terminal is sent there again;
+    /// keys that were bound to something else since are left alone.
+    pub(crate) fn remove_clipboard_keys(&mut self) {
+        let defaults = default_keyboard_bindings();
+
+        for (binding, action) in platform_keyboard_bindings() {
+            let clipboard = matches!(
+                action,
+                BindingAction::Copy
+                    | BindingAction::Paste
+                    | BindingAction::PasteSelection
+            );
+            let position = self
+                .layout
+                .iter()
+                .position(|bound| *bound == (binding.clone(), action.clone()));
+            let Some(position) = position.filter(|_| clipboard) else {
+                continue;
+            };
+
+            match defaults.iter().find(|(default, _)| *default == binding) {
+                Some(default) => self.layout[position] = default.clone(),
+                None => drop(self.layout.remove(position)),
+            }
+        }
+    }
+
     pub(crate) fn get_action(
         &self,
         input: InputKind,
@@ -500,6 +529,65 @@ mod tests {
                 });
             assert!(found_binding.is_some());
         }
+    }
+
+    #[test]
+    fn clipboard_keys_can_be_removed() {
+        let (modifiers, copy, paste) = if cfg!(target_os = "macos") {
+            (
+                Modifiers::COMMAND,
+                BindingAction::Ignore,
+                BindingAction::Ignore,
+            )
+        } else {
+            (
+                Modifiers::SHIFT | Modifiers::COMMAND,
+                BindingAction::Char('\x03'),
+                BindingAction::Char('\x16'),
+            )
+        };
+        let action = |layout: &BindingsLayout, key: &str| {
+            layout.get_action(
+                InputKind::Char(key.into()),
+                modifiers,
+                TermMode::empty(),
+            )
+        };
+
+        let mut layout = BindingsLayout::default();
+        assert_eq!(action(&layout, "c"), BindingAction::Copy);
+        assert_eq!(action(&layout, "v"), BindingAction::Paste);
+
+        // The keys are the terminal's again, and the mouse keeps pasting.
+        layout.remove_clipboard_keys();
+        assert_eq!(action(&layout, "c"), copy);
+        assert_eq!(action(&layout, "v"), paste);
+        assert_eq!(
+            layout.get_action(
+                InputKind::KeyCode(Named::Insert),
+                Modifiers::SHIFT,
+                TermMode::empty(),
+            ),
+            BindingAction::Ignore
+        );
+        assert_eq!(
+            layout.get_action(
+                InputKind::Mouse(Button::Middle),
+                Modifiers::empty(),
+                TermMode::empty(),
+            ),
+            BindingAction::PasteSelection
+        );
+
+        // A key bound to something else since is not touched.
+        let mut layout = BindingsLayout::default();
+        let custom = generate_bindings!(
+            KeyboardBinding;
+            "c", modifiers; BindingAction::Char('C');
+        );
+        layout.add_bindings(custom);
+        layout.remove_clipboard_keys();
+        assert_eq!(action(&layout, "c"), BindingAction::Char('C'));
     }
 
     #[test]

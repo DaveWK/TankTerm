@@ -149,9 +149,12 @@ the terminal; this works on Unix with shells that have job control.
 
 Selected text is put on the selection clipboard, where the platform has one,
 and with `save_to_clipboard = true` in the `[selection]` section also on the
-regular clipboard. The middle mouse button and <kbd>Shift</kbd>
+regular clipboard. <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>C</kbd> copies the
+selected text to the clipboard. The middle mouse button and <kbd>Shift</kbd>
 <kbd>Insert</kbd> paste the selection, <kbd>Ctrl</kbd> <kbd>Shift</kbd>
-<kbd>V</kbd> pastes the clipboard. To paste with the right mouse button, bind
+<kbd>V</kbd> pastes the clipboard. The keys are key bindings to the `Copy`,
+`PasteSelection` and `Paste` actions and can be changed in the `[keyboard]`
+section of the configuration file. To paste with the right mouse button, bind
 it:
 
 ```toml

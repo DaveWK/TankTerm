@@ -210,6 +210,19 @@ impl UiConfig {
         deserialize_bindings(&mut self.keyboard.bindings.1.clone(), preset)
     }
 
+    /// Every key binding: the default ones and those of the selected preset on this platform,
+    /// with the user's bindings replacing and unbinding them.
+    pub fn app_bindings(&self) -> Vec<KeyBinding> {
+        self.app_bindings_for(cfg!(target_os = "macos"))
+    }
+
+    /// [`Self::app_bindings`] with the preset's keys for macOS or for the other platforms.
+    pub fn app_bindings_for(&self, macos: bool) -> Vec<KeyBinding> {
+        let mut defaults = bindings::default_key_bindings();
+        defaults.extend(bindings::preset_key_bindings(self.keyboard.preset, macos));
+        deserialize_bindings(&mut self.keyboard.bindings.1.clone(), defaults)
+    }
+
     /// The leader key.
     pub fn leader(&self) -> &LeaderKey {
         &self.keyboard.leader

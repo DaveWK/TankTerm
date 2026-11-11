@@ -1,7 +1,8 @@
 //! The iced application hosting the terminals.
 //!
-//! A window holds tabs, and every tab holds one or more terminals in split panes. Tabs and panes
-//! are driven by the key bindings in [`crate::hotkeys`] and by the tab bar.
+//! A window holds tabs, and every tab holds one or more terminals in split panes. Tabs, panes
+//! and the focused terminal are driven by the key bindings in [`crate::hotkeys`], tabs also by
+//! the tab bar.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -17,6 +18,7 @@ use crate::hotkeys::{AppAction, Hotkeys};
 use crate::palette::Palette;
 use crate::session::Session;
 
+mod actions;
 #[cfg(all(test, unix))]
 mod layout_tests;
 #[cfg(all(test, unix))]
@@ -45,7 +47,7 @@ const PROCESS_INTERVAL: Duration = Duration::from_secs(1);
 #[derive(Debug, Clone)]
 pub enum Message {
     Terminal(iced_tterm::Event),
-    /// A tab or pane action, from a key binding or the tab bar.
+    /// An action, from a key binding, the tab bar or the command palette.
     Action(AppAction),
     /// Close the tab at this position.
     CloseTab(usize),
@@ -103,6 +105,9 @@ pub struct App {
     /// Position of the tab that is shown.
     active: usize,
     terminals: HashMap<u64, Shell>,
+    /// How far the font size actions moved the font size of the terminals from the configured
+    /// one, in logical pixels.
+    font_zoom: f32,
     /// ID for the next terminal; `iced_tterm` uses it to route backend events.
     next_terminal: u64,
     next_tab: u64,

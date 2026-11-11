@@ -7,6 +7,7 @@ use iced::{Element, Length};
 use iced_tterm::TerminalView;
 
 use super::{App, Layout, MAX_TAB_WIDTH, Message};
+use crate::config::BindingMode;
 use crate::config::tabs::{ShowTabs, TabsPosition};
 use crate::hotkeys::{AppAction, KeyFilter};
 use crate::palette::{self, blend, paste_warning};
@@ -60,8 +61,12 @@ impl App {
             (None, None) => &self.options.hotkeys,
         };
 
+        // Bindings can be limited to modes of the terminal the keys are typed into.
+        let mode = self.focused_shell().map(|shell| shell.terminal.mode()).unwrap_or_default();
+
         KeyFilter::new(layers, hotkeys, Message::Action)
             .exclusive(self.pending_paste.is_some())
+            .mode(BindingMode::new(&mode, false))
             .into()
     }
 

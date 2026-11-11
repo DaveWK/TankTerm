@@ -1,8 +1,9 @@
-//! Key bindings handled by the application itself, for tabs and panes.
+//! Key bindings handled by the application itself: tabs and panes, copying and pasting, the font
+//! size, scrolling and the window.
 //!
 //! The terminal widget sends every key it receives to the shell. [`KeyFilter`] sits above it in
-//! the widget tree and takes the keys bound to tab and pane actions out of the event stream, so
-//! they never reach the shell.
+//! the widget tree and takes the keys bound to these actions out of the event stream, so they
+//! never reach the shell.
 
 use std::time::{Duration, Instant};
 
@@ -16,10 +17,24 @@ use iced_tterm::TermMode;
 use iced_tterm::bindings::{Binding as WidgetBinding, BindingAction, InputKind};
 
 use crate::config::{
-    Action, BindingKey, BindingMode, KeyBinding, LeaderKey, MouseBinding, MouseEvent, UiConfig,
+    Action, BindingKey, BindingMode, KeyBinding, KeyLocation, LeaderKey, MouseBinding, MouseEvent,
+    UiConfig,
 };
 
-/// Tab and pane actions.
+/// Where a scrolling action moves the view of the focused terminal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScrollTo {
+    PageUp,
+    PageDown,
+    HalfPageUp,
+    HalfPageDown,
+    LineUp,
+    LineDown,
+    Top,
+    Bottom,
+}
+
+/// Actions of the application: for tabs and panes, the focused terminal and the window.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AppAction {
     NewTab,
@@ -54,6 +69,22 @@ pub enum AppAction {
     PasteConfirm,
     /// Close the paste warning without pasting.
     PasteCancel,
+    /// Copy the text selected in the focused terminal to the clipboard.
+    Copy,
+    /// Paste the clipboard into the focused terminal.
+    Paste,
+    /// Paste the selection clipboard into the focused terminal.
+    PasteSelection,
+    IncreaseFontSize,
+    DecreaseFontSize,
+    /// Go back to the font size of the configuration.
+    ResetFontSize,
+    /// Scroll the focused terminal through its scrollback buffer.
+    Scroll(ScrollTo),
+    /// Drop the scrollback buffer of the focused terminal.
+    ClearHistory,
+    ToggleFullscreen,
+    ToggleMaximized,
 }
 
 impl AppAction {
@@ -93,13 +124,133 @@ impl AppAction {
             Action::ResizePaneDown => Self::ResizePane(Direction::Down),
             Action::ShowCommandPalette => Self::ShowCommands,
             Action::ShowProfiles => Self::ShowProfiles,
+            Action::Copy => Self::Copy,
+            Action::Paste => Self::Paste,
+            Action::PasteSelection => Self::PasteSelection,
+            Action::IncreaseFontSize => Self::IncreaseFontSize,
+            Action::DecreaseFontSize => Self::DecreaseFontSize,
+            Action::ResetFontSize => Self::ResetFontSize,
+            Action::ScrollPageUp => Self::Scroll(ScrollTo::PageUp),
+            Action::ScrollPageDown => Self::Scroll(ScrollTo::PageDown),
+            Action::ScrollHalfPageUp => Self::Scroll(ScrollTo::HalfPageUp),
+            Action::ScrollHalfPageDown => Self::Scroll(ScrollTo::HalfPageDown),
+            Action::ScrollLineUp => Self::Scroll(ScrollTo::LineUp),
+            Action::ScrollLineDown => Self::Scroll(ScrollTo::LineDown),
+            Action::ScrollToTop => Self::Scroll(ScrollTo::Top),
+            Action::ScrollToBottom => Self::Scroll(ScrollTo::Bottom),
+            Action::ClearHistory => Self::ClearHistory,
+            Action::ToggleFullscreen => Self::ToggleFullscreen,
+            Action::ToggleMaximized => Self::ToggleMaximized,
             _ => return None,
         })
     }
 }
 
-/// A key with its modifiers and the action it is bound to.
-type Bound = (Key, Modifiers, AppAction);
+/// What a bound key does.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Effect {
+    Run(AppAction),
+    /// `ReceiveChar`: the terminal gets the key, whatever else is bound to it.
+    Pass,
+    /// `None`: the key does nothing and doesn't reach the terminal.
+    Swallow,
+}
+
+impl Effect {
+    /// What a config binding action does, if the application knows the action.
+    fn from_config(action: &Action) -> Option<Self> {
+        match action {
+            Action::ReceiveChar => Some(Self::Pass),
+            Action::None => Some(Self::Swallow),
+            action => AppAction::from_config(action).map(Self::Run),
+        }
+    }
+}
+
+/// Binding modes that are never active: the iced front end has no vi mode and no search yet.
+const MISSING_MODES: BindingMode = BindingMode::VI.union(BindingMode::SEARCH);
+
+/// A key with its modifiers, the terminal modes it is limited to, and what it does.
+#[derive(Debug, Clone, PartialEq)]
+struct Bound {
+    key: Key,
+    modifiers: Modifiers,
+    location: KeyLocation,
+    /// Terminal modes that have to be active.
+    mode: BindingMode,
+    /// Terminal modes that must not be active.
+    notmode: BindingMode,
+    effect: Effect,
+}
+
+impl Bound {
+    /// A key that runs an action in every terminal mode.
+    fn new(key: &Key, modifiers: Modifiers, action: AppAction) -> Self {
+        Self {
+            key: normalize(key),
+            modifiers,
+            location: KeyLocation::Any,
+            mode: BindingMode::empty(),
+            notmode: BindingMode::empty(),
+            effect: Effect::Run(action),
+        }
+    }
+
+    /// Whether a key press in a terminal with `mode` is this binding's.
+    fn is_triggered_by(&self, press: &KeyPress<'_>, mode: BindingMode) -> bool {
+        // An event doesn't tell a left or right key from one that could be anywhere.
+        let location = match press.location {
+            keyboard::Location::Standard => KeyLocation::Standard,
+            keyboard::Location::Numpad => KeyLocation::Numpad,
+            keyboard::Location::Left | keyboard::Location::Right => KeyLocation::Any,
+        };
+
+        self.key == normalize(press.key)
+            && self.modifiers == press.modifiers
+            && self.location == location
+            && mode.contains(self.mode)
+            && !mode.intersects(self.notmode)
+    }
+}
+
+/// A key press, as bindings are matched against it.
+#[derive(Debug, Clone, Copy)]
+pub struct KeyPress<'a> {
+    /// The key without its modifiers applied.
+    pub key: &'a Key,
+    pub modifiers: Modifiers,
+    pub location: keyboard::Location,
+}
+
+/// What a key press does, going by the bindings.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Triggered {
+    /// The actions to run, in the order of their bindings.
+    pub actions: Vec<AppAction>,
+    /// Whether the key is kept from the terminal.
+    pub captured: bool,
+}
+
+/// What a key press does, going by a list of bindings.
+///
+/// Every binding of the key runs. The key is kept from the terminal unless it has no binding
+/// or one of its bindings is `ReceiveChar`.
+fn triggered(bindings: &[Bound], press: &KeyPress<'_>, mode: BindingMode) -> Triggered {
+    let mut triggered = Triggered::default();
+    let mut pass = false;
+
+    for bound in bindings.iter().filter(|bound| bound.is_triggered_by(press, mode)) {
+        triggered.captured = true;
+        match bound.effect {
+            Effect::Run(action) => triggered.actions.push(action),
+            Effect::Pass => pass = true,
+            Effect::Swallow => (),
+        }
+    }
+    triggered.captured &= !pass;
+
+    triggered
+}
 
 /// Keys bound to application actions.
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -121,28 +272,45 @@ pub struct Leader {
 }
 
 impl Hotkeys {
-    /// Collect the tab and pane bindings of the configuration: the selected preset's and the
-    /// user's.
+    /// Collect the bindings of the configuration the application handles: the default ones,
+    /// those of the selected preset and the user's.
     pub fn from_config(config: &UiConfig) -> Self {
-        Self::from_bindings(&config.tab_bindings(), Leader::from_config(config.leader()))
+        Self::from_bindings(&config.app_bindings(), Leader::from_config(config.leader()))
     }
 
-    /// Collect the tab and pane bindings from key bindings.
+    /// Collect the bindings the application handles from key bindings.
     ///
-    /// Bindings with the `Leader` mode are reached through `leader`. Bindings limited to a
-    /// terminal mode and bindings to scancodes aren't supported.
+    /// Bindings with the `Leader` mode are reached through `leader`. Bindings that need vi mode
+    /// or search are never active, since neither exists yet. Bindings to actions the
+    /// application doesn't know and bindings to scancodes aren't supported; their keys are left
+    /// to the terminal.
     pub fn from_bindings(bindings: &[KeyBinding], leader: Option<Leader>) -> Self {
         let mut hotkeys = Self { leader, ..Self::default() };
 
         for binding in bindings {
-            let Some(action) = AppAction::from_config(&binding.action) else { continue };
-            let BindingKey::Keycode { key, .. } = &binding.trigger else { continue };
+            let Some(effect) = Effect::from_config(&binding.action) else { continue };
+            let BindingKey::Keycode { key, location } = &binding.trigger else { continue };
+            if binding.mode.intersects(MISSING_MODES) {
+                continue;
+            }
 
-            let key = normalize(&iced_winit::conversion::key(key.clone()));
-            let bound = (key, iced_winit::conversion::modifiers(binding.mods), action);
-            if binding.mode.is_empty() {
+            let after_leader = binding.mode.contains(BindingMode::LEADER);
+            let bound = Bound {
+                key: normalize(&iced_winit::conversion::key(key.clone())),
+                modifiers: iced_winit::conversion::modifiers(binding.mods),
+                location: *location,
+                mode: binding.mode - BindingMode::LEADER,
+                notmode: binding.notmode - MISSING_MODES - BindingMode::LEADER,
+                effect,
+            };
+
+            if !after_leader {
                 hotkeys.direct.push(bound);
-            } else if binding.mode == BindingMode::LEADER {
+            } else if matches!(effect, Effect::Run(_))
+                && !binding.notmode.contains(BindingMode::LEADER)
+            {
+                // Any other key after the leader key ends the sequence without reaching the
+                // terminal, so unbinding one needs no entry.
                 hotkeys.sequences.push(bound);
             }
         }
@@ -160,7 +328,7 @@ impl Hotkeys {
     /// Bind a key pressed after the leader key.
     #[cfg(test)]
     pub fn with_sequence(mut self, key: Key, modifiers: Modifiers, action: AppAction) -> Self {
-        self.sequences.push((normalize(&key), modifiers, action));
+        self.sequences.push(Bound::new(&key, modifiers, action));
         self
     }
 
@@ -185,18 +353,37 @@ impl Hotkeys {
 
     /// Bind a key directly.
     pub fn with(mut self, key: Key, modifiers: Modifiers, action: AppAction) -> Self {
-        self.direct.push((normalize(&key), modifiers, action));
+        self.direct.push(Bound::new(&key, modifiers, action));
         self
     }
 
-    /// The action bound to a key press.
-    pub fn action(&self, key: &Key, modifiers: Modifiers) -> Option<AppAction> {
-        lookup(&self.direct, key, modifiers)
+    /// What a key press does in a terminal with `mode`.
+    pub fn press(&self, press: &KeyPress<'_>, mode: BindingMode) -> Triggered {
+        triggered(&self.direct, press, mode)
     }
 
-    /// The action bound to a key press that follows the leader key.
+    /// What a key press that follows the leader key does in a terminal with `mode`.
+    ///
+    /// The key never reaches the terminal, whether it is bound or not.
+    pub fn press_after_leader(&self, press: &KeyPress<'_>, mode: BindingMode) -> Triggered {
+        Triggered { captured: true, ..triggered(&self.sequences, press, mode) }
+    }
+
+    /// The first action bound to a key press, in a terminal without any modes.
+    #[cfg(test)]
+    pub fn action(&self, key: &Key, modifiers: Modifiers) -> Option<AppAction> {
+        let location = keyboard::Location::Standard;
+        let press = KeyPress { key, modifiers, location };
+        self.press(&press, BindingMode::empty()).actions.first().copied()
+    }
+
+    /// The first action bound to a key press that follows the leader key, in a terminal without
+    /// any modes.
+    #[cfg(test)]
     pub fn sequence(&self, key: &Key, modifiers: Modifiers) -> Option<AppAction> {
-        lookup(&self.sequences, key, modifiers)
+        let location = keyboard::Location::Standard;
+        let press = KeyPress { key, modifiers, location };
+        self.press_after_leader(&press, BindingMode::empty()).actions.first().copied()
     }
 
     /// The leader key, if any binding needs it.
@@ -222,15 +409,6 @@ impl Leader {
     fn is(&self, key: &Key, modifiers: Modifiers) -> bool {
         self.key == normalize(key) && self.modifiers == modifiers
     }
-}
-
-/// The action bound to a key in a list of bindings.
-fn lookup(bindings: &[Bound], key: &Key, modifiers: Modifiers) -> Option<AppAction> {
-    let key = normalize(key);
-    bindings
-        .iter()
-        .find(|(bound, mods, _)| *bound == key && *mods == modifiers)
-        .map(|(.., action)| *action)
 }
 
 /// A key with its modifiers, written like `Ctrl+Shift+T`.
@@ -260,15 +438,16 @@ impl Hotkeys {
     /// The first key bound to an action, written like `Ctrl+Shift+T`, or like `Ctrl+A C` for a
     /// key that follows the leader key.
     pub fn describe(&self, action: AppAction) -> Option<String> {
-        if let Some((key, modifiers, _)) = self.direct.iter().find(|(.., bound)| *bound == action) {
-            return describe_key(key, *modifiers);
+        let runs = |bound: &&Bound| bound.effect == Effect::Run(action);
+        if let Some(bound) = self.direct.iter().find(runs) {
+            return describe_key(&bound.key, bound.modifiers);
         }
 
         let leader = self.leader()?;
-        let (key, modifiers, _) = self.sequences.iter().find(|(.., bound)| *bound == action)?;
+        let bound = self.sequences.iter().find(runs)?;
         let leader = describe_key(&leader.key, leader.modifiers)?;
 
-        Some(format!("{leader} {}", describe_key(key, *modifiers)?))
+        Some(format!("{leader} {}", describe_key(&bound.key, bound.modifiers)?))
     }
 }
 
@@ -324,6 +503,8 @@ pub struct KeyFilter<'a, Message> {
     hotkeys: &'a Hotkeys,
     on_action: fn(AppAction) -> Message,
     exclusive: bool,
+    /// Modes of the terminal the keys are typed into, for bindings limited to some.
+    mode: BindingMode,
 }
 
 impl<'a, Message> KeyFilter<'a, Message> {
@@ -332,7 +513,19 @@ impl<'a, Message> KeyFilter<'a, Message> {
         hotkeys: &'a Hotkeys,
         on_action: fn(AppAction) -> Message,
     ) -> Self {
-        Self { content: content.into(), hotkeys, on_action, exclusive: false }
+        Self {
+            content: content.into(),
+            hotkeys,
+            on_action,
+            exclusive: false,
+            mode: BindingMode::empty(),
+        }
+    }
+
+    /// The modes of the terminal the keys are typed into.
+    pub fn mode(mut self, mode: BindingMode) -> Self {
+        self.mode = mode;
+        self
     }
 
     /// Keep every key from the content, not only the bound ones.
@@ -456,7 +649,15 @@ impl<Message> Widget<Message, Theme, Renderer> for KeyFilter<'_, Message> {
         let state = tree.state.downcast_mut::<State>();
 
         match event {
-            Event::Keyboard(keyboard::Event::KeyPressed { key, modifiers, repeat, .. }) => {
+            Event::Keyboard(keyboard::Event::KeyPressed {
+                key,
+                modifiers,
+                location,
+                repeat,
+                ..
+            }) => {
+                let press = KeyPress { key, modifiers: *modifiers, location: *location };
+
                 // The key after the leader key, unless it took too long.
                 let leader = self.hotkeys.leader();
                 let awaited = state
@@ -482,8 +683,11 @@ impl<Message> Widget<Message, Theme, Renderer> for KeyFilter<'_, Message> {
                             viewport,
                         );
                         return;
-                    } else if let Some(action) = self.hotkeys.sequence(key, *modifiers) {
-                        shell.publish((self.on_action)(action));
+                    } else {
+                        let triggered = self.hotkeys.press_after_leader(&press, self.mode);
+                        for action in triggered.actions {
+                            shell.publish((self.on_action)(action));
+                        }
                     }
 
                     // An unbound key ends the sequence without reaching the shell either.
@@ -499,9 +703,12 @@ impl<Message> Widget<Message, Theme, Renderer> for KeyFilter<'_, Message> {
                     return;
                 }
 
-                if let Some(action) = self.hotkeys.action(key, *modifiers) {
-                    state.hold(key);
+                let triggered = self.hotkeys.press(&press, self.mode);
+                for action in triggered.actions {
                     shell.publish((self.on_action)(action));
+                }
+                if triggered.captured {
+                    state.hold(key);
                     shell.capture_event();
                     return;
                 }
@@ -614,8 +821,24 @@ mod tests {
             hotkeys.action(&Key::Character("s".into()), pressed),
             Some(AppAction::Split(Axis::Vertical))
         );
-        // Actions of the terminal itself aren't taken away from it.
-        assert_eq!(hotkeys.action(&Key::Character("c".into()), pressed), None);
+        assert_eq!(hotkeys.action(&Key::Character("c".into()), pressed), Some(AppAction::Copy));
+    }
+
+    #[test]
+    fn keys_of_unsupported_actions_are_left_to_the_terminal() {
+        let mods = ModifiersState::CONTROL | ModifiersState::SHIFT;
+        let hotkeys = Hotkeys::from_bindings(
+            &[
+                binding("f", mods, Action::SearchForward),
+                binding("h", mods, Action::ToggleHelp),
+                binding("x", mods, Action::Esc("x".into())),
+                binding("q", mods, Action::Quit),
+            ],
+            None,
+        );
+
+        assert_eq!(hotkeys, Hotkeys::default());
+        assert_eq!(pressed(&hotkeys, "f", CTRL_SHIFT, BindingMode::empty()), Triggered::default());
     }
 
     #[test]
@@ -647,6 +870,33 @@ mod tests {
 
     fn character(key: &str) -> Key {
         Key::Character(key.into())
+    }
+
+    /// What pressing a character key at its standard location does in a terminal with `mode`.
+    fn pressed(hotkeys: &Hotkeys, key: &str, modifiers: Modifiers, mode: BindingMode) -> Triggered {
+        let location = keyboard::Location::Standard;
+        hotkeys.press(&KeyPress { key: &character(key), modifiers, location }, mode)
+    }
+
+    /// What pressing a named key does in a terminal with `mode`.
+    fn pressed_named(
+        hotkeys: &Hotkeys,
+        key: keyboard::key::Named,
+        modifiers: Modifiers,
+        mode: BindingMode,
+    ) -> Triggered {
+        let location = keyboard::Location::Standard;
+        hotkeys.press(&KeyPress { key: &Key::Named(key), modifiers, location }, mode)
+    }
+
+    /// A key that runs these actions and is kept from the terminal.
+    fn runs(actions: &[AppAction]) -> Triggered {
+        Triggered { actions: actions.to_vec(), captured: true }
+    }
+
+    /// A key that does nothing and reaches the terminal.
+    fn unbound() -> Triggered {
+        Triggered::default()
     }
 
     fn arrow_left() -> Key {
@@ -872,6 +1122,226 @@ mod tests {
             Some(AppAction::CloseTab)
         );
         assert_eq!(hotkeys.sequence(&character("n"), Modifiers::empty()), Some(AppAction::NextTab));
+    }
+
+    /// The hotkeys of a configuration on this platform, with the default bindings.
+    fn configured(config: &str) -> Hotkeys {
+        Hotkeys::from_config(&toml::from_str(config).unwrap())
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    #[test]
+    fn default_bindings_copy_paste_scroll_and_change_the_font_size() {
+        use keyboard::key::Named;
+
+        let hotkeys = configured("");
+        let none = BindingMode::empty();
+
+        let characters = [
+            ("c", CTRL_SHIFT, AppAction::Copy),
+            ("v", CTRL_SHIFT, AppAction::Paste),
+            ("0", Modifiers::CTRL, AppAction::ResetFontSize),
+            ("=", Modifiers::CTRL, AppAction::IncreaseFontSize),
+            ("+", Modifiers::CTRL, AppAction::IncreaseFontSize),
+            ("-", Modifiers::CTRL, AppAction::DecreaseFontSize),
+        ];
+        for (key, modifiers, action) in characters {
+            assert_eq!(pressed(&hotkeys, key, modifiers, none), runs(&[action]), "{key}");
+        }
+
+        let named = [
+            (Named::Copy, Modifiers::empty(), AppAction::Copy),
+            (Named::Paste, Modifiers::empty(), AppAction::Paste),
+            (Named::Insert, Modifiers::SHIFT, AppAction::PasteSelection),
+            (Named::PageUp, Modifiers::SHIFT, AppAction::Scroll(ScrollTo::PageUp)),
+            (Named::PageDown, Modifiers::SHIFT, AppAction::Scroll(ScrollTo::PageDown)),
+            (Named::Home, Modifiers::SHIFT, AppAction::Scroll(ScrollTo::Top)),
+            (Named::End, Modifiers::SHIFT, AppAction::Scroll(ScrollTo::Bottom)),
+        ];
+        for (key, modifiers, action) in named {
+            assert_eq!(pressed_named(&hotkeys, key, modifiers, none), runs(&[action]), "{key:?}");
+        }
+
+        // The tab and pane keys of the preset are still there.
+        assert_eq!(pressed(&hotkeys, "t", CTRL_SHIFT, none), runs(&[AppAction::NewTab]));
+
+        // `Control+L` is bound to `ReceiveChar` next to an action that doesn't exist yet, and
+        // keys without a binding aren't touched.
+        assert_eq!(pressed(&hotkeys, "l", Modifiers::CTRL, none), unbound());
+        assert_eq!(pressed(&hotkeys, "c", Modifiers::CTRL, none), unbound());
+        assert_eq!(pressed_named(&hotkeys, Named::PageUp, Modifiers::empty(), none), unbound());
+    }
+
+    #[test]
+    fn bindings_follow_the_terminal_modes() {
+        use keyboard::key::Named;
+
+        let hotkeys = configured(
+            r#"
+            [keyboard]
+            bindings = [
+                { key = "U", mods = "Alt", mode = "Alt", action = "ScrollHalfPageUp" },
+                { key = "D", mods = "Alt", mode = "AppCursor|~AppKeypad", action = "ScrollHalfPageDown" },
+                { key = "]", mode = "Leader|Alt", action = "ScrollPageDown" },
+            ]
+            "#,
+        );
+        let page_up = |mode| pressed_named(&hotkeys, Named::PageUp, Modifiers::SHIFT, mode);
+
+        // On the alternate screen the scrolling keys belong to the application.
+        assert_eq!(page_up(BindingMode::empty()), runs(&[AppAction::Scroll(ScrollTo::PageUp)]));
+        assert_eq!(page_up(BindingMode::APP_CURSOR), runs(&[AppAction::Scroll(ScrollTo::PageUp)]));
+        assert_eq!(page_up(BindingMode::ALT_SCREEN), unbound());
+
+        let half_up = runs(&[AppAction::Scroll(ScrollTo::HalfPageUp)]);
+        assert_eq!(pressed(&hotkeys, "u", Modifiers::ALT, BindingMode::empty()), unbound());
+        assert_eq!(pressed(&hotkeys, "u", Modifiers::ALT, BindingMode::ALT_SCREEN), half_up);
+
+        let half_down = runs(&[AppAction::Scroll(ScrollTo::HalfPageDown)]);
+        let both = BindingMode::APP_CURSOR | BindingMode::APP_KEYPAD;
+        assert_eq!(pressed(&hotkeys, "d", Modifiers::ALT, BindingMode::APP_CURSOR), half_down);
+        assert_eq!(pressed(&hotkeys, "d", Modifiers::ALT, both), unbound());
+
+        // Keys after the leader key can be limited to terminal modes as well.
+        let after_leader = |mode| {
+            let location = keyboard::Location::Standard;
+            let press = KeyPress { key: &character("]"), modifiers: Modifiers::empty(), location };
+            hotkeys.press_after_leader(&press, mode).actions
+        };
+        assert_eq!(after_leader(BindingMode::empty()), []);
+        assert_eq!(after_leader(BindingMode::ALT_SCREEN), [AppAction::Scroll(ScrollTo::PageDown)]);
+    }
+
+    #[test]
+    fn vi_and_search_bindings_are_inactive() {
+        let hotkeys = configured(
+            r#"
+            [keyboard]
+            bindings = [
+                { key = "J", mods = "Alt", mode = "Vi", action = "ScrollLineDown" },
+                { key = "K", mods = "Alt", mode = "Search", action = "ScrollLineUp" },
+                { key = "U", mods = "Alt", mode = "~Vi|~Search", action = "ScrollHalfPageUp" },
+            ]
+            "#,
+        );
+        let none = BindingMode::empty();
+
+        assert_eq!(pressed(&hotkeys, "j", Modifiers::ALT, none), unbound());
+        assert_eq!(pressed(&hotkeys, "k", Modifiers::ALT, none), unbound());
+        // Not being in a mode that doesn't exist is no condition at all.
+        assert_eq!(
+            pressed(&hotkeys, "u", Modifiers::ALT, none),
+            runs(&[AppAction::Scroll(ScrollTo::HalfPageUp)])
+        );
+
+        // The default vi mode keys are ordinary keys: `y` copies in vi mode only.
+        for key in ["y", "g", "v", "i"] {
+            assert_eq!(pressed(&hotkeys, key, Modifiers::empty(), none), unbound(), "{key}");
+        }
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    #[test]
+    fn receive_char_gives_a_key_back_and_none_swallows_it() {
+        let hotkeys = configured(
+            r#"
+            [keyboard]
+            bindings = [
+                { key = "V", mods = "Control|Shift", action = "ReceiveChar" },
+                { key = "C", mods = "Control|Shift", action = "None" },
+                { key = "B", action = "None" },
+            ]
+            "#,
+        );
+        let none = BindingMode::empty();
+
+        // The default paste binding is gone and the key reaches the terminal.
+        assert_eq!(pressed(&hotkeys, "v", CTRL_SHIFT, none), unbound());
+        // Nothing is copied, and the key doesn't reach the terminal either.
+        assert_eq!(pressed(&hotkeys, "c", CTRL_SHIFT, none), runs(&[]));
+        assert_eq!(pressed(&hotkeys, "b", Modifiers::empty(), none), runs(&[]));
+        // Other default bindings are untouched.
+        assert_eq!(
+            pressed(&hotkeys, "0", Modifiers::CTRL, none),
+            runs(&[AppAction::ResetFontSize])
+        );
+    }
+
+    #[test]
+    fn actions_are_rebound_and_keys_run_all_of_their_bindings() {
+        use keyboard::key::Named;
+
+        let hotkeys = configured(
+            r#"
+            [keyboard]
+            bindings = [
+                { key = "Y", mods = "Alt", action = "Copy" },
+                { key = "P", mods = "Alt", action = "Paste" },
+                { key = "K", mods = "Alt", action = "ScrollToBottom" },
+                { key = "K", mods = "Alt", action = "ClearHistory" },
+                { key = "K", mods = "Alt", action = "ReceiveChar" },
+                { key = "F11", action = "ToggleFullscreen" },
+                { key = "F11", mods = "Shift", action = "ToggleMaximized" },
+                { key = "PageUp", mods = "Shift", action = "ScrollLineUp" },
+                { key = "[", mode = "Leader", action = "ScrollPageUp" },
+            ]
+            "#,
+        );
+        let none = BindingMode::empty();
+
+        assert_eq!(pressed(&hotkeys, "y", Modifiers::ALT, none), runs(&[AppAction::Copy]));
+        assert_eq!(pressed(&hotkeys, "p", Modifiers::ALT, none), runs(&[AppAction::Paste]));
+        assert_eq!(
+            pressed_named(&hotkeys, Named::F11, Modifiers::empty(), none),
+            runs(&[AppAction::ToggleFullscreen])
+        );
+        assert_eq!(
+            pressed_named(&hotkeys, Named::F11, Modifiers::SHIFT, none),
+            runs(&[AppAction::ToggleMaximized])
+        );
+
+        // Every binding of a key runs, in the order they are written in, and `ReceiveChar`
+        // among them lets the terminal have the key as well.
+        assert_eq!(pressed(&hotkeys, "k", Modifiers::ALT, none), Triggered {
+            actions: vec![AppAction::Scroll(ScrollTo::Bottom), AppAction::ClearHistory],
+            captured: false,
+        });
+
+        // A user binding replaces the default one of its key, on the alternate screen too.
+        let line_up = runs(&[AppAction::Scroll(ScrollTo::LineUp)]);
+        assert_eq!(pressed_named(&hotkeys, Named::PageUp, Modifiers::SHIFT, none), line_up);
+        let alt_screen = BindingMode::ALT_SCREEN;
+        assert_eq!(pressed_named(&hotkeys, Named::PageUp, Modifiers::SHIFT, alt_screen), line_up);
+
+        // Every action can follow the leader key.
+        assert_eq!(
+            hotkeys.sequence(&character("["), Modifiers::empty()),
+            Some(AppAction::Scroll(ScrollTo::PageUp))
+        );
+        assert_eq!(pressed(&hotkeys, "[", Modifiers::empty(), none), unbound());
+    }
+
+    #[test]
+    fn numpad_bindings_only_take_the_numpad_key() {
+        let hotkeys = configured(
+            r#"
+            [keyboard]
+            bindings = [
+                { key = "NumpadAdd", mods = "Alt", action = "IncreaseFontSize" },
+                { key = "Minus", mods = "Alt", action = "DecreaseFontSize" },
+            ]
+            "#,
+        );
+        let press = |key: &str, location| {
+            let key = character(key);
+            let press = KeyPress { key: &key, modifiers: Modifiers::ALT, location };
+            hotkeys.press(&press, BindingMode::empty())
+        };
+
+        assert_eq!(press("+", keyboard::Location::Numpad), runs(&[AppAction::IncreaseFontSize]));
+        assert_eq!(press("+", keyboard::Location::Standard), unbound());
+        assert_eq!(press("-", keyboard::Location::Standard), runs(&[AppAction::DecreaseFontSize]));
+        assert_eq!(press("-", keyboard::Location::Numpad), unbound());
     }
 
     /// The shared direct keys still work next to leader bindings.

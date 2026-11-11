@@ -28,6 +28,7 @@ impl App {
             tabs: Vec::new(),
             active: 0,
             terminals: HashMap::new(),
+            font_zoom: 0.,
             next_terminal: 0,
             next_tab: 0,
             window_focused: true,

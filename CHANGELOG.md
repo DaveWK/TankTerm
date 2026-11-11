@@ -91,12 +91,20 @@ Notable changes to the `tankterm_terminal` crate are documented in its
     end; other config options are ignored for now. `Transparent` and `Buttonless` decorations are
     drawn like `Full`
 - `scrolling.history` and `scrolling.multiplier` apply to the iced front end
+- Key bindings to `Copy`, `Paste`, `PasteSelection`, `IncreaseFontSize`, `DecreaseFontSize`,
+    `ResetFontSize`, the `Scroll` actions, `ClearHistory`, `ToggleFullscreen` and
+    `ToggleMaximized` apply to the iced front end and can be changed, or unset with `ReceiveChar`
+    and `None`, like the tab and pane keys
+- The font size actions change the font size of every terminal in the window, a pixel at a
+    time and down to four pixels
+- Tab and pane key bindings can be limited to the `AppCursor`, `AppKeypad` and `Alt` modes
 
 ### Removed
 
 - IPC (`tankTerm msg`, `--socket`), `--daemon` and live config reload
-- Custom key and mouse bindings other than tab and pane actions and pasting with the mouse,
-    hints, vi mode, search and the message bar
+- Key bindings to `command`, `chars` and the actions for vi mode, search, hints, the key help,
+    new windows, hiding, minimizing and quitting; mouse bindings other than pasting; hints, vi
+    mode, search and the message bar
 - `--hold`
 - `--embed`, `--print-events`, `--ref-test` and the `debug.renderer`, `debug.prefer_egl`,
     `debug.render_timer`, `debug.highlight_damage` and `debug.print_events` options, which only
