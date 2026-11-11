@@ -1,7 +1,7 @@
 # Changelog
 
 All notable changes to TankTerm are documented in this file.
-The sections should follow the order `Packaging`, `Added`, `Changed`, `Fixed` and `Removed`.
+The sections should follow the order `Added`, `Changed`, `Fixed` and `Removed`.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
@@ -9,18 +9,6 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 [CHANGELOG](./tankterm_terminal/CHANGELOG.md).
 
 ## 0.18.0-dev
-
-### Packaging
-
-- Renamed the project to TankTerm; the binary is now `tankTerm`
-- Renamed manpages and shell completions to match the `tankTerm` command
-- Renamed the desktop entry to `TankTerm.desktop` and the AppStream ID to `net.xitely.TankTerm`
-- Renamed the macOS app bundle to `TankTerm.app` with bundle ID `net.xitely.TankTerm`
-- New Windows installer upgrade code, so the TankTerm installer no longer replaces Alacritty
-- Renamed the `alacritty_config` and `alacritty_config_derive` crates to `tankterm_config` and
-    `tankterm_config_derive`
-- Build manpages with `extra/man/scdoc.sh`, which keeps groff from splitting names across lines
-- Minimum Rust version has been bumped to 1.95.0
 
 ### Added
 
