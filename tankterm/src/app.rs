@@ -4,24 +4,24 @@ use std::io;
 
 use iced::widget::container;
 use iced::{Color, Element, Length, Padding, Subscription, Task, window};
-use iced_term::TerminalView;
-use iced_term::actions::Action;
-use iced_term::settings::Settings;
+use iced_tterm::TerminalView;
+use iced_tterm::actions::Action;
+use iced_tterm::settings::Settings;
 
-/// ID of the only terminal; `iced_term` uses it to route backend events.
+/// ID of the only terminal; `iced_tterm` uses it to route backend events.
 const TERMINAL_ID: u64 = 0;
 
 /// Messages handled by the application.
 #[derive(Debug, Clone)]
 pub enum Message {
-    Terminal(iced_term::Event),
+    Terminal(iced_tterm::Event),
 }
 
 /// Application state: a single window with one terminal.
 pub struct App {
     title: String,
     dynamic_title: bool,
-    terminal: iced_term::Terminal,
+    terminal: iced_tterm::Terminal,
     layout: Layout,
 }
 
@@ -42,7 +42,7 @@ impl App {
         settings: Settings,
         layout: Layout,
     ) -> io::Result<Self> {
-        let terminal = iced_term::Terminal::new(TERMINAL_ID, settings)?;
+        let terminal = iced_tterm::Terminal::new(TERMINAL_ID, settings)?;
         Ok(Self { title, dynamic_title, terminal, layout })
     }
 
@@ -55,9 +55,9 @@ impl App {
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
-        let Message::Terminal(iced_term::Event::BackendCall(_, command)) = message;
+        let Message::Terminal(iced_tterm::Event::BackendCall(_, command)) = message;
 
-        match self.terminal.handle(iced_term::Command::ProxyToBackend(command)) {
+        match self.terminal.handle(iced_tterm::Command::ProxyToBackend(command)) {
             // The shell exited, close the window and with it the application.
             Action::Shutdown => return window::latest().and_then(window::close),
             Action::ChangeTitle(title) if self.dynamic_title => self.title = title,
@@ -85,8 +85,8 @@ impl App {
 #[cfg(all(test, unix))]
 mod layout_tests {
     use iced::{Size, Theme};
-    use iced_term::settings::BackendSettings;
     use iced_test::simulator::Simulator;
+    use iced_tterm::settings::BackendSettings;
 
     use super::*;
     use crate::cli::Options;
@@ -113,9 +113,9 @@ mod layout_tests {
         let size = ui
             .into_messages()
             .find_map(|message| match message {
-                Message::Terminal(iced_term::Event::BackendCall(
+                Message::Terminal(iced_tterm::Event::BackendCall(
                     _,
-                    iced_term::BackendCommand::Resize(Some(size), _),
+                    iced_tterm::BackendCommand::Resize(Some(size), _),
                 )) => Some(size),
                 _ => None,
             })

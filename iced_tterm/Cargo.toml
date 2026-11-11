@@ -1,0 +1,21 @@
+[package]
+name = "iced_tterm"
+version = "0.8.0"
+authors = ["Ilya Shvyryalkin <ilyashvy@gmail.com>"]
+license = "MIT"
+description = "Terminal emulator widget for iced, used by TankTerm"
+readme = "README.md"
+homepage = "https://git.infra.xitely.net/xitely/TankTerm"
+repository = "https://git.infra.xitely.net/xitely/TankTerm"
+categories = ["gui"]
+edition = "2021"
+rust-version.workspace = true
+
+[dependencies]
+anyhow = "1.0.104"
+iced = { version = "0.14.0", features = ["canvas", "lazy", "advanced"] }
+iced_core = "0.14.0"
+iced_graphics = { version = "0.14.0", default-features = false }
+open = "5.4.5"
+tankterm_terminal = { path = "../tankterm_terminal", version = "0.26.1-dev" }
+tokio = { version = "1.54.1", features = ["full"] }

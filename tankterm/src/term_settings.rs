@@ -1,12 +1,12 @@
-//! Conversion from the TankTerm configuration to `iced_term` settings.
+//! Conversion from the TankTerm configuration to `iced_tterm` settings.
 
 use iced::font::Family;
 use iced::{Color, Font, Padding, Size};
 use iced_core::alignment::Vertical;
 use iced_core::text::{Alignment, LineHeight, Paragraph as _, Shaping, Text, Wrapping};
 use iced_graphics::text::paragraph::Paragraph;
-use iced_term::ColorPalette;
-use iced_term::settings::{BackendSettings, FontSettings, Settings, ThemeSettings};
+use iced_tterm::ColorPalette;
+use iced_tterm::settings::{BackendSettings, FontSettings, Settings, ThemeSettings};
 use log::warn;
 
 use crate::cli::Options;
@@ -87,7 +87,7 @@ fn family_installed(name: &str) -> bool {
         .any(|face| face.families.iter().any(|(family, _)| family.eq_ignore_ascii_case(name)))
 }
 
-/// Size of a terminal cell, measured the same way `iced_term` measures its grid.
+/// Size of a terminal cell, measured the same way `iced_tterm` measures its grid.
 pub fn cell_size(font: &FontSettings) -> Size {
     Paragraph::with_text(Text {
         content: "m",
@@ -118,7 +118,7 @@ pub fn background(config: &UiConfig) -> Color {
     Color::from_rgb8(background.r, background.g, background.b)
 }
 
-/// Convert the configured colors into an `iced_term` palette.
+/// Convert the configured colors into an `iced_tterm` palette.
 fn palette(colors: &Colors) -> ColorPalette {
     let hex = |color: Rgb| color.to_string();
     let primary = &colors.primary;

@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "tankterm",
+    "iced_tterm",
     "tankterm_terminal",
     "tankterm_config",
     "tankterm_config_derive",
@@ -19,8 +20,3 @@ incremental = false
 [workspace.dependencies]
 toml = "1.2.1"
 toml_edit = "0.25.19"
-
-# iced_term depends on tankterm_terminal from this repository; use the local copy so there is only
-# one terminal crate in the build.
-[patch."ssh://git@git.infra.xitely.net:2222/xitely/TankTerm.git"]
-tankterm_terminal = { path = "tankterm_terminal" }

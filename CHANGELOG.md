@@ -46,7 +46,7 @@ Notable changes to the `tankterm_terminal` crate are documented in its
     selection, search and hint colors
 - `ALACRITTY_*` environment variables renamed to `TANKTERM_*`
 - IPC sockets and log files now use the `TankTerm-` prefix and the `tankterm` runtime directory
-- The window and rendering use iced through `iced_term` instead of the OpenGL renderer
+- The window and rendering use iced through `iced_tterm` instead of the OpenGL renderer
 - Config file font, colors, shell, environment, working directory, title and class apply to the
     iced front end; other config options are ignored for now
 
