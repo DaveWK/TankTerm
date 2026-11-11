@@ -4,11 +4,8 @@
 
 Approved and waiting their turn, in this order.
 
-1. Commit the tab, pane, palette, profile and paste work by topic on `main` and push once it is
-   finished. Delete the `xitely/iced_term` repository on Forgejo (the local checkout is gone).
-2. Layout: split `crates/tankterm/src/app.rs` into a module, rename
-   `crates/tankterm/src/display` to `color`, remove `.builds/` and `.github/` and merge the Forgejo CI
-   from the `forgejo-ci` branch.
+1. Delete the `xitely/iced_term` repository and the merged `forgejo-ci` branch on Forgejo.
+2. Split `crates/tankterm/src/app.rs` into a module.
 3. Config options the iced front end ignores:
    - Remove the OpenGL-only ones: `debug.renderer`, `debug.prefer_egl`, `debug.render_timer`,
      `debug.highlight_damage`, `window.embed` / `--embed`, `--print-events`, `--ref-test`.
