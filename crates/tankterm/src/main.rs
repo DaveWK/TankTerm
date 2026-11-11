@@ -19,7 +19,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use std::{env, fs};
 
-use iced::{Task, window};
+use iced::{Point, Size, Task, window};
 use log::info;
 #[cfg(windows)]
 use windows_sys::Win32::System::Console::{ATTACH_PARENT_PROCESS, AttachConsole, FreeConsole};
@@ -47,6 +47,7 @@ mod term_settings;
 use crate::app::{App, AppOptions, Layout, Profile};
 use crate::cli::{Options, Subcommands};
 use crate::config::UiConfig;
+use crate::config::window::{Decorations, StartupMode, WindowLevel};
 use crate::hotkeys::Hotkeys;
 #[cfg(target_os = "macos")]
 use crate::macos::locale;
@@ -143,6 +144,8 @@ fn tankterm(mut options: Options) -> Result<(), Box<dyn Error>> {
     let title = term_settings::window_title(&config, &options);
     let settings = term_settings::settings(&config, &options);
     let cell = term_settings::cell_size(&settings.font);
+    let window_size =
+        term_settings::window_size(&config, cell, term_settings::padding(&config, cell));
     // Profiles with a theme of their own get their colors from the configuration loaded with it.
     let profiles = config.profiles.clone().into_iter().map(|profile| {
         let themed =
@@ -195,7 +198,7 @@ fn tankterm(mut options: Options) -> Result<(), Box<dyn Error>> {
     let result = iced::application(boot, App::update, App::view)
         .title(App::title)
         .subscription(App::subscription)
-        .window(window_settings(&config, &options))
+        .window(window_settings(&config, &options, window_size))
         .run();
 
     // Without explicitly detaching the console cmd won't redraw its prompt.
@@ -226,9 +229,33 @@ fn unsupported_options(options: &Options) -> Result<(), &'static str> {
 }
 
 /// Settings for the main window.
+///
+/// `size` is the window size for `window.dimensions`, if they are configured.
 #[allow(unused_variables)]
-fn window_settings(config: &UiConfig, options: &Options) -> window::Settings {
+fn window_settings(config: &UiConfig, options: &Options, size: Option<Size>) -> window::Settings {
+    let defaults = window::Settings::default();
+    let window = &config.window;
+
     window::Settings {
+        size: size.unwrap_or(defaults.size),
+        position: match window.position {
+            Some(position) => {
+                window::Position::Specific(Point::new(position.x as f32, position.y as f32))
+            },
+            None => window::Position::Default,
+        },
+        maximized: window.startup_mode == StartupMode::Maximized,
+        // iced has one kind of fullscreen; macOS' simple fullscreen uses it too.
+        fullscreen: matches!(
+            window.startup_mode,
+            StartupMode::Fullscreen | StartupMode::SimpleFullscreen
+        ),
+        // The macOS title bar variants (`Transparent`, `Buttonless`) keep the decorations.
+        decorations: window.decorations != Decorations::None,
+        level: match window.level {
+            WindowLevel::Normal => window::Level::Normal,
+            WindowLevel::AlwaysOnTop => window::Level::AlwaysOnTop,
+        },
         #[cfg(all(feature = "x11", not(any(target_os = "macos", windows))))]
         icon: window_icon(),
         #[cfg(not(any(target_os = "macos", windows)))]
@@ -236,7 +263,7 @@ fn window_settings(config: &UiConfig, options: &Options) -> window::Settings {
             application_id: term_settings::window_class(config, options),
             ..Default::default()
         },
-        ..Default::default()
+        ..defaults
     }
 }
 
@@ -279,6 +306,68 @@ mod tests {
     fn supported_options_are_accepted() {
         let options = options(&["--title", "x", "-e", "sh", "-c", "true"]);
         assert_eq!(unsupported_options(&options), Ok(()));
+    }
+
+    fn config(toml: &str) -> UiConfig {
+        toml::from_str(toml).unwrap()
+    }
+
+    #[test]
+    fn window_settings_default_to_iced_defaults() {
+        let settings = window_settings(&config(""), &options(&[]), None);
+        let defaults = window::Settings::default();
+
+        assert_eq!(settings.size, defaults.size);
+        assert!(matches!(settings.position, window::Position::Default));
+        assert!(!settings.maximized && !settings.fullscreen);
+        assert!(settings.decorations);
+        assert_eq!(settings.level, window::Level::Normal);
+    }
+
+    #[test]
+    fn window_settings_follow_the_window_config() {
+        let config = config(concat!(
+            "[window]\n",
+            "position = { x = 30, y = 40 }\n",
+            "startup_mode = \"Maximized\"\n",
+            "decorations = \"None\"\n",
+            "level = \"AlwaysOnTop\"\n",
+        ));
+        let settings = window_settings(&config, &options(&[]), Some(Size::new(800., 480.)));
+
+        assert_eq!(settings.size, Size::new(800., 480.));
+        assert!(matches!(
+            settings.position,
+            window::Position::Specific(point) if point == Point::new(30., 40.)
+        ));
+        assert!(settings.maximized && !settings.fullscreen);
+        assert!(!settings.decorations);
+        assert_eq!(settings.level, window::Level::AlwaysOnTop);
+    }
+
+    #[test]
+    fn fullscreen_startup_modes_start_fullscreen() {
+        for mode in ["Fullscreen", "SimpleFullscreen"] {
+            let config = config(&format!("[window]\nstartup_mode = \"{mode}\"\n"));
+            let settings = window_settings(&config, &options(&[]), None);
+
+            assert!(settings.fullscreen && !settings.maximized);
+        }
+    }
+
+    #[test]
+    fn window_size_fits_the_configured_dimensions() {
+        let cell = Size::new(10., 20.);
+        let padding = iced::Padding { top: 1., right: 2., bottom: 3., left: 4. };
+
+        let sized = config("[window]\ndimensions = { columns = 80, lines = 24 }\n");
+        assert_eq!(
+            term_settings::window_size(&sized, cell, padding),
+            Some(Size::new(80. * 10. + 6., 24. * 20. + 4.))
+        );
+
+        // Without dimensions the size is left to the default.
+        assert_eq!(term_settings::window_size(&config(""), cell, padding), None);
     }
 
     #[test]

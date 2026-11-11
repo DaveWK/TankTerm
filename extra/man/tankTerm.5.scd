@@ -175,9 +175,11 @@ This section documents the *[window]* table of the configuration file.
 	*None*
 		Neither borders nor title bar.
 	*Transparent* _(macOS only)_
-		Title bar, transparent background and title bar buttons.
+		Title bar, transparent background and title bar buttons. Currently drawn
+		like _Full_.
 	*Buttonless* _(macOS only)_
-		Title bar, transparent background and no title bar buttons.
+		Title bar, transparent background and no title bar buttons. Currently
+		drawn like _Full_.
 
 	Default: _"Full"_
 

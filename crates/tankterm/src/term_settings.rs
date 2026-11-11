@@ -146,6 +146,19 @@ pub fn padding(config: &UiConfig, cell: Size) -> Padding {
     Padding { top: padding.top, right: padding.right, bottom: padding.bottom, left: padding.left }
 }
 
+/// Size of a window showing the configured `window.dimensions`, in logical pixels.
+///
+/// `None` without dimensions, which leaves the size to the default. The tab bar isn't counted, so
+/// a window that always shows it has slightly fewer lines.
+pub fn window_size(config: &UiConfig, cell: Size, padding: Padding) -> Option<Size> {
+    let dimensions = config.window.dimensions()?;
+
+    Some(Size::new(
+        dimensions.columns as f32 * cell.width + padding.left + padding.right,
+        dimensions.lines as f32 * cell.height + padding.top + padding.bottom,
+    ))
+}
+
 /// Background color of the window, shown in the padding.
 pub fn background(config: &UiConfig) -> Color {
     let background = config.colors.primary.background;

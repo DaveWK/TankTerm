@@ -38,14 +38,16 @@ TankTerm's window and rendering now use the [iced](https://iced.rs) GUI toolkit
 through [iced_tterm](./crates/iced_tterm), replacing Alacritty's
 OpenGL front end. The terminal itself (escape sequences, the grid and the PTY)
 is still the `tankterm_terminal` crate. The font, colors, shell, environment,
-working directory, window title and class are read from your configuration.
+working directory and the window's title, class, size, position, startup mode,
+decorations and level are read from your configuration.
 
 This front end is new and doesn't support everything the OpenGL one did yet:
 
 - IPC (`tankTerm msg`, `--socket`) and `--daemon`
 - Live config reload
 - Custom key and mouse bindings, hints, vi mode and search
-- Most `[window]`, `[cursor]`, `[mouse]`, `[bell]` and `[scrolling]` options
+- `window.opacity` and `window.blur`, and most `[cursor]`, `[mouse]`, `[bell]` and `[scrolling]`
+  options
 - `--hold`
 
 Command line options that aren't supported yet fail with an error; config
