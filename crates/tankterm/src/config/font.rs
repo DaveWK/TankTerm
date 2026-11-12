@@ -1,6 +1,5 @@
 use std::fmt;
 
-use crossfont::Size as FontSize;
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -43,13 +42,14 @@ pub struct Font {
 }
 
 impl Font {
-    /// Get a font clone with a size modification.
-    pub fn with_size(self, size: FontSize) -> Font {
-        Font { size: Size(size), ..self }
+    /// Get a font clone with a size modification, in points.
+    pub fn with_size(self, points: f32) -> Font {
+        Font { size: Size(points), ..self }
     }
 
+    /// Font size in points.
     #[inline]
-    pub fn size(&self) -> FontSize {
+    pub fn size(&self) -> f32 {
         self.size.0
     }
 
@@ -139,12 +139,15 @@ impl SecondaryFontDescription {
     }
 }
 
-#[derive(SerdeReplace, Debug, Clone, PartialEq, Eq)]
-struct Size(FontSize);
+/// Font size in points; always finite, which makes the `Eq` below sound.
+#[derive(SerdeReplace, Debug, Clone, PartialEq)]
+struct Size(f32);
+
+impl Eq for Size {}
 
 impl Default for Size {
     fn default() -> Self {
-        Self(FontSize::new(11.25))
+        Self(11.25)
     }
 }
 
@@ -158,15 +161,19 @@ impl<'de> Deserialize<'de> for Size {
             type Value = Size;
 
             fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.write_str("f64 or i64")
+                f.write_str("a finite f64 or i64")
             }
 
             fn visit_f64<E: de::Error>(self, value: f64) -> Result<Self::Value, E> {
-                Ok(Size(FontSize::new(value as f32)))
+                let points = value as f32;
+                if !points.is_finite() {
+                    return Err(E::invalid_value(de::Unexpected::Float(value), &self));
+                }
+                Ok(Size(points))
             }
 
             fn visit_i64<E: de::Error>(self, value: i64) -> Result<Self::Value, E> {
-                Ok(Size(FontSize::new(value as f32)))
+                Ok(Size(value as f32))
             }
         }
 
@@ -179,7 +186,7 @@ impl Serialize for Size {
     where
         S: Serializer,
     {
-        serializer.serialize_f32(self.0.as_pt())
+        serializer.serialize_f32(self.0)
     }
 }
 
@@ -220,6 +227,23 @@ mod tests {
         let config: UiConfig = toml::from_str("[font.normal]\nstyle = \"Bold\"\n").unwrap();
         assert_eq!(config.font.normal().family, DEFAULT_FAMILY);
         assert_eq!(config.font.normal().style.as_deref(), Some("Bold"));
+    }
+
+    #[test]
+    fn size_is_in_points() {
+        assert_eq!(Font::default().size(), 11.25);
+
+        let config: UiConfig = toml::from_str("[font]\nsize = 14\n").unwrap();
+        assert_eq!(config.font.size(), 14.);
+
+        let config: UiConfig = toml::from_str("[font]\nsize = 9.5\n").unwrap();
+        assert_eq!(config.font.size(), 9.5);
+    }
+
+    #[test]
+    fn non_finite_size_is_rejected() {
+        let config: UiConfig = toml::from_str("[font]\nsize = nan\n").unwrap();
+        assert_eq!(config.font.size(), Font::default().size());
     }
 
     #[test]

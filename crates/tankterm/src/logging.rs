@@ -47,7 +47,6 @@ const ALLOWED_TARGETS: &[&str] = &[
     "tankterm_config_derive",
     "tankterm_terminal",
     env!("CARGO_CRATE_NAME"),
-    "crossfont",
 ];
 
 /// Initialize the logger to its defaults.

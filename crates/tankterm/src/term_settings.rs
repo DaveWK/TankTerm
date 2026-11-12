@@ -98,7 +98,7 @@ pub fn tab_settings(config: &UiConfig, options: &Options) -> Settings {
 
 fn font_settings(config: &UiConfig) -> FontSettings {
     FontSettings {
-        size: config.font.size().as_pt() * PX_PER_PT,
+        size: config.font.size() * PX_PER_PT,
         font_type: font(config.font.normal()),
         ..FontSettings::default()
     }
@@ -349,7 +349,7 @@ mod tests {
     #[test]
     fn font_size_points_to_pixels() {
         let mut config = UiConfig::default();
-        config.font = config.font.clone().with_size(crossfont::Size::new(12.));
+        config.font = config.font.clone().with_size(12.);
 
         // 12pt at 96 DPI is 16 logical pixels.
         assert_eq!(font_settings(&config).size, 16.);
