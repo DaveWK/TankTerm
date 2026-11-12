@@ -1,4 +1,4 @@
-//! TankTerm - A fast, cross-platform terminal emulator.
+//! TankTerm - A cross-platform terminal emulator with tabs and split panes.
 
 #![warn(rust_2018_idioms, future_incompatible)]
 #![deny(clippy::all, clippy::if_not_else, clippy::enum_glob_use)]

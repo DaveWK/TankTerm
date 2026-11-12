@@ -13,13 +13,11 @@
   <project_license>Apache-2.0</project_license>
   <metadata_license>MIT</metadata_license>
 
-  <summary>A cross-platform, OpenGL terminal emulator</summary>
+  <summary>A cross-platform terminal emulator with tabs and split panes</summary>
   <description>
     <p>
-      TankTerm is a modern terminal emulator that comes with sensible defaults,
-      but allows for extensive configuration. By integrating with other
-      applications, rather than reimplementing their functionality, it manages
-      to provide a flexible set of features with high performance.
+      TankTerm is a terminal emulator with tabs, split panes, a command
+      palette and profiles, set up through a TOML configuration file.
     </p>
     <ul>
       <li>Wayland native</li>

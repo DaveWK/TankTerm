@@ -22,7 +22,7 @@
       <DirectoryRef Id="TankTermProgramMenu">
          <!-- Application shortcut -->
          <Component Id="TankTermShortcut" Guid="2091c6c6-efbb-4ff9-8769-d911011613be">
-            <Shortcut Id="TankTermShortcutFile" Name="TankTerm" Description="A cross-platform, GPU-accelerated terminal emulator" Target="[TankTermProgramFiles]tankTerm.exe" />
+            <Shortcut Id="TankTermShortcutFile" Name="TankTerm" Description="A cross-platform terminal emulator with tabs and split panes" Target="[TankTermProgramFiles]tankTerm.exe" />
             <RemoveFolder Id="TankTermProgramMenu" On="uninstall" />
             <RegistryValue Root="HKCU" Key="Software\Microsoft\TankTerm" Name="installed" Type="integer" Value="1" KeyPath="yes" />
          </Component>

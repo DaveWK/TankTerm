@@ -60,8 +60,8 @@ If changes could affect throughput or latency of TankTerm, these aspects should 
 prevent potential regressions. Since there are often big performance differences between Rust's
 nightly releases, it's advised to perform these tests on the latest Rust stable release.
 
-TankTerm mainly uses the [vtebench](https://github.com/alacritty/vtebench) tool for testing TankTerm's
-performance. Instructions on how to use it can be found in its
+Throughput can be measured with the [vtebench](https://github.com/alacritty/vtebench) tool.
+Instructions on how to use it can be found in its
 [README](https://github.com/alacritty/vtebench/blob/master/README.md).
 
 Latency is another important factor for TankTerm. On X11, Windows, and macOS the

@@ -78,7 +78,7 @@ This section documents the *[general]* table of the configuration file.
 		import = [++
 	_"~/.config/tankterm/base16-dark.toml"_,++
 	_"~/.config/tankterm/keybindings.toml"_,++
-	_"alacritty-theme/themes/gruvbox_dark.toml"_,++
+	_"themes/gruvbox_dark.toml"_,++
 ]
 
 *working_directory* = _"<string>"_ | _"None"_
@@ -1509,8 +1509,3 @@ relied upon.
 # BUGS
 
 Found a bug? Please report it at _https://git.infra.xitely.net/xitely/TankTerm/issues_.
-
-# MAINTAINERS
-
-- Christian Duerr <contact@christianduerr.com>
-- Kirill Chibisov <contact@kchibisov.com>

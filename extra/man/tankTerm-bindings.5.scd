@@ -931,8 +931,3 @@ listed above.
 # BUGS
 
 Found a bug? Please report it at _https://git.infra.xitely.net/xitely/TankTerm/issues_.
-
-# MAINTAINERS
-
-- Christian Duerr <contact@christianduerr.com>
-- Kirill Chibisov <contact@kchibisov.com>

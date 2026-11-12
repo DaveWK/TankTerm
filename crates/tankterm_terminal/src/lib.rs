@@ -1,4 +1,4 @@
-//! TankTerm - The GPU Enhanced Terminal.
+//! The terminal core of TankTerm: the grid, escape sequence handling and the PTY event loop.
 
 #![warn(rust_2018_idioms, future_incompatible)]
 #![deny(clippy::all, clippy::if_not_else, clippy::enum_glob_use)]

@@ -8,7 +8,7 @@ Categories=System;TerminalEmulator;
 
 Name=TankTerm
 GenericName=Terminal
-Comment=A fast, cross-platform, OpenGL terminal emulator
+Comment=A cross-platform terminal emulator with tabs and split panes
 StartupNotify=true
 StartupWMClass=TankTerm
 Actions=New;

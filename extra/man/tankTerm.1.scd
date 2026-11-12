@@ -2,14 +2,12 @@ TANKTERM(1)
 
 # NAME
 
-TankTerm - A fast, cross-platform, OpenGL terminal emulator.
+TankTerm - A cross-platform terminal emulator with tabs and split panes.
 
 # SYNOPSIS
 
-TankTerm is a modern terminal emulator that comes with sensible defaults, but
-allows for extensive configuration. By integrating with other applications,
-rather than reimplementing their functionality, it manages to provide a flexible
-set of features with high performance.
+TankTerm is a terminal emulator with tabs, split panes, a command palette and
+profiles, set up through a TOML configuration file; see *tankTerm*(5).
 
 # FLAGS
 
@@ -136,8 +134,3 @@ set of features with high performance.
 # BUGS
 
 Found a bug? Please report it at _https://git.infra.xitely.net/xitely/TankTerm/issues_.
-
-# MAINTAINERS
-
-- Christian Duerr <contact@christianduerr.com>
-- Kirill Chibisov <contact@kchibisov.com>

@@ -19,7 +19,7 @@ use crate::logging::LOG_TARGET_IPC_CONFIG;
 
 /// CLI options for the main TankTerm executable.
 #[derive(Parser, Default, Debug)]
-#[clap(name = "tankTerm", author, about, version = env!("VERSION"))]
+#[clap(name = "tankTerm", author, about = "A slopped together frankenterminal shamelessly forked by a clanker", version = env!("VERSION"))]
 pub struct Options {
     /// Specify alternative configuration file [default:
     /// $XDG_CONFIG_HOME/tankterm/tankterm.toml].
