@@ -9,7 +9,7 @@ use iced_tterm::BackendCommand;
 use iced_tterm::settings::Settings;
 use log::error;
 
-use super::actions::{FONT_SIZE_STEP, toggle_fullscreen, toggle_maximized, zoomed};
+use super::actions::{FONT_SIZE_STEP, hide, minimize, toggle_fullscreen, toggle_maximized, zoomed};
 use super::{
     App, Message, PendingPaste, RESIZE_LIMITS, RESIZE_STEP, Shell, Tab, working_directory,
 };
@@ -178,6 +178,22 @@ impl App {
             },
             AppAction::ToggleFullscreen => return toggle_fullscreen(),
             AppAction::ToggleMaximized => return toggle_maximized(),
+            AppAction::CopySelection => return self.copy_to_selection(),
+            AppAction::ClearSelection => {
+                self.clear_selection();
+                return Task::none();
+            },
+            AppAction::Chars(chars) => {
+                self.write(chars.as_bytes());
+                return Task::none();
+            },
+            AppAction::RunCommand(program) => {
+                self.run_command(&program);
+                return Task::none();
+            },
+            AppAction::Minimize => return minimize(),
+            AppAction::Hide => return hide(),
+            AppAction::Quit => return window::latest().and_then(window::close),
         }
 
         self.focus()

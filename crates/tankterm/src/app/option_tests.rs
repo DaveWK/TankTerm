@@ -254,7 +254,7 @@ fn font_size_actions_resize_every_terminal() {
     perform(&mut app, &[AppAction::Split(iced::widget::pane_grid::Axis::Horizontal)]);
     assert_eq!(cells(&app)[&2], larger[&0]);
 
-    perform(&mut app, &[AppAction::DecreaseFontSize; 3]);
+    perform(&mut app, &vec![AppAction::DecreaseFontSize; 3]);
     let smaller = cells(&app);
     assert!(smaller[&0].height < configured.height);
     assert_eq!(smaller[&0], smaller[&2]);
@@ -263,7 +263,7 @@ fn font_size_actions_resize_every_terminal() {
     assert_eq!(cells(&app), HashMap::from([(0, configured), (1, configured), (2, configured)]));
 
     // The size stops shrinking at a few pixels and comes back from there a step at a time.
-    perform(&mut app, &[AppAction::DecreaseFontSize; 100]);
+    perform(&mut app, &vec![AppAction::DecreaseFontSize; 100]);
     let smallest = cells(&app)[&0];
     assert!(smallest.height > 0. && smallest.height < smaller[&0].height);
     perform(&mut app, &[AppAction::IncreaseFontSize]);
@@ -279,6 +279,8 @@ enum Asked {
     Write(Kind, String),
     SetMode(window::Mode),
     ToggleMaximize,
+    Minimize,
+    Close,
 }
 
 /// Run a task the way iced's runtime would, with `clipboard` as the text of the regular and of
@@ -322,6 +324,14 @@ fn run_task(
             runtime::Action::Window(runtime::window::Action::ToggleMaximize(id)) => {
                 assert_eq!(id, window);
                 asked.push(Asked::ToggleMaximize);
+            },
+            runtime::Action::Window(runtime::window::Action::Minimize(id, true)) => {
+                assert_eq!(id, window);
+                asked.push(Asked::Minimize);
+            },
+            runtime::Action::Window(runtime::window::Action::Close(id)) => {
+                assert_eq!(id, window);
+                asked.push(Asked::Close);
             },
             // Giving a widget keyboard focus needs the widgets.
             runtime::Action::Widget(_) => (),
@@ -418,6 +428,81 @@ fn window_actions_toggle_fullscreen_and_maximized() {
         window::Mode::Windowed
     )]);
     assert_eq!(toggle(AppAction::ToggleMaximized, window::Mode::Windowed), [Asked::ToggleMaximize]);
+}
+
+#[test]
+fn window_actions_minimize_hide_and_quit() {
+    let mut app = app_with("", Hotkeys::default());
+    perform(&mut app, &[AppAction::NewTab]);
+
+    assert_eq!(run_action(&mut app, AppAction::Minimize, [None, None]), [Asked::Minimize]);
+    assert_eq!(run_action(&mut app, AppAction::Hide, [None, None]), [Asked::SetMode(
+        window::Mode::Hidden
+    )]);
+    // Quitting closes the window with every tab in it, which ends TankTerm.
+    assert_eq!(run_action(&mut app, AppAction::Quit, [None, None]), [Asked::Close]);
+}
+
+#[test]
+fn chars_are_typed_into_the_focused_terminal() {
+    let mut app = app_with("", Hotkeys::default());
+    perform(&mut app, &[AppAction::Split(iced::widget::pane_grid::Axis::Vertical)]);
+
+    perform(&mut app, &[AppAction::Chars("typed".into())]);
+    wait_for_text(&app, 1, "typed");
+    assert_eq!(app.terminals[&0].terminal.text().concat(), "");
+}
+
+#[test]
+fn selection_actions_copy_and_clear_the_selection_of_the_focused_terminal() {
+    let config =
+        "[terminal]\nshell = { program = \"sh\", args = [\"-c\", \"printf hello; exec cat\"] }\n";
+    let mut app = app_with(config, Hotkeys::default());
+    wait_for_text(&app, 0, "hello");
+    assert_eq!(run_action(&mut app, AppAction::CopySelection, [None, None]), []);
+
+    let terminal = &mut app.terminals.get_mut(&0).unwrap().terminal;
+    for select in [
+        BackendCommand::SelectStart(SelectionType::Simple, (0., 0.)),
+        BackendCommand::SelectUpdate((10_000., 0.)),
+    ] {
+        terminal.handle(iced_tterm::Command::ProxyToBackend(select));
+    }
+
+    // CopySelection goes to the selection clipboard, Copy to the regular one.
+    let asked = run_action(&mut app, AppAction::CopySelection, [None, None]);
+    assert_eq!(asked, [Asked::Write(Kind::Primary, "hello".into())]);
+
+    perform(&mut app, &[AppAction::ClearSelection]);
+    assert_eq!(app.terminals[&0].terminal.selection(), None);
+    assert_eq!(run_action(&mut app, AppAction::Copy, [None, None]), []);
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn commands_run_in_the_directory_of_the_focused_shell() {
+    use super::tab_tests::{INTERACTIVE_SHELL, change_directory};
+
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().canonicalize().unwrap();
+    let log = path.join("ran");
+    let mut app = app_with(INTERACTIVE_SHELL, Hotkeys::default());
+    change_directory(&mut app, 0, &path);
+
+    let program = crate::config::ui_config::Program::WithArgs {
+        program: "sh".into(),
+        args: vec!["-c".into(), format!("pwd > '{}'", log.display())],
+    };
+    perform(&mut app, &[AppAction::RunCommand(program)]);
+
+    let ran = || std::fs::read_to_string(&log).unwrap_or_default();
+    wait_until("the command never ran", || !ran().is_empty());
+    assert_eq!(std::path::Path::new(ran().trim()), path);
+
+    // A program that can't be started is logged, not fatal.
+    let missing = crate::config::ui_config::Program::Just("/does/not/exist/tankterm".into());
+    perform(&mut app, &[AppAction::RunCommand(missing)]);
+    assert_eq!(app.terminals.len(), 1);
 }
 
 /// The shape the cursor of a terminal is drawn with.

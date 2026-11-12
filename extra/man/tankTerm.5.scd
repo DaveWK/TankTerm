@@ -1152,13 +1152,20 @@ This section documents the *[keyboard]* table of the configuration file.
 	Multiple keybindings can be triggered by a single key press and will be
 	executed in the order they are defined in.
 
-	The iced front end runs the tab and pane actions and _Paste_, _Copy_,
-	_PasteSelection_, _IncreaseFontSize_, _DecreaseFontSize_, _ResetFontSize_,
-	the _Scroll_ actions, _ClearHistory_, _ToggleFullscreen_ and
-	_ToggleMaximized_. Bindings to the other actions, to _command_ and _chars_
-	and to scancodes are ignored for now, and their keys are sent to the
-	terminal. A character key is matched as it is without _Shift_: _"="_ with
-	_"Control|Shift"_ on a US keyboard, not _"+"_.
+	The iced front end runs _command_, _chars_, the tab and pane actions and
+	_Paste_, _Copy_, _PasteSelection_, _CopySelection_, _ClearSelection_,
+	_IncreaseFontSize_, _DecreaseFontSize_, _ResetFontSize_, the _Scroll_
+	actions, _ClearHistory_, _ToggleFullscreen_, _ToggleMaximized_, _Minimize_,
+	_Hide_ and _Quit_. Bindings to the other actions and to scancodes are
+	ignored for now, and their keys are sent to the terminal. A character key
+	is matched as it is without _Shift_: _"="_ with _"Control|Shift"_ on a US
+	keyboard, not _"+"_.
+
+	The terminal encodes keys like _Backspace_, _Shift+Tab_ and the arrows
+	itself, so the default _chars_ bindings that only repeat that encoding
+	are left out; a _chars_ binding of your own on such a key takes effect.
+	_Quit_ closes the window with all of its tabs. _Hide_ hides the window;
+	on macOS that is only the window, not the whole application.
 
 	*key* = _"<string>"_
 
@@ -1200,7 +1207,8 @@ _https://docs.rs/winit/latest/winit/keyboard/enum.Key.html_
 
 	*command* = _"<string>"_ | { program = _"<string>"_, args = [_"<string>"_,] }
 
-		Fork and execute the specified command.
+		Start the program without waiting for it. On Linux it is started in
+		the directory the shell of the focused terminal is in.
 
 	*chars* = _"<string>"_
 
@@ -1458,7 +1466,7 @@ _https://docs.rs/winit/latest/winit/keyboard/enum.Key.html_
 		_Linux/BSD exclusive:_
 
 		*CopySelection*
-			Copy from the selection buffer.
+			Copy the selected text to the selection clipboard.
 		*PasteSelection*
 			Paste from the selection buffer. On platforms without one it pastes
 			the system clipboard.

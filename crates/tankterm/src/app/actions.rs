@@ -1,12 +1,15 @@
-//! Actions on the focused terminal and the window: copying and pasting, the font size, scrolling
-//! and fullscreen.
+//! Actions on the focused terminal and the window: copying and pasting, the font size,
+//! scrolling, typing text, running programs, and the window's state.
 
 use iced::{Task, window};
 use iced_core::clipboard::Kind;
 use iced_tterm::settings::FontSettings;
 use iced_tterm::{BackendCommand, Scroll};
+use log::warn;
 
-use super::{App, Message, Shell};
+use super::{App, Message, Shell, working_directory};
+use crate::config::ui_config::Program;
+use crate::daemon::spawn_daemon;
 use crate::hotkeys::ScrollTo;
 
 /// How much a font size action changes the font size by, in logical pixels.
@@ -98,9 +101,44 @@ impl App {
 
     /// Drop the scrollback buffer of the focused terminal.
     pub(super) fn clear_history(&mut self) {
+        self.send_to_focused(BackendCommand::ClearHistory);
+    }
+
+    /// Put the text selected in the focused terminal on the selection clipboard.
+    pub(super) fn copy_to_selection(&self) -> Task<Message> {
+        match self.focused_shell().and_then(|shell| shell.terminal.selection()) {
+            Some(text) => iced::clipboard::write_primary(text),
+            None => Task::none(),
+        }
+    }
+
+    /// Drop the selection of the focused terminal.
+    pub(super) fn clear_selection(&mut self) {
+        self.send_to_focused(BackendCommand::ClearSelection);
+    }
+
+    /// Write to the focused terminal as if the bytes were typed: the view scrolls down to the
+    /// cursor.
+    pub(super) fn write(&mut self, bytes: &[u8]) {
+        self.send_to_focused(BackendCommand::Write(bytes.to_vec()));
+    }
+
+    /// Start a program without waiting for it, in the directory of the focused terminal's shell
+    /// where that is known.
+    pub(super) fn run_command(&self, program: &Program) {
+        let shell = self.focused_shell();
+        let directory =
+            shell.and_then(|shell| shell.terminal.child_pid()).and_then(working_directory);
+
+        if let Err(err) = spawn_daemon(program.program(), program.args(), directory.as_deref()) {
+            warn!("Unable to run the command {:?}: {err}", program.program());
+        }
+    }
+
+    /// Hand a command to the focused terminal's backend.
+    fn send_to_focused(&mut self, command: BackendCommand) {
         if let Some(shell) = self.focused_terminal().and_then(|id| self.terminals.get_mut(&id)) {
-            let clear = BackendCommand::ClearHistory;
-            shell.terminal.handle(iced_tterm::Command::ProxyToBackend(clear));
+            shell.terminal.handle(iced_tterm::Command::ProxyToBackend(command));
         }
     }
 }
@@ -132,4 +170,15 @@ pub(super) fn toggle_fullscreen() -> Task<Message> {
 /// Maximize the window, or give it its size back if it is.
 pub(super) fn toggle_maximized() -> Task<Message> {
     window::latest().and_then(window::toggle_maximize)
+}
+
+/// Minimize the window.
+pub(super) fn minimize() -> Task<Message> {
+    window::latest().and_then(|id| window::minimize(id, true))
+}
+
+/// Hide the window. It stays hidden until it is shown again from outside TankTerm, if the
+/// desktop offers a way.
+pub(super) fn hide() -> Task<Message> {
+    window::latest().and_then(|id| window::set_mode(id, window::Mode::Hidden))
 }

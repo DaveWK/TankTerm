@@ -66,7 +66,7 @@ fn app() -> App {
 
 pub(super) fn perform(app: &mut App, actions: &[AppAction]) {
     for action in actions {
-        let _ = app.update(Message::Action(*action));
+        let _ = app.update(Message::Action(action.clone()));
     }
 }
 
@@ -250,7 +250,7 @@ fn panes_are_resized_at_the_nearest_divider() {
     assert_eq!(ratios(&app), [(Axis::Vertical, 0.45), (Axis::Horizontal, 0.55)]);
 
     // Dividers stop before a pane disappears.
-    perform(&mut app, &[AppAction::ResizePane(Direction::Left); 20]);
+    perform(&mut app, &vec![AppAction::ResizePane(Direction::Left); 20]);
     assert_eq!(ratios(&app)[0], (Axis::Vertical, RESIZE_LIMITS.0));
 }
 
@@ -865,7 +865,8 @@ fn mouse_paste_bindings_come_from_the_configuration() {
 }
 
 /// Configuration running an interactive shell, which gives every command the terminal.
-const INTERACTIVE_SHELL: &str = "[terminal]\nshell = { program = \"sh\", args = [\"-i\"] }\n";
+pub(super) const INTERACTIVE_SHELL: &str =
+    "[terminal]\nshell = { program = \"sh\", args = [\"-i\"] }\n";
 
 /// Type into the shell of a terminal.
 fn type_into(app: &mut App, terminal: u64, bytes: &[u8]) {
@@ -981,7 +982,7 @@ fn directory(app: &App, terminal: u64) -> Option<PathBuf> {
 /// Have the shell of a terminal change its directory and wait until it did, without the
 /// application looking at the shell.
 #[cfg(target_os = "linux")]
-fn change_directory(app: &mut App, terminal: u64, path: &std::path::Path) {
+pub(super) fn change_directory(app: &mut App, terminal: u64, path: &std::path::Path) {
     run(app, terminal, &format!("cd {}", path.display()));
     wait_until("the shell never changed directory", || {
         directory(app, terminal).as_deref() == Some(path)

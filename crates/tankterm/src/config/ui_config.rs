@@ -217,8 +217,18 @@ impl UiConfig {
     }
 
     /// [`Self::app_bindings`] with the preset's keys for macOS or for the other platforms.
+    ///
+    /// The default `chars` bindings come from Alacritty, where they encoded keys like
+    /// `Backspace`, `Shift+Tab` and the arrows in application cursor mode. The terminal widget
+    /// encodes those keys itself, under the kitty keyboard protocol too, which these bindings
+    /// would get wrong, so only those on `Command`/`Super` keys are kept: the widget sends nothing
+    /// for those.
     pub fn app_bindings_for(&self, macos: bool) -> Vec<KeyBinding> {
         let mut defaults = bindings::default_key_bindings();
+        defaults.retain(|binding| {
+            !matches!(binding.action, Action::Esc(_))
+                || binding.mods.contains(ModifiersState::SUPER)
+        });
         defaults.extend(bindings::preset_key_bindings(self.keyboard.preset, macos));
         deserialize_bindings(&mut self.keyboard.bindings.1.clone(), defaults)
     }

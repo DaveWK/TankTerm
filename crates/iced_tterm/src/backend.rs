@@ -79,6 +79,8 @@ pub enum Command {
     Resize(Option<Size<f32>>, Option<Size<f32>>),
     SelectStart(SelectionType, (f32, f32)),
     SelectUpdate((f32, f32)),
+    /// Drop the selection, if there is one.
+    ClearSelection,
     ProcessLink(LinkAction, Point),
     MouseReport(MouseButton, Modifiers, Point, bool),
     ProcessAlacrittyEvent(Event),
@@ -390,6 +392,7 @@ impl Backend {
             Command::SelectUpdate((x, y)) => {
                 self.update_selection(&mut term, x, y);
             },
+            Command::ClearSelection => term.selection = None,
             Command::ProcessLink(link_action, point) => {
                 self.process_link_action(&term, link_action, point);
             },
@@ -1264,6 +1267,9 @@ mod tests {
         assert_eq!(backend.selection(), None);
         backend.handle(Command::SelectUpdate((5.6, 0.)));
         assert_eq!(backend.selection().as_deref(), Some("hello"));
+
+        backend.handle(Command::ClearSelection);
+        assert_eq!(backend.selection(), None);
     }
 
     #[cfg(unix)]

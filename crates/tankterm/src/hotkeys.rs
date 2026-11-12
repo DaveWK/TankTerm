@@ -1,10 +1,11 @@
 //! Key bindings handled by the application itself: tabs and panes, copying and pasting, the font
-//! size, scrolling and the window.
+//! size, scrolling, the window, and keys that type text or run a program.
 //!
 //! The terminal widget sends every key it receives to the shell. [`KeyFilter`] sits above it in
 //! the widget tree and takes the keys bound to these actions out of the event stream, so they
 //! never reach the shell.
 
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use iced::keyboard::{self, Key, Modifiers};
@@ -16,6 +17,7 @@ use iced_core::{Clipboard, Layout, Shell, Widget, layout, mouse, overlay, render
 use iced_tterm::TermMode;
 use iced_tterm::bindings::{Binding as WidgetBinding, BindingAction, InputKind};
 
+use crate::config::ui_config::Program;
 use crate::config::{
     Action, BindingKey, BindingMode, KeyBinding, KeyLocation, LeaderKey, MouseBinding, MouseEvent,
     UiConfig,
@@ -35,7 +37,7 @@ pub enum ScrollTo {
 }
 
 /// Actions of the application: for tabs and panes, the focused terminal and the window.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AppAction {
     NewTab,
     CloseTab,
@@ -85,6 +87,20 @@ pub enum AppAction {
     ClearHistory,
     ToggleFullscreen,
     ToggleMaximized,
+    /// Put the text selected in the focused terminal on the selection clipboard.
+    CopySelection,
+    /// Drop the selection of the focused terminal.
+    ClearSelection,
+    /// Write text to the focused terminal, as if it was typed (`chars`).
+    Chars(Arc<str>),
+    /// Start a program (`command`), in the directory of the focused terminal's shell where that
+    /// is known.
+    RunCommand(Program),
+    Minimize,
+    /// Hide the window.
+    Hide,
+    /// Close the window, with all its tabs.
+    Quit,
 }
 
 impl AppAction {
@@ -141,13 +157,20 @@ impl AppAction {
             Action::ClearHistory => Self::ClearHistory,
             Action::ToggleFullscreen => Self::ToggleFullscreen,
             Action::ToggleMaximized => Self::ToggleMaximized,
+            Action::CopySelection => Self::CopySelection,
+            Action::ClearSelection => Self::ClearSelection,
+            Action::Esc(chars) => Self::Chars(chars.as_str().into()),
+            Action::Command(program) => Self::RunCommand(program.clone()),
+            Action::Minimize => Self::Minimize,
+            Action::Hide => Self::Hide,
+            Action::Quit => Self::Quit,
             _ => return None,
         })
     }
 }
 
 /// What a bound key does.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum Effect {
     Run(AppAction),
     /// `ReceiveChar`: the terminal gets the key, whatever else is bound to it.
@@ -241,8 +264,8 @@ fn triggered(bindings: &[Bound], press: &KeyPress<'_>, mode: BindingMode) -> Tri
 
     for bound in bindings.iter().filter(|bound| bound.is_triggered_by(press, mode)) {
         triggered.captured = true;
-        match bound.effect {
-            Effect::Run(action) => triggered.actions.push(action),
+        match &bound.effect {
+            Effect::Run(action) => triggered.actions.push(action.clone()),
             Effect::Pass => pass = true,
             Effect::Swallow => (),
         }
@@ -306,7 +329,7 @@ impl Hotkeys {
 
             if !after_leader {
                 hotkeys.direct.push(bound);
-            } else if matches!(effect, Effect::Run(_))
+            } else if matches!(bound.effect, Effect::Run(_))
                 && !binding.notmode.contains(BindingMode::LEADER)
             {
                 // Any other key after the leader key ends the sequence without reaching the
@@ -374,7 +397,7 @@ impl Hotkeys {
     pub fn action(&self, key: &Key, modifiers: Modifiers) -> Option<AppAction> {
         let location = keyboard::Location::Standard;
         let press = KeyPress { key, modifiers, location };
-        self.press(&press, BindingMode::empty()).actions.first().copied()
+        self.press(&press, BindingMode::empty()).actions.first().cloned()
     }
 
     /// The first action bound to a key press that follows the leader key, in a terminal without
@@ -383,7 +406,7 @@ impl Hotkeys {
     pub fn sequence(&self, key: &Key, modifiers: Modifiers) -> Option<AppAction> {
         let location = keyboard::Location::Standard;
         let press = KeyPress { key, modifiers, location };
-        self.press_after_leader(&press, BindingMode::empty()).actions.first().copied()
+        self.press_after_leader(&press, BindingMode::empty()).actions.first().cloned()
     }
 
     /// The leader key, if any binding needs it.
@@ -437,8 +460,8 @@ fn describe_key(key: &Key, modifiers: Modifiers) -> Option<String> {
 impl Hotkeys {
     /// The first key bound to an action, written like `Ctrl+Shift+T`, or like `Ctrl+A C` for a
     /// key that follows the leader key.
-    pub fn describe(&self, action: AppAction) -> Option<String> {
-        let runs = |bound: &&Bound| bound.effect == Effect::Run(action);
+    pub fn describe(&self, action: &AppAction) -> Option<String> {
+        let runs = |bound: &&Bound| matches!(&bound.effect, Effect::Run(run) if run == action);
         if let Some(bound) = self.direct.iter().find(runs) {
             return describe_key(&bound.key, bound.modifiers);
         }
@@ -831,8 +854,8 @@ mod tests {
             &[
                 binding("f", mods, Action::SearchForward),
                 binding("h", mods, Action::ToggleHelp),
-                binding("x", mods, Action::Esc("x".into())),
-                binding("q", mods, Action::Quit),
+                binding("n", mods, Action::SpawnNewInstance),
+                binding("o", mods, Action::HideOtherApplications),
             ],
             None,
         );
@@ -946,7 +969,7 @@ mod tests {
             hotkeys.action(&arrow_left(), CTRL_ALT),
             Some(AppAction::FocusPane(Direction::Left))
         );
-        assert_eq!(hotkeys.describe(AppAction::LastTab), None);
+        assert_eq!(hotkeys.describe(&AppAction::LastTab), None);
 
         // These reach the applications in the terminal.
         assert_eq!(hotkeys.action(&arrow_left(), CTRL_SHIFT), None);
@@ -1024,8 +1047,8 @@ mod tests {
             assert_eq!(hotkeys.sequence(&key, modifiers), Some(action), "{key:?} {modifiers:?}");
         }
 
-        assert_eq!(hotkeys.describe(AppAction::CloseTab).as_deref(), Some("Ctrl+A K"));
-        assert_eq!(hotkeys.describe(AppAction::NewTab).as_deref(), Some("Ctrl+Shift+T"));
+        assert_eq!(hotkeys.describe(&AppAction::CloseTab).as_deref(), Some("Ctrl+A K"));
+        assert_eq!(hotkeys.describe(&AppAction::NewTab).as_deref(), Some("Ctrl+Shift+T"));
     }
 
     #[test]
@@ -1238,6 +1261,79 @@ mod tests {
         for key in ["y", "g", "v", "i"] {
             assert_eq!(pressed(&hotkeys, key, Modifiers::empty(), none), unbound(), "{key}");
         }
+    }
+
+    #[test]
+    fn chars_commands_and_window_actions_are_bound() {
+        let hotkeys = configured(
+            r#"
+            [keyboard]
+            bindings = [
+                { key = "L", mods = "Alt", chars = "clear\n" },
+                { key = "B", mods = "Alt", command = { program = "notify-send", args = ["hi"] } },
+                { key = "E", mods = "Alt", command = "xdg-open" },
+                { key = "Q", mods = "Alt", action = "Quit" },
+                { key = "H", mods = "Alt", action = "Hide" },
+                { key = "M", mods = "Alt", action = "Minimize" },
+                { key = "X", mods = "Alt", action = "ClearSelection" },
+                { key = "Y", mods = "Alt", action = "CopySelection" },
+                { key = "K", mods = "Alt", chars = "\u000c" },
+                { key = "K", mods = "Alt", action = "ClearHistory" },
+                { key = "Z", mode = "Leader", chars = "zz" },
+            ]
+            "#,
+        );
+        let alt = |key| pressed(&hotkeys, key, Modifiers::ALT, BindingMode::empty());
+
+        assert_eq!(alt("l"), runs(&[AppAction::Chars("clear\n".into())]));
+        assert_eq!(
+            alt("b"),
+            runs(&[AppAction::RunCommand(Program::WithArgs {
+                program: "notify-send".into(),
+                args: vec!["hi".into()],
+            })])
+        );
+        assert_eq!(alt("e"), runs(&[AppAction::RunCommand(Program::Just("xdg-open".into()))]));
+        assert_eq!(alt("q"), runs(&[AppAction::Quit]));
+        assert_eq!(alt("h"), runs(&[AppAction::Hide]));
+        assert_eq!(alt("m"), runs(&[AppAction::Minimize]));
+        assert_eq!(alt("x"), runs(&[AppAction::ClearSelection]));
+        assert_eq!(alt("y"), runs(&[AppAction::CopySelection]));
+        // Like Command+K on macOS: clear the screen, then the scrollback.
+        assert_eq!(alt("k"), runs(&[AppAction::Chars("\x0c".into()), AppAction::ClearHistory]));
+        assert_eq!(
+            hotkeys.sequence(&character("z"), Modifiers::empty()),
+            Some(AppAction::Chars("zz".into()))
+        );
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    #[test]
+    fn default_chars_bindings_are_left_to_the_terminal() {
+        use keyboard::key::Named;
+
+        let hotkeys = configured("");
+        let named = |key, modifiers, mode| pressed_named(&hotkeys, key, modifiers, mode);
+
+        // The terminal widget encodes these keys itself, under the kitty keyboard protocol too.
+        assert_eq!(named(Named::Backspace, Modifiers::empty(), BindingMode::empty()), unbound());
+        assert_eq!(named(Named::Backspace, Modifiers::ALT, BindingMode::empty()), unbound());
+        assert_eq!(named(Named::Tab, Modifiers::SHIFT, BindingMode::empty()), unbound());
+        assert_eq!(named(Named::F1, Modifiers::empty(), BindingMode::empty()), unbound());
+        assert_eq!(named(Named::ArrowUp, Modifiers::empty(), BindingMode::APP_CURSOR), unbound());
+        assert_eq!(named(Named::Home, Modifiers::empty(), BindingMode::APP_CURSOR), unbound());
+
+        // A key the user binds to `chars` is theirs, default binding or not.
+        let hotkeys = configured(
+            r#"
+            [keyboard]
+            bindings = [{ key = "Back", chars = "\u0008" }]
+            "#,
+        );
+        assert_eq!(
+            pressed_named(&hotkeys, Named::Backspace, Modifiers::empty(), BindingMode::empty()),
+            runs(&[AppAction::Chars("\x08".into())])
+        );
     }
 
     #[cfg(not(target_os = "macos"))]

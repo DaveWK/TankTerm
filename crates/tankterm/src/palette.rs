@@ -42,7 +42,7 @@ const COMMANDS: &[(&str, AppAction)] = {
 };
 
 /// What choosing an item does.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Command {
     Action(AppAction),
     /// Open the profile at this position in a new tab.
@@ -82,8 +82,8 @@ impl Palette {
     pub fn commands(hotkeys: &Hotkeys) -> Self {
         let items = COMMANDS.iter().map(|(label, action)| Item {
             label: (*label).to_owned(),
-            detail: hotkeys.describe(*action).unwrap_or_default(),
-            command: Command::Action(*action),
+            detail: hotkeys.describe(action).unwrap_or_default(),
+            command: Command::Action(action.clone()),
         });
 
         Self::new("Run a command", items.collect())
@@ -142,7 +142,7 @@ impl Palette {
 
     /// The command of the match at `position`.
     pub fn command(&self, position: usize) -> Option<Command> {
-        self.matches().get(position).map(|item| item.command)
+        self.matches().get(position).map(|item| item.command.clone())
     }
 
     /// The command of the selected match.
