@@ -1264,6 +1264,51 @@ fn status_segments_show_while_they_have_something_to_show() {
 }
 
 #[test]
+fn tab_titles_follow_the_title_format() {
+    let mut app = app();
+    perform(&mut app, &[AppAction::Split(Axis::Vertical), AppAction::NewTab]);
+
+    // The default shows the position, the title and the markers.
+    assert_eq!(app.tab_label(0, &app.tabs[0]), "1: test");
+    app.tabs[0].activity = true;
+    assert_eq!(app.tab_label(0, &app.tabs[0]), "1: test *");
+    perform(&mut app, &[AppAction::SelectTab(0), AppAction::ToggleZoom]);
+    assert_eq!(app.tab_label(0, &app.tabs[0]), "1: test Z");
+    app.terminals.get_mut(&0).unwrap().attention = true;
+    assert_eq!(app.tab_label(0, &app.tabs[0]), "1: test Z !");
+
+    let config = "[tabs]\nshow = \"Always\"\ntitle = \"{{{index}}} {process}@{cwd} [{panes}] \
+                  {path} {nope}\"\n";
+    let mut app = app_with(config, Hotkeys::default());
+    perform(&mut app, &[AppAction::Split(Axis::Vertical)]);
+    let focused = app.focused_terminal().unwrap();
+    let shell = app.terminals.get_mut(&focused).unwrap();
+    shell.working_directory = Some("/srv/www".into());
+    shell.process = Some("vim".into());
+    assert_eq!(app.tab_label(0, &app.tabs[0]), "{1} vim@www [2] /srv/www {nope}");
+    assert!(has_text(&app, "{1} vim@www [2] /srv/www {nope}"));
+
+    // What can't be told is left empty.
+    let shell = app.terminals.get_mut(&focused).unwrap();
+    shell.working_directory = None;
+    shell.process = None;
+    assert_eq!(app.tab_label(0, &app.tabs[0]), "{1} @ [2]  {nope}");
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn process_names_are_looked_at_with_the_ticks_while_the_title_shows_them() {
+    let mut app = app();
+    let _ = app.update(Message::Tick);
+    assert_eq!(app.terminals[&0].process, None);
+
+    let mut app = app_with("[tabs]\ntitle = \"{process}\"\n", Hotkeys::default());
+    let _ = app.update(Message::Tick);
+    assert_eq!(app.terminals[&0].process.as_deref(), Some("cat"));
+    assert_eq!(app.tab_label(0, &app.tabs[0]), "cat");
+}
+
+#[test]
 fn only_the_key_table_is_a_segment_by_default() {
     let app = app_with("[tabs]\nshow = \"Always\"\n", Hotkeys::default());
 

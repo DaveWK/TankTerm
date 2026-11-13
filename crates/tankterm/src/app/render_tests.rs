@@ -530,3 +530,35 @@ fn status_segments() {
         r##"foreground = "#000000", background = "#00ff00", border = "Rounded", margin = [0, 4]"##,
     ]);
 }
+
+#[test]
+#[ignore = "writes screenshots for manual inspection"]
+fn tab_title_formats() {
+    let Some(dir) = env::var_os("TANKTERM_SNAPSHOT_DIR").map(PathBuf::from) else { return };
+    let window = Size::new(900., 120.);
+
+    // The program and directory come from a tick, as they would in a window: `cat`, in the
+    // directory the tests run in. The second tab is split, with a pane zoomed.
+    let config = r#"
+        [tabs]
+        show = "Always"
+        title = "{index} {process} in {cwd} [{panes}]{zoom}{marker}"
+    "#;
+    let mut app = super::tab_tests::app_with(config, Hotkeys::default());
+    for action in [
+        AppAction::NewTab,
+        AppAction::Split(Axis::Vertical),
+        AppAction::ToggleZoom,
+        AppAction::NewTab,
+        AppAction::SelectTab(1),
+    ] {
+        let _ = app.update(Message::Action(action));
+    }
+    settle(&mut app, window);
+    let _ = app.update(Message::Tick);
+    for (index, tab) in app.tabs.iter_mut().enumerate() {
+        tab.activity = index == 2;
+    }
+
+    snapshot(&app, window, &dir, "tab-title-format");
+}

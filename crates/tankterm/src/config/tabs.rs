@@ -1,10 +1,14 @@
 //! Tab bar configuration.
 
-use serde::Serialize;
+use log::warn;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+use tankterm_config::SerdeReplace;
 use tankterm_config_derive::ConfigDeserialize;
 
 use crate::config::style::Style;
+use crate::logging::LOG_TARGET_CONFIG;
+use crate::template::Template;
 
 #[derive(ConfigDeserialize, Serialize, Clone, Debug, PartialEq, Eq)]
 pub struct Tabs {
@@ -20,6 +24,9 @@ pub struct Tabs {
     /// Start the shells of new tabs and panes in the directory of the current pane's shell.
     pub inherit_working_directory: bool,
 
+    /// What every tab shows in the tab bar.
+    pub title: TabTitle,
+
     /// Segments at the end of the tab bar, in order.
     pub status: Vec<StatusSegment>,
 }
@@ -31,6 +38,7 @@ impl Default for Tabs {
             position: Default::default(),
             restore: false,
             inherit_working_directory: true,
+            title: TabTitle::default(),
             status: vec![StatusSegment::default()],
         }
     }
@@ -56,6 +64,61 @@ pub enum TabsPosition {
     #[default]
     Top,
     Bottom,
+}
+
+/// The `tabs.title` format: what a tab shows in the tab bar, with placeholders.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TabTitle {
+    format: String,
+    template: Template,
+}
+
+impl TabTitle {
+    /// The placeholders a tab title can have.
+    pub const FIELDS: &[&str] =
+        &["index", "title", "panes", "cwd", "path", "process", "marker", "zoom"];
+
+    fn new(format: String) -> Self {
+        let template = Template::parse(&format);
+        for field in template.fields().filter(|field| !Self::FIELDS.contains(field)) {
+            warn!(target: LOG_TARGET_CONFIG, "Unknown placeholder {{{field}}} in tabs.title");
+        }
+        Self { format, template }
+    }
+
+    pub fn template(&self) -> &Template {
+        &self.template
+    }
+
+    /// Whether the format has the placeholder `field`.
+    pub fn uses(&self, field: &str) -> bool {
+        self.template.fields().any(|used| used == field)
+    }
+}
+
+impl Default for TabTitle {
+    fn default() -> Self {
+        Self::new("{index}: {title}{zoom}{marker}".into())
+    }
+}
+
+impl SerdeReplace for TabTitle {
+    fn replace(&mut self, value: toml::Value) -> Result<(), Box<dyn std::error::Error>> {
+        *self = Self::deserialize(value)?;
+        Ok(())
+    }
+}
+
+impl Serialize for TabTitle {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.format.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for TabTitle {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        String::deserialize(deserializer).map(Self::new)
+    }
 }
 
 /// A segment at the end of the tab bar.
@@ -109,5 +172,33 @@ impl SegmentKind {
             Self::Cwd => &["path", "basename"],
             Self::Battery => &["percent", "status"],
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::cli::ParsedOptions;
+    use crate::config::UiConfig;
+
+    #[test]
+    fn title_format_is_read_and_written_as_text() {
+        let config: UiConfig = toml::from_str("[tabs]\ntitle = \"{index} {cwd}\"\n").unwrap();
+        let title = &config.tabs.title;
+
+        assert!(title.uses("index") && title.uses("cwd") && !title.uses("title"));
+        let written = toml::to_string(&config.tabs).unwrap();
+        assert!(written.contains("title = \"{index} {cwd}\""), "{written}");
+    }
+
+    #[test]
+    fn title_format_can_be_given_on_the_command_line() {
+        let mut config = UiConfig::default();
+        let mut overrides = ParsedOptions::from_options(&["tabs.title = '{process}'".into()]);
+
+        overrides.override_config(&mut config);
+
+        assert!(config.tabs.title.uses("process"));
     }
 }

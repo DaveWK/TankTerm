@@ -8,8 +8,8 @@ Approved and waiting their turn, in this order.
 2. Config options the iced front end ignores:
    - Port later, low priority: `window.resize_increments` and `window.option_as_alt`.
 3. Vi mode, scrollback search and hints in the iced front end.
-4. Tab bar: tab title templates, and window buttons in the tab bar in place of the OS title bar.
-   The `[style.tab_*]` blocks and the status segments are done.
+4. Tab bar: window buttons in the tab bar in place of the OS title bar. The `[style.tab_*]`
+   blocks, status segments and tab title formats are done.
 5. `tankTerm ssh` with terminfo negotiation; design and decisions are in the section below
    the deferred list.
 

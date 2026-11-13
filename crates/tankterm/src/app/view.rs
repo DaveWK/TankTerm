@@ -182,12 +182,7 @@ impl App {
                 .panes
                 .iter()
                 .any(|(_, id)| self.terminals.get(id).is_some_and(|shell| shell.attention));
-            let marker = match (attention, tab.activity) {
-                (true, _) => " !",
-                (false, true) => " *",
-                (false, false) => "",
-            };
-            let title = format!("{}: {}{marker}", index + 1, self.tab_title(tab));
+            let title = self.tab_label(index, tab);
 
             let style = if index == self.active { styles.active } else { styles.inactive };
             let style = match (attention, tab.activity) {

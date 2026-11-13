@@ -15,7 +15,7 @@ use iced_tterm::{AlacrittyEvent, BackendCommand, TermMode, TerminalView};
 use log::{debug, error, warn};
 
 use super::actions::zoomed;
-use super::{App, AppOptions, Message, PROCESS_INTERVAL, PendingPaste};
+use super::{App, AppOptions, Message, PROCESS_INTERVAL, PendingPaste, process_name};
 use crate::config::tabs::SegmentKind;
 use crate::hotkeys::Hotkeys;
 use crate::palette::{self, Palette};
@@ -456,6 +456,7 @@ impl App {
                 let finished = terminals.into_iter().filter(|id| self.poll_process(*id));
                 let finished: Vec<u64> = finished.collect();
                 self.poll_directories();
+                self.poll_process_names();
                 self.sample_status();
 
                 Task::batch(finished.into_iter().map(|id| self.notify(id)))
@@ -681,10 +682,12 @@ impl App {
     /// Look up the directories the shells are in, which the session file remembers.
     ///
     /// This takes the file system, so it runs with the ticks and not with every output of a
-    /// terminal, and not at all if there is no session file to write the directories to and no
-    /// status segment to show them in.
+    /// terminal, and not at all if there is no session file to write the directories to, and no
+    /// status segment or tab title to show them in.
     fn poll_directories(&mut self) {
-        if self.options.session_file.is_none() && !self.shows(SegmentKind::Cwd) {
+        let title = &self.options.tabs.title;
+        let shown = self.shows(SegmentKind::Cwd) || title.uses("cwd") || title.uses("path");
+        if self.options.session_file.is_none() && !shown {
             return;
         }
 
@@ -692,6 +695,20 @@ impl App {
             if let Some(directory) = shell.directory() {
                 shell.working_directory = Some(directory);
             }
+        }
+    }
+}
+
+impl App {
+    /// Look up the names of the programs that have the terminals, while the tab titles show
+    /// them.
+    fn poll_process_names(&mut self) {
+        if !self.options.tabs.title.uses("process") {
+            return;
+        }
+
+        for shell in self.terminals.values_mut() {
+            shell.process = shell.terminal.foreground_process_group().and_then(process_name);
         }
     }
 }

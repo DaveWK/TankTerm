@@ -186,6 +186,22 @@ asked to draw attention to the window if that doesn't have focus. A shell with
 it, TankTerm watches which process has the terminal, which works on Unix with
 shells that have job control.
 
+### Tab titles
+
+`title` in the `[tabs]` section sets what each tab shows, with placeholders in
+braces: `{index}`, `{title}`, `{panes}`, `{cwd}` (the last part of the
+directory), `{path}`, `{process}` (the program that has the terminal),
+`{marker}` (` !` or ` *`) and `{zoom}` (` Z` while a pane is zoomed). The
+default is `"{index}: {title}{zoom}{marker}"`; this shows the program and the
+directory instead:
+
+```toml
+[tabs]
+title = "{index} {process} in {cwd}{zoom}{marker}"
+```
+
+The directory and the program are only known on Linux.
+
 ### Status segments
 
 The right end of the tab bar holds status segments, listed as `[[tabs.status]]`

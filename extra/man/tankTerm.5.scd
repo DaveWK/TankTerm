@@ -359,6 +359,38 @@ Unix, for shells with job control, and within about a second.
 
 	Default: _true_
 
+*title* = _"<format>"_
+
+	What every tab shows in the tab bar: text with placeholders in braces, with
+	_{{_ and _}}_ for literal braces. Placeholders without a value are left
+	empty; others are reported and drawn as they are written. The window title,
+	the tab navigator and _tankTerm msg list_ keep the plain title.
+
+	*{index}*
+		The tab's position, from 1.
+	*{title}*
+		The title given with _RenameTab_ or _tankTerm msg set-tab-title_, or
+		else that of the focused pane.
+	*{panes}*
+		The number of panes.
+	*{cwd}*, *{path}*
+		The last part of the directory of the focused pane's shell, and the
+		whole directory with the home directory written as _~_.
+	*{process}*
+		The name of the program that has the focused pane's terminal, like
+		_vim_, or the shell between commands.
+	*{marker}*
+		_" !"_ when a terminal of the tab rang the bell or finished a command
+		unseen, _" \*"_ when the tab printed something since it was last
+		shown, or nothing.
+	*{zoom}*
+		_" Z"_ while a pane of the tab is zoomed, or nothing.
+
+	The directory and the program are read from _/proc_ every second while the
+	format has them, so they are only known on Linux.
+
+	Default: _"{index}: {title}{zoom}{marker}"_
+
 *status* = [{ segment = _"<kind>"_, format = _"<format>"_, style = { _<style>_ } }, ...]
 
 	Segments at the right end of the tab bar, before the gear, in order. Each
@@ -404,7 +436,8 @@ Example:
 	*[tabs]*++
 show = _"Always"_++
 position = _"Bottom"_++
-restore = _true_
+restore = _true_++
+title = _"{index} {process} in {cwd}{zoom}{marker}"_
 
 	*[[tabs.status]]*++
 segment = _"KeyTable"_++

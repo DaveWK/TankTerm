@@ -222,6 +222,9 @@ struct Shell {
     /// can be told. Only kept up to date from ticks while there is a session file to remember
     /// it in or a status segment to show it.
     working_directory: Option<PathBuf>,
+    /// Name of the program that had the terminal at the last tick, where that can be told.
+    /// Only kept up to date while the tab title shows it.
+    process: Option<String>,
     /// The terminal rang the bell or finished a command while nobody was looking at it.
     attention: bool,
     /// Whether the terminal was last told that it has the keyboard focus.
@@ -264,5 +267,17 @@ fn working_directory(pid: u32) -> Option<PathBuf> {
 
 #[cfg(not(target_os = "linux"))]
 fn working_directory(_pid: u32) -> Option<PathBuf> {
+    None
+}
+
+/// The name of a process, where the platform has a simple way to ask.
+#[cfg(target_os = "linux")]
+fn process_name(pid: u32) -> Option<String> {
+    let name = std::fs::read_to_string(format!("/proc/{pid}/comm")).ok()?;
+    Some(name.trim_end().to_owned()).filter(|name| !name.is_empty())
+}
+
+#[cfg(not(target_os = "linux"))]
+fn process_name(_pid: u32) -> Option<String> {
     None
 }

@@ -127,7 +127,7 @@ fn known<'a>(kind: SegmentKind, value: Option<Cow<'a, str>>, name: &str) -> Opti
 }
 
 /// A directory with the home directory written as `~`.
-fn display_path(directory: &Path) -> String {
+pub(super) fn display_path(directory: &Path) -> String {
     let home = home::home_dir();
     match home.as_deref().and_then(|home| directory.strip_prefix(home).ok()) {
         Some(relative) if relative.as_os_str().is_empty() => "~".into(),
@@ -137,7 +137,7 @@ fn display_path(directory: &Path) -> String {
 }
 
 /// The last part of a directory, or `/` for the root.
-fn basename(directory: &Path) -> String {
+pub(super) fn basename(directory: &Path) -> String {
     match directory.file_name() {
         Some(name) => name.to_string_lossy().into_owned(),
         None => directory.display().to_string(),
