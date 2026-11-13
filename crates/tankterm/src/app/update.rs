@@ -419,6 +419,10 @@ impl App {
             },
             Message::WindowFocused(focused) => {
                 self.window_focused = focused;
+                // The terminals draw with the theme's focused or blurred elements.
+                for shell in self.terminals.values_mut() {
+                    shell.terminal.handle(iced_tterm::Command::WindowFocus(focused));
+                }
                 if focused { self.focus() } else { Task::none() }
             },
             Message::Action(action) => self.perform(action),

@@ -53,6 +53,10 @@ pub enum Command {
     /// cursor doesn't blink and is drawn hollow, if the settings say so. A
     /// new terminal has the focus.
     Focus(bool),
+    /// Tell the terminal whether the window it is in has focus, which
+    /// chooses between the theme's focused and blurred elements. A new
+    /// terminal takes its window to have focus.
+    WindowFocus(bool),
     AddBindings(Vec<(Binding<InputKind>, BindingAction)>),
     /// Take the widget's own keys for copying and pasting away, for
     /// applications that bind these actions themselves. The keys are sent
@@ -74,6 +78,8 @@ pub struct Terminal {
     pub(crate) mouse: MouseSettings,
     /// Centre the grid in the widget.
     pub(crate) dynamic_padding: bool,
+    /// Whether the window the terminal is in has focus.
+    pub(crate) window_focused: bool,
     pub(crate) backend: backend::Backend,
     backend_event_rx: Arc<Mutex<backend::EventReceiver>>,
 }
@@ -106,6 +112,7 @@ impl Terminal {
             cursor,
             mouse: settings.mouse,
             dynamic_padding: settings.dynamic_padding,
+            window_focused: true,
             cache: Cache::default(),
             backend,
             backend_event_rx: Arc::new(Mutex::new(backend_event_rx)),
@@ -257,6 +264,7 @@ impl Terminal {
             Command::ChangeDynamicPadding(dynamic) => {
                 self.dynamic_padding = dynamic;
             },
+            Command::WindowFocus(focused) => self.window_focused = focused,
             Command::Focus(focused) => {
                 self.cursor.set_focused(focused, Instant::now());
             },

@@ -6,7 +6,7 @@ use crate::box_drawing;
 use crate::cursor::cursor_rectangles;
 use crate::keyboard::{self, KeyInput, KeyState, KittyOutput};
 use crate::terminal::{Event, Terminal};
-use crate::theme::{TerminalStyle, TextAttributes};
+use crate::theme::TerminalStyle;
 use iced::alignment::Vertical;
 use iced::mouse::{Cursor, ScrollDelta};
 use iced::widget::canvas::{Path, Text};
@@ -696,6 +696,9 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
             // We use the background pallete color as a default
             // because the widget global background color must be the same
             let theme = &self.term.theme;
+            // The cursor, the selection and the text look different while
+            // the window doesn't have focus, if the theme says so.
+            let elements = theme.elements(self.term.window_focused);
             let overrides = &content.colors;
             let default_bg = theme.get_color_with_overrides(
                 ansi::Color::Named(NamedColor::Background),
@@ -729,14 +732,15 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                 let cell_center_y = y + half_h;
                 let cell_center_x = x + half_w;
 
-                // Selected text adds the selection's attributes to its own.
+                // Text adds the theme's attributes to its own, and selected
+                // text the selection's too.
                 let selected = content
                     .selectable_range
                     .is_some_and(|r| r.contains(indexed.point));
                 let attributes = if selected {
-                    theme.selection_attributes()
+                    elements.text.and(elements.selection_attributes)
                 } else {
-                    TextAttributes::default()
+                    elements.text
                 };
 
                 // Resolve colors for this cell. Bold text that isn't dim can
@@ -787,7 +791,7 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                     std::mem::swap(&mut fg, &mut bg);
                 }
                 if selected {
-                    let selection = theme.selection_colors();
+                    let selection = elements.selection;
                     (fg, bg) = (
                         selection.foreground.on(fg, bg),
                         selection.background.on(fg, bg),
@@ -870,7 +874,7 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                     // otherwise the theme's, on the cell's colors.
                     let cursor_color = match overrides[NamedColor::Cursor] {
                         Some(rgb) => Color::from_rgb8(rgb.r, rgb.g, rgb.b),
-                        None => theme.cursor_colors().background.on(
+                        None => elements.cursor.background.on(
                             theme.get_color_with_overrides(
                                 content.cursor.fg,
                                 overrides,
@@ -903,10 +907,7 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                     // was INVERSE or inside a selection.
                     // The other cursor shapes leave the glyph as it is.
                     if is_cursor && cursor_shape == CursorShape::Block {
-                        fg = theme
-                            .cursor_colors()
-                            .foreground
-                            .on(cell_fg, cell_bg);
+                        fg = elements.cursor.foreground.on(cell_fg, cell_bg);
                     }
                     if self.term.font.builtin_box_drawing
                         && box_drawing::is_builtin(indexed.c)

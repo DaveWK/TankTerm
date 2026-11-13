@@ -209,6 +209,9 @@ impl App {
         terminal.handle(iced_tterm::Command::AddBindings(self.options.bindings.clone()));
         // Copying and pasting are bound in the configuration, like every other action.
         terminal.handle(iced_tterm::Command::RemoveClipboardKeys);
+        if !self.window_focused {
+            terminal.handle(iced_tterm::Command::WindowFocus(false));
+        }
 
         let shell = Shell {
             terminal,

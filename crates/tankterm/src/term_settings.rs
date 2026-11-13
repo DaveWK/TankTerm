@@ -9,7 +9,7 @@ use iced_tterm::settings::{
     BackendSettings, CursorBlinking, CursorSettings, FontSettings, MouseSettings, ScrollSettings,
     SelectionSettings, Settings, ThemeSettings,
 };
-use iced_tterm::{CellColor, CellColors, ColorPalette, TextAttributes};
+use iced_tterm::{CellColor, CellColors, ColorPalette, Elements, TextAttributes};
 use log::warn;
 
 use crate::cli::Options;
@@ -18,7 +18,7 @@ use crate::config::UiConfig;
 use crate::config::color::Colors;
 use crate::config::font::FontDescription;
 use crate::config::profile::Profile;
-use crate::config::style::CellStyle;
+use crate::config::style::{self, CellStyle, ElementStyles};
 use crate::config::ui_config::{Delta, Program};
 
 /// Logical pixels per typographic point.
@@ -324,24 +324,36 @@ pub fn foreground(config: &UiConfig) -> Color {
     Color::from_rgb8(foreground.r, foreground.g, foreground.b)
 }
 
-/// The `iced_tterm` palette of a configuration: its colors, and the colors of the cursor and the
-/// selection, which the `[style]` blocks can change too.
+/// The `iced_tterm` palette of a configuration: its colors, and how the cursor, the selection
+/// and the text look in a focused and an unfocused window, which the `[style]` blocks decide.
 fn theme_palette(config: &UiConfig) -> ColorPalette {
     let styles = config.style.resolved();
-    let selection = styles.selection.attributes;
     ColorPalette {
+        focused: elements(&styles.elements(true)),
+        blurred: elements(&styles.elements(false)),
+        ..palette(&config.colors)
+    }
+}
+
+/// How the cursor, the selection and the text are drawn with these styles.
+fn elements(styles: &ElementStyles) -> Elements {
+    Elements {
+        text: text_attributes(&styles.text),
         // Only colors apply to the cursor.
         cursor: cell_colors(&styles.cursor),
         selection: cell_colors(&styles.selection),
-        selection_attributes: TextAttributes {
-            bold: selection.bold,
-            italic: selection.italic,
-            faint: selection.faint,
-            underline: selection.underline,
-            strikethrough: selection.strikethrough,
-            reverse: selection.reverse,
-        },
-        ..palette(&config.colors)
+        selection_attributes: text_attributes(&styles.selection.attributes),
+    }
+}
+
+fn text_attributes(attributes: &style::TextAttributes) -> TextAttributes {
+    TextAttributes {
+        bold: attributes.bold,
+        italic: attributes.italic,
+        faint: attributes.faint,
+        underline: attributes.underline,
+        strikethrough: attributes.strikethrough,
+        reverse: attributes.reverse,
     }
 }
 
@@ -567,11 +579,11 @@ mod tests {
 
         // The green defaults of `[style]`.
         let defaults = configured_palette("");
-        assert_eq!(defaults.cursor, CellColors {
+        assert_eq!(defaults.focused.cursor, CellColors {
             foreground: black,
             background: color(0x00, 0xff, 0x00)
         });
-        assert_eq!(defaults.selection, CellColors {
+        assert_eq!(defaults.focused.selection, CellColors {
             foreground: black,
             background: color(0x00, 0x80, 0x00)
         });
@@ -587,9 +599,9 @@ mod tests {
             foreground = "#abcdef"
             "##,
         );
-        assert_eq!(configured.cursor, CellColors::default());
+        assert_eq!(configured.focused.cursor, CellColors::default());
         // A style wins over the color table, and what neither sets keeps its default.
-        assert_eq!(configured.selection, CellColors {
+        assert_eq!(configured.focused.selection, CellColors {
             foreground: color(0xab, 0xcd, 0xef),
             background: color(0x12, 0x34, 0x56)
         });
@@ -597,17 +609,45 @@ mod tests {
 
     #[test]
     fn selection_takes_the_text_attributes_of_its_style() {
-        assert_eq!(configured_palette("").selection_attributes, TextAttributes::default());
+        assert_eq!(configured_palette("").focused.selection_attributes, TextAttributes::default());
 
         let palette = configured_palette(
             "[style.selection]\nbold = true\nunderline = true\nreverse = true\n",
         );
-        assert_eq!(palette.selection_attributes, TextAttributes {
+        assert_eq!(palette.focused.selection_attributes, TextAttributes {
             bold: true,
             underline: true,
             reverse: true,
             ..TextAttributes::default()
         });
+    }
+
+    #[test]
+    fn blurred_elements_come_from_the_blurred_styles() {
+        // Without `[style.blurred]` nothing changes when the window loses focus.
+        let defaults = configured_palette("");
+        assert_eq!(defaults.blurred, defaults.focused);
+
+        let palette = configured_palette(
+            r##"
+            [style.blurred.text]
+            faint = true
+            [style.blurred.selection]
+            background = "#123456"
+            "##,
+        );
+        assert_eq!(palette.focused, defaults.focused);
+        assert_eq!(palette.blurred.text, TextAttributes {
+            faint: true,
+            ..TextAttributes::default()
+        });
+        assert_eq!(
+            palette.blurred.selection.background,
+            CellColor::Color(Color::from_rgb8(0x12, 0x34, 0x56))
+        );
+        // What the blurred styles leave alone is as in a focused window.
+        assert_eq!(palette.blurred.selection.foreground, defaults.focused.selection.foreground);
+        assert_eq!(palette.blurred.cursor, defaults.focused.cursor);
     }
 
     #[test]

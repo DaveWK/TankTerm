@@ -6,8 +6,6 @@ Approved and waiting their turn, in this order.
 
 1. Delete the `xitely/iced_term` repository on Forgejo (web UI; `forgejo-repos` can't).
 2. Config options the iced front end ignores:
-   - Port next: `[style.blurred]`, which needs the widget to know whether the window has focus,
-     not only the pane.
    - Port later, low priority: `window.resize_increments` and `window.option_as_alt`.
 3. `tankTerm msg` in the iced front end: spawn, split, send-text, get-text, list, activate.
 4. Key tables and user-defined leader bindings in `[keyboard] bindings` (the leader key itself

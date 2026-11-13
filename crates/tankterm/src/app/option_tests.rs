@@ -617,6 +617,37 @@ fn held_terminal_stays_open_with_its_output_when_its_program_exits() {
 }
 
 #[test]
+fn blurred_styles_apply_while_the_window_has_no_focus() {
+    let shell =
+        "[terminal]\nshell = { program = \"sh\", args = [\"-c\", \"printf hello; exec cat\"] }\n";
+    let blurred = format!("{shell}[style.blurred.text]\nfaint = true\n");
+    let app = |config: &str, focus: &[bool]| {
+        let mut app = app_with(config, Hotkeys::default());
+        wait_for_text(&app, 0, "hello");
+        let _ = app.update(wakeup(0));
+        for focused in focus {
+            let _ = app.update(Message::WindowFocused(*focused));
+        }
+        app
+    };
+
+    // Faint text once the window loses focus, not before, and not after it gets it back.
+    assert!(same_picture(&app(shell, &[]), &app(&blurred, &[])));
+    assert!(!same_picture(&app(shell, &[false]), &app(&blurred, &[false])));
+    assert!(same_picture(&app(shell, &[false, true]), &app(&blurred, &[false, true])));
+
+    // A terminal opened while the window has no focus starts blurred too.
+    let new_tab = |config: &str| {
+        let mut app = app(config, &[false]);
+        perform(&mut app, &[AppAction::NewTab]);
+        wait_for_text(&app, 1, "hello");
+        let _ = app.update(wakeup(1));
+        app
+    };
+    assert!(!same_picture(&new_tab(shell), &new_tab(&blurred)));
+}
+
+#[test]
 fn chars_are_typed_into_the_focused_terminal() {
     let mut app = app_with("", Hotkeys::default());
     perform(&mut app, &[AppAction::Split(iced::widget::pane_grid::Axis::Vertical)]);

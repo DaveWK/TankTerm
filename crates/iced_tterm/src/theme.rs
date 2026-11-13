@@ -61,6 +61,21 @@ pub struct TextAttributes {
     pub reverse: bool,
 }
 
+impl TextAttributes {
+    /// Both sets of attributes together.
+    pub(crate) fn and(self, other: Self) -> Self {
+        Self {
+            bold: self.bold || other.bold,
+            italic: self.italic || other.italic,
+            faint: self.faint || other.faint,
+            underline: self.underline || other.underline,
+            strikethrough: self.strikethrough || other.strikethrough,
+            // Reversing twice gives the colors back.
+            reverse: self.reverse != other.reverse,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ColorPalette {
     pub foreground: String,
@@ -95,6 +110,18 @@ pub struct ColorPalette {
     pub indexed_colors: Vec<(u8, String)>,
     /// Draw bold text in the normal colors with the bright colors instead.
     pub draw_bold_text_with_bright_colors: bool,
+    /// How the cursor, the selection and the text look while the window
+    /// has focus.
+    pub focused: Elements,
+    /// How they look while the window doesn't have focus.
+    pub blurred: Elements,
+}
+
+/// How the cursor, the selection and the text are drawn.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct Elements {
+    /// Attributes all text is drawn with, besides its own.
+    pub text: TextAttributes,
     /// The block cursor and the text under it. A cursor color an
     /// application sets wins.
     pub cursor: CellColors,
@@ -137,9 +164,8 @@ impl Default for ColorPalette {
             dim_white: String::from("#8e8e8e"),
             indexed_colors: Vec::new(),
             draw_bold_text_with_bright_colors: false,
-            cursor: CellColors::default(),
-            selection: CellColors::default(),
-            selection_attributes: TextAttributes::default(),
+            focused: Elements::default(),
+            blurred: Elements::default(),
         }
     }
 }
@@ -192,19 +218,14 @@ impl Theme {
         }
     }
 
-    /// The colors of the block cursor and the text under it.
-    pub(crate) fn cursor_colors(&self) -> CellColors {
-        self.palette.cursor
-    }
-
-    /// The colors of selected text.
-    pub(crate) fn selection_colors(&self) -> CellColors {
-        self.palette.selection
-    }
-
-    /// The attributes selected text is drawn with, besides its own.
-    pub(crate) fn selection_attributes(&self) -> TextAttributes {
-        self.palette.selection_attributes
+    /// How the cursor, the selection and the text are drawn in a window
+    /// that has focus or doesn't.
+    pub(crate) fn elements(&self, window_focused: bool) -> Elements {
+        if window_focused {
+            self.palette.focused
+        } else {
+            self.palette.blurred
+        }
     }
 
     /// The color text in `color` is drawn with when it is bold: the bright
@@ -658,6 +679,51 @@ mod tests {
         ] {
             assert_eq!(theme.bold_color(color), bright, "{color:?}");
         }
+    }
+
+    #[test]
+    fn attributes_add_up_and_reversing_twice_cancels() {
+        let bold = TextAttributes {
+            bold: true,
+            ..TextAttributes::default()
+        };
+        let faint_reverse = TextAttributes {
+            faint: true,
+            reverse: true,
+            ..TextAttributes::default()
+        };
+        assert_eq!(
+            bold.and(faint_reverse),
+            TextAttributes {
+                bold: true,
+                faint: true,
+                reverse: true,
+                ..bold
+            }
+        );
+        assert!(!faint_reverse.and(faint_reverse).reverse);
+    }
+
+    #[test]
+    fn window_focus_chooses_the_elements() {
+        let blurred = Elements {
+            text: TextAttributes {
+                faint: true,
+                ..TextAttributes::default()
+            },
+            ..Elements::default()
+        };
+        let palette = ColorPalette {
+            blurred,
+            ..ColorPalette::default()
+        };
+        let theme = Theme::new(ThemeSettings {
+            color_pallete: Box::new(palette),
+            ..ThemeSettings::default()
+        });
+
+        assert_eq!(theme.elements(true), Elements::default());
+        assert_eq!(theme.elements(false), blurred);
     }
 
     #[test]

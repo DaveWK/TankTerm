@@ -754,8 +754,8 @@ Each property of an element is taken from, in order:
 	. TankTerm's default for the element.
 
 The iced front end draws _cursor_ and _selection_, the selection with its text
-attributes. It doesn't draw the *[style.blurred]* blocks yet, and the other
-elements belong to features it doesn't have yet.
+attributes, and their *[style.blurred]* blocks and *[style.blurred.text]*. The
+other elements belong to features it doesn't have yet.
 
 *Elements*
 
