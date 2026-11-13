@@ -14,8 +14,12 @@ use iced_tterm::settings::Settings;
 use iced_tterm::{AlacrittyEvent, BackendCommand, TermMode, TerminalView};
 use log::{debug, error, warn};
 
-use super::actions::zoomed;
-use super::{App, AppOptions, Message, PROCESS_INTERVAL, PendingPaste};
+use super::actions::{toggle_maximized, zoomed};
+use super::{
+    App, AppOptions, DRAG_THRESHOLD, Message, PROCESS_INTERVAL, PendingPaste, TitleDrag,
+    process_name,
+};
+use crate::config::tabs::SegmentKind;
 use crate::hotkeys::Hotkeys;
 use crate::palette::{self, Palette};
 use crate::session::{SavedNode, SavedTab, Session, ordered_panes};
@@ -31,6 +35,8 @@ impl App {
         let mut app = Self {
             // A window that starts opaque stays opaque, see `opacity`.
             transparent: options.opacity < 1.,
+            frameless: options.frameless,
+            title_drag: TitleDrag::default(),
             options,
             settings,
             tabs: Vec::new(),
@@ -52,7 +58,10 @@ impl App {
             config: None,
             #[cfg(unix)]
             socket: None,
+            now: None,
+            battery: None,
         };
+        app.sample_status();
 
         let session = app.options.session_file.as_deref().and_then(Session::load);
         if let Some(session) = session {
@@ -320,7 +329,7 @@ impl App {
         // only needed while the session file waits to be written again, or a key table times
         // out.
         let timing = self.key_tables.iter().any(|table| table.deadline.is_some());
-        let ticking = cfg!(unix) || self.session_error.is_some() || timing;
+        let ticking = cfg!(unix) || self.session_error.is_some() || timing || self.status_ticks();
         let ticks = ticking.then(|| Subscription::run(ticks));
 
         // A flashing visual bell is drawn anew with every frame, until it has faded out.
@@ -337,6 +346,24 @@ impl App {
 
         let subscriptions = terminals.chain([window]).chain(ticks).chain(frames).chain(config);
         Subscription::batch(subscriptions.chain(socket))
+    }
+
+    /// The mouse moved over the tab bar with the button down: once it has moved far enough,
+    /// the window manager moves the window with the mouse until the button is released.
+    fn drag_window(&mut self, position: iced::Point) -> Task<Message> {
+        match self.title_drag {
+            TitleDrag::Released => Task::none(),
+            TitleDrag::Pressed => {
+                self.title_drag = TitleDrag::Moved(position);
+                Task::none()
+            },
+            TitleDrag::Moved(from) if from.distance(position) < DRAG_THRESHOLD => Task::none(),
+            TitleDrag::Moved(_) => {
+                // The window manager has the mouse now, and iced doesn't hear the release.
+                self.title_drag = TitleDrag::Released;
+                window::latest().and_then(window::drag)
+            },
+        }
     }
 
     /// Whether the visual bell flashes for a terminal.
@@ -452,11 +479,27 @@ impl App {
                 let finished = terminals.into_iter().filter(|id| self.poll_process(*id));
                 let finished: Vec<u64> = finished.collect();
                 self.poll_directories();
+                self.poll_process_names();
+                self.sample_status();
 
                 Task::batch(finished.into_iter().map(|id| self.notify(id)))
             },
+            Message::TitleBarPressed => {
+                self.title_drag = TitleDrag::Pressed;
+                Task::none()
+            },
+            Message::TitleBarMoved(position) => self.drag_window(position),
+            Message::TitleBarReleased => {
+                self.title_drag = TitleDrag::Released;
+                Task::none()
+            },
+            Message::TitleBarDoubleClicked => {
+                self.title_drag = TitleDrag::Released;
+                toggle_maximized()
+            },
             Message::ConfigChanged => {
                 self.reload_config();
+                self.sample_status();
                 Task::none()
             },
             Message::Frame(now) => {
@@ -675,9 +718,12 @@ impl App {
     /// Look up the directories the shells are in, which the session file remembers.
     ///
     /// This takes the file system, so it runs with the ticks and not with every output of a
-    /// terminal, and not at all if there is no session file to write the directories to.
+    /// terminal, and not at all if there is no session file to write the directories to, and no
+    /// status segment or tab title to show them in.
     fn poll_directories(&mut self) {
-        if self.options.session_file.is_none() {
+        let title = &self.options.tabs.title;
+        let shown = self.shows(SegmentKind::Cwd) || title.uses("cwd") || title.uses("path");
+        if self.options.session_file.is_none() && !shown {
             return;
         }
 
@@ -685,6 +731,20 @@ impl App {
             if let Some(directory) = shell.directory() {
                 shell.working_directory = Some(directory);
             }
+        }
+    }
+}
+
+impl App {
+    /// Look up the names of the programs that have the terminals, while the tab titles show
+    /// them.
+    fn poll_process_names(&mut self) {
+        if !self.options.tabs.title.uses("process") {
+            return;
+        }
+
+        for shell in self.terminals.values_mut() {
+            shell.process = shell.terminal.foreground_process_group().and_then(process_name);
         }
     }
 }

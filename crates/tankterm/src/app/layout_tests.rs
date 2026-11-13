@@ -20,12 +20,16 @@ fn terminal_size(config: &str, window: Size) -> (Size, Padding) {
         padding: term_settings::padding(&config, cell),
         background: term_settings::background(&config),
         foreground: term_settings::foreground(&config),
+        tab_bar: term_settings::tab_bar_styles(&config),
     };
     let options = AppOptions {
         title: "test".into(),
         dynamic_title: true,
         layout,
-        tabs: config.tabs,
+        tabs: config.tabs.clone(),
+        status: crate::app::status::segments(&config),
+        frameless: config.window.decorations == crate::config::window::Decorations::None,
+        window_buttons: config.window.buttons,
         hotkeys: Hotkeys::default(),
         config_file: None,
         session_file: None,

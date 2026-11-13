@@ -171,7 +171,8 @@ bindings = [
 ]
 ```
 
-The name of the active table is shown at the end of the tab bar. Keys that
+The name of the active table is shown at the end of the tab bar, in the
+`KeyTable` status segment. Keys that
 aren't bound in a table keep working as usual, unless the table sets
 `prevent_fallback = true`.
 
@@ -184,6 +185,109 @@ asked to draw attention to the window if that doesn't have focus. A shell with
 [shell integration](#shell-integration) says when its commands finish. Without
 it, TankTerm watches which process has the terminal, which works on Unix with
 shells that have job control.
+
+### Tab titles
+
+`title` in the `[tabs]` section sets what each tab shows, with placeholders in
+braces: `{index}`, `{title}`, `{panes}`, `{cwd}` (the last part of the
+directory), `{path}`, `{process}` (the program that has the terminal),
+`{marker}` (` !` or ` *`) and `{zoom}` (` Z` while a pane is zoomed). The
+default is `"{index}: {title}{zoom}{marker}"`; this shows the program and the
+directory instead:
+
+```toml
+[tabs]
+title = "{index} {process} in {cwd}{zoom}{marker}"
+```
+
+The program is only known on Linux, and the directory on Linux and with
+[shell integration](#shell-integration).
+
+### Status segments
+
+The right end of the tab bar holds status segments, listed as `[[tabs.status]]`
+tables. Each shows one thing in a format of its own: the active key table
+(`KeyTable`), the time (`Clock`, with a strftime format), the directory of the
+focused pane (`Cwd`) or the battery charge (`Battery`). Formats use
+placeholders in braces, and every segment can have a `style` of its own on top
+of `[style.tab_status]`:
+
+```toml
+[[tabs.status]]
+segment = "KeyTable"
+
+[[tabs.status]]
+segment = "Cwd"
+format = "{basename}"
+
+[[tabs.status]]
+segment = "Battery"
+format = "{percent}% {status}"
+
+[[tabs.status]]
+segment = "Clock"
+format = "%a %H:%M"
+style = { foreground = "#000000", background = "#00ff00" }
+```
+
+Without a `[[tabs.status]]` table, only the key table is shown. The battery is
+only known on Linux, and the directory on Linux and with
+[shell integration](#shell-integration).
+
+### Tab bar styles
+
+The tab bar is styled with `[style.tab_*]` blocks, which take the same Lip Gloss
+properties as the other `[style]` blocks, plus `padding`, `margin`, `border`
+and `border_foreground`:
+
+- `tab_bar`: the bar itself.
+- `tab_active` and `tab_inactive`: the shown tab and the others.
+- `tab_button`: the `+` button, the gear and the window buttons.
+- `tab_hovered`, `tab_activity` and `tab_attention`: changes to a tab under the
+  mouse, a tab marked with `*` and a tab marked with `!`.
+- `tab_status`: the status segments.
+
+Like the other styles, they can `inherit` from `[style.defs]`, and
+`[style.blurred.tab_*]` blocks change them while the window doesn't have focus.
+This draws the tabs as rounded pills and the shown one in green:
+
+```toml
+[style.defs.pill]
+border = "Rounded"
+padding = [2, 12]
+margin = [0, 2]
+
+[style.tab_active]
+inherit = "pill"
+foreground = "#000000"
+background = "#00ff00"
+bold = true
+
+[style.tab_inactive]
+inherit = "pill"
+border_foreground = "#3a3a4a"
+
+[style.tab_hovered]
+border_foreground = "#00ff00"
+```
+
+### The tab bar as title bar
+
+With `decorations = "None"` in the `[window]` section the window has no title
+bar of its own, and the tab bar takes its place. It is shown even with a single
+tab and has minimize, maximize and close buttons, at the right end or, with
+`buttons = "Left"`, at the left end. Dragging the bar where there is no tab or
+button moves the window, and double-clicking it there maximizes the window.
+`buttons = "None"` leaves the tab bar as it is, for window managers that move
+windows on their own.
+
+```toml
+[window]
+decorations = "None"
+buttons = "Right"
+```
+
+The buttons are drawn with the `tab_button` and `tab_hovered` styles.
 
 [tankTerm(5) manpage]: ../extra/man/tankTerm.5.scd
 [tankTerm-bindings(5) manpage]: ../extra/man/tankTerm-bindings.5.scd

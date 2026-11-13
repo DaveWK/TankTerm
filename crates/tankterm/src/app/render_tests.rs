@@ -38,8 +38,12 @@ fn tabs_and_panes() {
             padding: Padding::new(4.),
             background: term_settings::background(&config),
             foreground: term_settings::foreground(&config),
+            tab_bar: term_settings::tab_bar_styles(&config),
         },
-        tabs: config.tabs,
+        tabs: config.tabs.clone(),
+        status: crate::app::status::segments(&config),
+        frameless: config.window.decorations == crate::config::window::Decorations::None,
+        window_buttons: config.window.buttons,
         hotkeys: Hotkeys::from_config(&config),
         config_file: None,
         session_file: None,
@@ -388,4 +392,201 @@ fn dynamic_padding() {
     }
     settle(&mut app, window);
     snapshot(&app, window, &dir, "dynamic-padding");
+}
+
+#[test]
+#[ignore = "writes screenshots for manual inspection"]
+fn tab_bar_styles() {
+    let Some(dir) = env::var_os("TANKTERM_SNAPSHOT_DIR").map(PathBuf::from) else { return };
+    let window = Size::new(900., 120.);
+
+    // Four tabs: the second is shown, the third printed something unseen, and the fourth rang
+    // the bell. The mouse is over the first one in the `-hovered` pictures.
+    let shots = |name: &str, config: &str| {
+        let mut app = super::tab_tests::app_with(config, Hotkeys::default());
+        for action in
+            [AppAction::NewTab, AppAction::NewTab, AppAction::NewTab, AppAction::SelectTab(1)]
+        {
+            let _ = app.update(Message::Action(action));
+        }
+        settle(&mut app, window);
+        for (index, tab) in app.tabs.iter_mut().enumerate() {
+            tab.activity = index == 2;
+        }
+        app.terminals.get_mut(&3).unwrap().attention = true;
+
+        snapshot(&app, window, &dir, name);
+
+        let mut ui = Simulator::with_size(Default::default(), window, app.view());
+        let tab = ui.find("1: test").unwrap();
+        ui.point_at(iced_test::selector::Bounded::visible_bounds(&tab).unwrap().center());
+        let hovered = ui.snapshot(&Theme::Dark).unwrap();
+        assert!(hovered.matches_image(dir.join(format!("{name}-hovered"))).unwrap());
+        drop(ui);
+
+        app.window_focused = false;
+        snapshot(&app, window, &dir, &format!("{name}-blurred"));
+    };
+
+    shots("tab-bar-default", "");
+    shots(
+        "tab-bar-styled",
+        r##"
+        [style.defs.pill]
+        border = "Rounded"
+        padding = [2, 12]
+        margin = [0, 2]
+
+        [style.tab_bar]
+        background = "#1b1b24"
+        padding = [4, 6]
+
+        [style.tab_active]
+        inherit = "pill"
+        foreground = "#000000"
+        background = "#00ff00"
+        border_foreground = "#00ff00"
+        bold = true
+
+        [style.tab_inactive]
+        inherit = "pill"
+        foreground = "#9a9aa8"
+        border_foreground = "#3a3a4a"
+
+        [style.tab_hovered]
+        foreground = "#ffffff"
+        border_foreground = "#00ff00"
+
+        [style.tab_activity]
+        italic = true
+
+        [style.tab_attention]
+        foreground = "#ff4d5a"
+        underline = true
+
+        [style.tab_button]
+        foreground = "#00ff00"
+
+        [style.blurred.tab_active]
+        foreground = "#00ff00"
+        background = "#1b1b24"
+        bold = false
+        "##,
+    );
+}
+
+#[test]
+#[ignore = "writes screenshots for manual inspection"]
+fn status_segments() {
+    let Some(dir) = env::var_os("TANKTERM_SNAPSHOT_DIR").map(PathBuf::from) else { return };
+    let window = Size::new(900., 120.);
+
+    // The default segment style, then segments with styles of their own.
+    let shots = |name: &str, styles: [&str; 4]| {
+        let config = format!(
+            r##"
+            [keyboard.tables.resize]
+            bindings = []
+
+            [[tabs.status]]
+            segment = "KeyTable"
+            style = {{ {} }}
+
+            [[tabs.status]]
+            segment = "Cwd"
+            style = {{ {} }}
+
+            [[tabs.status]]
+            segment = "Battery"
+            format = "{{percent}}% {{status}}"
+            style = {{ {} }}
+
+            [[tabs.status]]
+            segment = "Clock"
+            format = "%a %d %b %H:%M"
+            style = {{ {} }}
+            "##,
+            styles[0], styles[1], styles[2], styles[3]
+        );
+        let parsed: UiConfig = toml::from_str(&config).unwrap();
+        let mut app = super::tab_tests::app_with(&config, Hotkeys::from_config(&parsed));
+        let _ = app.update(Message::Action(AppAction::NewTab));
+        let _ = app.update(Message::Action(AppAction::ActivateKeyTable("resize".into())));
+        assert!(!app.key_tables.is_empty());
+        settle(&mut app, window);
+
+        app.now = Some("2026-11-12T09:41:00[UTC]".parse().unwrap());
+        app.battery = Some(status::Battery { percent: 81, status: "Charging".into() });
+        let focused = app.focused_terminal().unwrap();
+        let home = home::home_dir().unwrap_or_default();
+        app.terminals.get_mut(&focused).unwrap().working_directory =
+            Some(home.join("src/tankterm"));
+        snapshot(&app, window, &dir, name);
+    };
+
+    shots("status-segments", ["", "", "", ""]);
+    shots("status-segments-styled", [
+        r##"foreground = "#000000", background = "#f4d35e", bold = true"##,
+        r##"foreground = "#00ff00", italic = true"##,
+        r##"foreground = "#000000", background = "#00aa00""##,
+        r##"foreground = "#000000", background = "#00ff00", border = "Rounded", margin = [0, 4]"##,
+    ]);
+}
+
+#[test]
+#[ignore = "writes screenshots for manual inspection"]
+fn tab_title_formats() {
+    let Some(dir) = env::var_os("TANKTERM_SNAPSHOT_DIR").map(PathBuf::from) else { return };
+    let window = Size::new(900., 120.);
+
+    // The program and directory come from a tick, as they would in a window: `cat`, in the
+    // directory the tests run in. The second tab is split, with a pane zoomed.
+    let config = r#"
+        [tabs]
+        show = "Always"
+        title = "{index} {process} in {cwd} [{panes}]{zoom}{marker}"
+    "#;
+    let mut app = super::tab_tests::app_with(config, Hotkeys::default());
+    for action in [
+        AppAction::NewTab,
+        AppAction::Split(Axis::Vertical),
+        AppAction::ToggleZoom,
+        AppAction::NewTab,
+        AppAction::SelectTab(1),
+    ] {
+        let _ = app.update(Message::Action(action));
+    }
+    settle(&mut app, window);
+    let _ = app.update(Message::Tick);
+    for (index, tab) in app.tabs.iter_mut().enumerate() {
+        tab.activity = index == 2;
+    }
+
+    snapshot(&app, window, &dir, "tab-title-format");
+}
+
+#[test]
+#[ignore = "writes screenshots for manual inspection"]
+fn window_buttons() {
+    let Some(dir) = env::var_os("TANKTERM_SNAPSHOT_DIR").map(PathBuf::from) else { return };
+    let window = Size::new(900., 120.);
+
+    // A window without the system's title bar, with one tab: the tab bar is shown anyway, with
+    // the window's buttons. The mouse is over the close button in the `-hovered` picture.
+    let shot = |name: &str, config: &str, close: f32| {
+        let config = format!("[window]\ndecorations = \"None\"\n{config}");
+        let mut app = super::tab_tests::app_with(&config, Hotkeys::default());
+        settle(&mut app, window);
+        snapshot(&app, window, &dir, name);
+
+        let mut ui = Simulator::with_size(Default::default(), window, app.view());
+        let tab = ui.find("1: test").unwrap();
+        let y = iced_test::selector::Bounded::visible_bounds(&tab).unwrap().center_y();
+        ui.point_at((close, y));
+        let hovered = ui.snapshot(&Theme::Dark).unwrap();
+        assert!(hovered.matches_image(dir.join(format!("{name}-hovered"))).unwrap());
+    };
+
+    shot("window-buttons-right", "", window.width - 4.);
+    shot("window-buttons-left", "buttons = \"Left\"\n", 4.);
 }

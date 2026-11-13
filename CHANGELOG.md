@@ -60,6 +60,19 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 - `[style]` blocks for the cursor, selection, search matches, hints and bars, with Lip Gloss style
     properties (colors, bold, italic, faint, underline, strikethrough, reverse)
 - Named styles in `[style.defs]` that other styles can `inherit` from, like Lip Gloss's `Inherit`
+- `[style.tab_bar]`, `[style.tab_active]`, `[style.tab_inactive]`, `[style.tab_button]`,
+    `[style.tab_hovered]`, `[style.tab_activity]` and `[style.tab_attention]` style the tab bar,
+    with their `[style.blurred.tab_*]` variants. Styles take Lip Gloss's `padding`, `margin`,
+    `border` (`Normal`, `Rounded`, `Thick`, `Hidden`) and `border_foreground`, which only the
+    tab bar uses
+- `tabs.title` sets what tabs show in the tab bar, with `{index}`, `{title}`, `{panes}`, `{cwd}`,
+    `{path}`, `{process}`, `{marker}` and `{zoom}` placeholders; zoomed tabs are marked with ` Z`
+- Status segments at the end of the tab bar, as `[[tabs.status]]` tables: the active key table,
+    a clock with a strftime format, the focused pane's directory and the battery charge, each
+    with a `{placeholder}` format and a style on top of `[style.tab_status]`
+- With `window.decorations = "None"` the tab bar is the title bar: it is always shown, has
+    minimize, maximize and close buttons on the side `window.buttons` gives (`Right`, `Left`,
+    `None`), moves the window when dragged and maximizes it when double-clicked
 - `window.padding` accepts Lip Gloss/CSS shorthand in terminal cells, like `[1, 2]`, including
     different padding on every side
 - `tankTerm msg` commands for tabs and panes, following `wezterm cli`: `list`, `spawn`,

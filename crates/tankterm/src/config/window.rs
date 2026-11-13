@@ -24,6 +24,10 @@ pub struct WindowConfig {
     /// Draw the window with title bar / borders.
     pub decorations: Decorations,
 
+    /// Where the tab bar has the window's buttons when it is the title bar, with
+    /// `decorations = "None"`.
+    pub buttons: WindowButtons,
+
     /// Startup mode.
     pub startup_mode: StartupMode,
 
@@ -73,6 +77,7 @@ impl Default for WindowConfig {
             identity: Default::default(),
             dimensions: Default::default(),
             decorations: Default::default(),
+            buttons: Default::default(),
             startup_mode: Default::default(),
             dynamic_padding: Default::default(),
             resize_increments: Default::default(),
@@ -197,6 +202,20 @@ pub enum Decorations {
     Full,
     Transparent,
     Buttonless,
+    None,
+}
+
+/// Where the tab bar has the minimize, maximize and close buttons when it is the title bar.
+#[derive(ConfigDeserialize, Serialize, Default, Debug, Copy, Clone, PartialEq, Eq)]
+pub enum WindowButtons {
+    /// At the right end, with the close button last.
+    #[default]
+    Right,
+
+    /// At the left end, with the close button first.
+    Left,
+
+    /// Nowhere, and the tab bar isn't the title bar.
     None,
 }
 
@@ -366,11 +385,12 @@ impl<'de> Deserialize<'de> for Padding {
     }
 }
 
-/// Space around the four sides of the grid, in terminal cells.
+/// Space on four sides: around the grid in terminal cells, or around a part of the tab bar in
+/// logical pixels.
 ///
 /// Like Lip Gloss's `Padding`, it accepts CSS shorthand: a number for all sides, or a list of 1 to
 /// 4 numbers.
-#[derive(Serialize, Default, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(SerdeReplace, Serialize, Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Spacing {
     pub top: u16,
     pub right: u16,
@@ -379,6 +399,11 @@ pub struct Spacing {
 }
 
 impl Spacing {
+    /// The same space on the left and right, and on the top and bottom.
+    pub const fn new(vertical: u16, horizontal: u16) -> Self {
+        Self { top: vertical, right: horizontal, bottom: vertical, left: horizontal }
+    }
+
     /// Expand CSS shorthand:
     ///
     /// - `[all]`
@@ -409,10 +434,7 @@ impl<'de> Deserialize<'de> for Spacing {
             type Value = Spacing;
 
             fn expecting(&self, f: &mut Formatter<'_>) -> fmt::Result {
-                f.write_str(
-                    "{ x = <pixels>, y = <pixels> }, a number of cells, or a list of 1 to 4 \
-                     numbers of cells like CSS padding",
-                )
+                f.write_str("a number, or a list of 1 to 4 numbers like CSS padding")
             }
 
             fn visit_i64<E: de::Error>(self, value: i64) -> Result<Spacing, E> {

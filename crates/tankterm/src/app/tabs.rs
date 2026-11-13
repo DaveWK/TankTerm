@@ -1,5 +1,6 @@
 //! Tab and pane operations: opening, closing, moving between and resizing them.
 
+use std::borrow::Cow;
 use std::path::Path;
 use std::time::Instant;
 use std::{fs, io};
@@ -14,6 +15,7 @@ use log::{error, warn};
 use super::actions::{FONT_SIZE_STEP, hide, minimize, toggle_fullscreen, toggle_maximized, zoomed};
 use super::{
     App, Message, PANE_ID_ENV, PaneSelect, PendingPaste, RESIZE_LIMITS, RESIZE_STEP, Shell, Tab,
+    status,
 };
 use crate::hotkeys::{ActiveTable, AppAction, PaneSelectMode};
 use crate::palette::Palette;
@@ -331,6 +333,7 @@ impl App {
             busy: false,
             marks_commands: false,
             reported_directory: None,
+            process: None,
             working_directory,
             attention: false,
             // A new terminal takes itself to have the keyboard focus.
@@ -424,6 +427,42 @@ impl App {
             Some(title) => title,
             None => self.pane_title(tab),
         }
+    }
+
+    /// What the tab at `index` shows in the tab bar: the `tabs.title` format filled in.
+    ///
+    /// Placeholders without a value, like the directory where it can't be told, are left
+    /// empty; placeholders the format shouldn't have stay as they are written.
+    pub(super) fn tab_label(&self, index: usize, tab: &Tab) -> String {
+        let focused = tab.panes.get(tab.focus).and_then(|id| self.terminals.get(id));
+        let directory = focused.and_then(|shell| shell.working_directory.as_deref());
+        let attention = tab
+            .panes
+            .iter()
+            .any(|(_, id)| self.terminals.get(id).is_some_and(|shell| shell.attention));
+
+        let label = self.options.tabs.title.template().render(|name| {
+            let value: Cow<'_, str> = match name {
+                "index" => (index + 1).to_string().into(),
+                "title" => self.tab_title(tab).into(),
+                "panes" => tab.panes.len().to_string().into(),
+                "cwd" => directory.map(status::basename).unwrap_or_default().into(),
+                "path" => directory.map(status::display_path).unwrap_or_default().into(),
+                "process" => {
+                    focused.and_then(|shell| shell.process.as_deref()).unwrap_or("").into()
+                },
+                "marker" => match (attention, tab.activity) {
+                    (true, _) => " !",
+                    (false, true) => " *",
+                    (false, false) => "",
+                }
+                .into(),
+                "zoom" => if tab.panes.maximized().is_some() { " Z" } else { "" }.into(),
+                _ => format!("{{{name}}}").into(),
+            };
+            Some(value)
+        });
+        label.unwrap_or_default()
     }
 
     /// The title of a tab without one given to it: that of its focused pane.

@@ -14,7 +14,9 @@ use iced_tterm::bindings::{Binding, BindingAction, InputKind};
 use iced_tterm::settings::Settings;
 
 use crate::bell::Bell;
+use crate::config::style::TabBarStyles;
 use crate::config::tabs::Tabs;
+use crate::config::window::WindowButtons;
 use crate::hotkeys::{ActiveTable, AppAction, Hotkeys, PaneSelectMode};
 use crate::palette::Palette;
 use crate::session::Session;
@@ -35,6 +37,8 @@ mod option_tests;
 mod reload_tests;
 #[cfg(all(test, unix))]
 mod render_tests;
+pub mod status;
+mod tab_strip;
 #[cfg(all(test, unix))]
 mod tab_tests;
 mod tabs;
@@ -52,6 +56,9 @@ const RESIZE_LIMITS: (f32, f32) = (0.1, 0.9);
 
 /// Widest a tab gets in the tab bar, in logical pixels.
 const MAX_TAB_WIDTH: f32 = 240.;
+
+/// How far the mouse moves with the button down on the tab bar before the window moves.
+const DRAG_THRESHOLD: f32 = 4.;
 
 /// How often the shells are looked at for finished commands and changed directories.
 const PROCESS_INTERVAL: Duration = Duration::from_secs(1);
@@ -74,6 +81,14 @@ pub enum Message {
     PaletteSubmit,
     /// Run the item at this position among the matching ones.
     PaletteChoose(usize),
+    /// The left button was pressed on empty space of the tab bar.
+    TitleBarPressed,
+    /// The mouse moved over the tab bar, to this position in it, with the button pressed.
+    TitleBarMoved(iced::Point),
+    /// The left button was released, or the mouse left the tab bar.
+    TitleBarReleased,
+    /// Empty space of the tab bar was double-clicked.
+    TitleBarDoubleClicked,
     /// Time to look at the shells again.
     Tick,
     /// A frame is about to be drawn while a visual bell flashes.
@@ -93,6 +108,12 @@ pub struct AppOptions {
     pub dynamic_title: bool,
     pub layout: Layout,
     pub tabs: Tabs,
+    /// The segments at the end of the tab bar.
+    pub status: Vec<status::Segment>,
+    /// Whether the window was opened without the system's title bar and borders.
+    pub frameless: bool,
+    /// Where the tab bar has the window's buttons in a frameless window.
+    pub window_buttons: WindowButtons,
     pub hotkeys: Hotkeys,
     /// The configuration file, or where a new one goes, for `OpenConfig`.
     pub config_file: Option<PathBuf>,
@@ -161,9 +182,30 @@ pub struct App {
     config: Option<ConfigSource>,
     /// Whether the window was opened transparent, which it is for the rest of its life.
     transparent: bool,
+    /// Whether the window was opened without the system's title bar, which it is for the rest
+    /// of its life.
+    frameless: bool,
+    /// The left button was pressed on empty space of the tab bar, while it is the title bar.
+    title_drag: TitleDrag,
     /// The socket `tankTerm msg` talks to, while there is one.
     #[cfg(unix)]
     socket: Option<crate::ipc::Listener>,
+    /// The time at the last tick, while a clock segment shows it.
+    now: Option<jiff::Zoned>,
+    /// The batteries at the last tick, while a battery segment shows them.
+    battery: Option<status::Battery>,
+}
+
+/// Dragging the window by the tab bar. The window moves once the mouse has moved a few
+/// pixels with the button down, so a double click doesn't start a move.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+enum TitleDrag {
+    #[default]
+    Released,
+    /// Pressed, before the mouse moved.
+    Pressed,
+    /// Pressed, and the mouse was here when it first moved.
+    Moved(iced::Point),
 }
 
 /// Choosing a pane of a tab by typing its label.
@@ -212,8 +254,11 @@ struct Shell {
     reported_directory: Option<PathBuf>,
     /// Directory the shell was started in, was in at the last tick or reported last, where that
     /// can be told. Only kept up to date from ticks while there is a session file to remember
-    /// it in.
+    /// it in or a status segment to show it.
     working_directory: Option<PathBuf>,
+    /// Name of the program that had the terminal at the last tick, where that can be told.
+    /// Only kept up to date while the tab title shows it.
+    process: Option<String>,
     /// The terminal rang the bell or finished a command while nobody was looking at it.
     attention: bool,
     /// Whether the terminal was last told that it has the keyboard focus.
@@ -233,8 +278,10 @@ pub struct Layout {
     pub padding: Padding,
     /// Color drawn behind the terminals and their padding.
     pub background: Color,
-    /// Text color, used for the tab bar and pane frames.
+    /// Text color, used for the pane frames.
     pub foreground: Color,
+    /// Styles of the tab bar, in a focused and an unfocused window.
+    pub tab_bar: [TabBarStyles; 2],
 }
 
 impl Shell {
@@ -254,5 +301,17 @@ fn working_directory(pid: u32) -> Option<PathBuf> {
 
 #[cfg(not(target_os = "linux"))]
 fn working_directory(_pid: u32) -> Option<PathBuf> {
+    None
+}
+
+/// The name of a process, where the platform has a simple way to ask.
+#[cfg(target_os = "linux")]
+fn process_name(pid: u32) -> Option<String> {
+    let name = std::fs::read_to_string(format!("/proc/{pid}/comm")).ok()?;
+    Some(name.trim_end().to_owned()).filter(|name| !name.is_empty())
+}
+
+#[cfg(not(target_os = "linux"))]
+fn process_name(_pid: u32) -> Option<String> {
     None
 }

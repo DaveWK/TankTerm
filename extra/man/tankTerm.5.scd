@@ -196,7 +196,8 @@ This section documents the *[window]* table of the configuration file.
 	*Full*
 		Borders and title bar.
 	*None*
-		Neither borders nor title bar.
+		Neither borders nor title bar. The tab bar takes the title bar's
+		place, unless *buttons* is _"None"_; see there.
 	*Transparent* _(macOS only)_
 		Title bar, transparent background and title bar buttons. Currently drawn
 		like _Full_.
@@ -205,6 +206,21 @@ This section documents the *[window]* table of the configuration file.
 		drawn like _Full_.
 
 	Default: _"Full"_
+
+*buttons* = _"Right"_ | _"Left"_ | _"None"_
+
+	Where the tab bar has the minimize, maximize and close buttons in a window
+	with *decorations* = _"None"_, with the close button at the outer end.
+
+	Such a tab bar is the window's title bar: it is shown even with a single
+	tab, whatever *tabs.show* says. Dragging it where there is no tab or button
+	moves the window, and double-clicking it there maximizes the window or
+	gives it its size back. With _"None"_ the tab bar is only the tab bar.
+
+	*decorations* only changes for a new window; *buttons* changes in the
+	window that is open.
+
+	Default: _"Right"_
 
 *opacity* = _<float>_
 
@@ -359,11 +375,103 @@ Unix, for shells with job control, and within about a second.
 
 	Default: _true_
 
+*title* = _"<format>"_
+
+	What every tab shows in the tab bar: text with placeholders in braces, with
+	_{{_ and _}}_ for literal braces. Placeholders without a value are left
+	empty; others are reported and drawn as they are written. The window title,
+	the tab navigator and _tankTerm msg list_ keep the plain title.
+
+	*{index}*
+		The tab's position, from 1.
+	*{title}*
+		The title given with _RenameTab_ or _tankTerm msg set-tab-title_, or
+		else that of the focused pane.
+	*{panes}*
+		The number of panes.
+	*{cwd}*, *{path}*
+		The last part of the directory of the focused pane's shell, and the
+		whole directory with the home directory written as _~_.
+	*{process}*
+		The name of the program that has the focused pane's terminal, like
+		_vim_, or the shell between commands.
+	*{marker}*
+		_" !"_ when a terminal of the tab rang the bell or finished a command
+		unseen, _" \*"_ when the tab printed something since it was last
+		shown, or nothing.
+	*{zoom}*
+		_" Z"_ while a pane of the tab is zoomed, or nothing.
+
+	The directory is the one the shell reported with shell integration, or
+	else it is read from _/proc_ every second while the format has it, which
+	only works on Linux. The program is read from _/proc_ too, so it is only
+	known on Linux.
+
+	Default: _"{index}: {title}{zoom}{marker}"_
+
+*status* = [{ segment = _"<kind>"_, format = _"<format>"_, style = { _<style>_ } }, ...]
+
+	Segments at the right end of the tab bar, before the gear, in order. Each
+	is drawn while it has something to show, and those that change on their
+	own are looked at again every second. They are usually written as
+	*[[tabs.status]]* tables.
+
+	*segment* = _"KeyTable"_ | _"Clock"_ | _"Cwd"_ | _"Battery"_
+
+		*KeyTable*
+			The key table that was activated last, while one is active.
+			Placeholder: _{name}_. Default format: _"{name}"_.
+		*Clock*
+			The local time. Its format is a strftime format, like _"%a %H:%M"_,
+			and has no placeholders. Default format: _"%H:%M"_.
+		*Cwd*
+			The directory of the focused pane's shell. Placeholders: _{path}_,
+			with the home directory written as _~_, and _{basename}_, its last
+			part. Default format: _"{path}"_. The directory is the one the
+			shell reported with shell integration, or else it is read from
+			_/proc_, which only works on Linux.
+		*Battery*
+			The charge of the batteries that power the computer, together.
+			Placeholders: _{percent}_, and _{status}_ as the system gives it:
+			_Charging_, _Discharging_, _Full_ or _Not charging_. Default format:
+			_"{percent}%"_. Batteries are read from _/sys/class/power\_supply_,
+			so this only shows on Linux; batteries of devices like mice are left
+			out, and without a battery the segment isn't drawn.
+
+	*format* = _"<format>"_
+
+		Text with placeholders in braces, like _"{percent}% {status}"_. _{{_ and
+		_}}_ are literal braces. Placeholders the segment doesn't know are
+		reported and drawn as they are written.
+
+	*style* = { _<style>_ }
+
+		Changes to *[style.tab_status]* for this segment, with the properties
+		described in *STYLE*, including _inherit_.
+
+	Default: [{ segment = _"KeyTable"_ }]
+
 Example:
 	*[tabs]*++
 show = _"Always"_++
 position = _"Bottom"_++
-restore = _true_
+restore = _true_++
+title = _"{index} {process} in {cwd}{zoom}{marker}"_
+
+	*[[tabs.status]]*++
+segment = _"KeyTable"_++
+style = { foreground = _"#000000"_, background = _"#f4d35e"_ }
+
+	*[[tabs.status]]*++
+segment = _"Cwd"_
+
+	*[[tabs.status]]*++
+segment = _"Battery"_++
+format = _"{percent}% {status}"_
+
+	*[[tabs.status]]*++
+segment = _"Clock"_++
+format = _"%a %d %b %H:%M"_
 
 
 # PROFILES
@@ -755,8 +863,9 @@ Each property of an element is taken from, in order:
 	. TankTerm's default for the element.
 
 The iced front end draws _cursor_ and _selection_, the selection with its text
-attributes, and their *[style.blurred]* blocks and *[style.blurred.text]*. The
-other elements belong to features it doesn't have yet.
+attributes, the tab bar elements, and their *[style.blurred]* blocks and
+*[style.blurred.text]*. The other elements belong to features it doesn't have
+yet.
 
 *Elements*
 
@@ -783,13 +892,57 @@ other elements belong to features it doesn't have yet.
 		They default to the grays of Bubbles' help view, lighter on dark
 		backgrounds, on the primary background.
 
+	*tab_bar*
+		The tab bar. Its padding goes around everything on the bar.
+
+		Default: the primary colors, with the background a little towards the
+		foreground, and no padding.
+
+	*tab_active*, *tab_inactive*
+		The shown tab, and every other tab. A tab is a button holding its title
+		and its close button.
+
+		Default: the shown tab has the primary colors, the others the bar's
+		background and a dimmer foreground. Both have a _padding_ of _[3, 8]_.
+
+	*tab_button*
+		The new tab button, the gear, and the window buttons of a tab bar that is
+		the title bar.
+
+		Default: like _tab\_inactive_.
+
+	*tab_hovered*
+		Changes to a tab or button under the mouse. The hovered tab is drawn
+		in the place of the tab: its _margin_ is ignored, and its _padding_
+		moves the content without resizing the tab.
+
+		Default: the primary foreground.
+
+	*tab_activity*, *tab_attention*
+		Changes to a tab marked with *\** because it printed something, and to
+		a tab marked with *!* because it rang the bell or finished a command
+		unseen. _tab\_attention_ wins over _tab\_activity_, and
+		_tab\_hovered_ is applied over both.
+
+		Default: no changes.
+
+	*tab_status*
+		The status segments, see _tabs.status_. Each segment's own _style_
+		changes it for that segment.
+
+		Default: the bar's colors, and a _padding_ of _[3, 8]_.
+
+	In the tab bar styles, _CellForeground_ and _CellBackground_ refer to the
+	primary colors. The background of _tab\_bar_ is the default background of
+	_tab\_inactive_ and _tab\_button_.
+
 *blurred*
 
 	Changes to the styles while the window doesn't have focus, like Huh's
 	blurred styles. The *[style.blurred.<element>]* blocks for _cursor_,
 	_vi\_mode\_cursor_, _selection_, _search\_match_, _search\_focused\_match_,
-	_hint\_start_ and _hint\_end_ start as copies of the focused styles, and
-	only the properties they set change. *[style.blurred.text]* applies its text
+	_hint\_start_, _hint\_end_ and the _tab\_\*_ elements start as copies of
+	the focused styles, and only the properties they set change. *[style.blurred.text]* applies its text
 	attributes, like _faint = true_, to all terminal content.
 
 	By default, nothing changes when the window loses focus, apart from
@@ -819,6 +972,27 @@ other elements belong to features it doesn't have yet.
 		foreground and _reverse_ swaps foreground and background.
 
 		Default: _false_
+
+	*padding*, *margin* = _<integer>_ | [_<integer>_, ...]
+
+		Space between the border and the content, and around the border, in
+		logical pixels. Like _window.padding_ and Lip Gloss, 1 value sets all
+		sides, 2 set vertical and horizontal, 3 set top, horizontal and bottom,
+		and 4 set top, right, bottom and left. Only the tab bar uses them.
+
+	*border* = _"Normal"_ | _"Rounded"_ | _"Thick"_ | _"Hidden"_
+
+		A border, named after Lip Gloss's: a thin line, a thin line with rounded
+		corners, a thick line, or none. The border is drawn over the edge of the
+		padding and takes no space of its own. Only the tab bar uses it.
+
+		Default: _"Hidden"_
+
+	*border_foreground* = _"<color>"_ | _"CellForeground"_ | _"CellBackground"_
+
+		Color of the border.
+
+		Default: the primary foreground
 
 Example:
 	*[style.defs.accent]*++

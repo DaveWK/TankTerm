@@ -53,8 +53,12 @@ pub(super) fn app_from(
             padding: Padding::ZERO,
             background: term_settings::background(&config),
             foreground: term_settings::foreground(&config),
+            tab_bar: term_settings::tab_bar_styles(&config),
         },
-        tabs: config.tabs,
+        tabs: config.tabs.clone(),
+        status: crate::app::status::segments(&config),
+        frameless: config.window.decorations == crate::config::window::Decorations::None,
+        window_buttons: config.window.buttons,
         hotkeys,
         config_file: None,
         session_file,
@@ -1196,6 +1200,126 @@ fn tab_bar_buttons_select_close_and_add_tabs() {
 }
 
 #[test]
+fn hovered_tabs_handle_a_click_once() {
+    use iced::mouse::{Button, Event as MouseEvent};
+
+    // A tab under the mouse is drawn twice, with and without the hovered style, and its
+    // padding changes when hovered.
+    let mut app = app_with("[style.tab_hovered]\npadding = 0\n", Hotkeys::default());
+    perform(&mut app, &[AppAction::NewTab, AppAction::NewTab]);
+
+    let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
+    let tab = ui.find("2: test").unwrap();
+    ui.point_at(iced_test::selector::Bounded::visible_bounds(&tab).unwrap().center());
+    ui.simulate([
+        iced::Event::Mouse(MouseEvent::ButtonPressed(Button::Middle)),
+        iced::Event::Mouse(MouseEvent::ButtonReleased(Button::Middle)),
+    ]);
+    ui.simulate(simulator::click());
+
+    let messages: Vec<_> =
+        ui.into_messages().filter(|message| !matches!(message, Message::Terminal(_))).collect();
+    assert!(matches!(messages[..], [
+        Message::CloseTab(1),
+        Message::Action(AppAction::SelectTab(1))
+    ]));
+}
+
+#[test]
+fn status_segments_show_while_they_have_something_to_show() {
+    let config = r#"
+        [tabs]
+        show = "Always"
+
+        [[tabs.status]]
+        segment = "Cwd"
+        format = "in {basename} {unknown}"
+
+        [[tabs.status]]
+        segment = "Battery"
+        format = "{percent}% {status}"
+
+        [[tabs.status]]
+        segment = "Clock"
+        format = "%a %H:%M"
+    "#;
+    let mut app = app_with(config, Hotkeys::default());
+
+    // The clock is looked at when the window opens.
+    assert!(app.now.is_some());
+    app.now = Some("2026-11-12T09:41:00[UTC]".parse().unwrap());
+    app.battery = None;
+    let focused = app.focused_terminal().unwrap();
+    app.terminals.get_mut(&focused).unwrap().working_directory = Some("/srv/www".into());
+
+    assert!(has_text(&app, "Thu 09:41"));
+    // A placeholder the segment doesn't know stays as it is written.
+    assert!(has_text(&app, "in www {unknown}"));
+    // There is no battery.
+    assert_eq!(app.segment_text(&app.options.status[1]), None);
+
+    app.battery = Some(status::Battery { percent: 81, status: "Charging".into() });
+    assert!(has_text(&app, "81% Charging"));
+
+    app.terminals.get_mut(&focused).unwrap().working_directory = None;
+    assert_eq!(app.segment_text(&app.options.status[0]), None);
+}
+
+#[test]
+fn tab_titles_follow_the_title_format() {
+    let mut app = app();
+    perform(&mut app, &[AppAction::Split(Axis::Vertical), AppAction::NewTab]);
+
+    // The default shows the position, the title and the markers.
+    assert_eq!(app.tab_label(0, &app.tabs[0]), "1: test");
+    app.tabs[0].activity = true;
+    assert_eq!(app.tab_label(0, &app.tabs[0]), "1: test *");
+    perform(&mut app, &[AppAction::SelectTab(0), AppAction::ToggleZoom]);
+    assert_eq!(app.tab_label(0, &app.tabs[0]), "1: test Z");
+    app.terminals.get_mut(&0).unwrap().attention = true;
+    assert_eq!(app.tab_label(0, &app.tabs[0]), "1: test Z !");
+
+    let config = "[tabs]\nshow = \"Always\"\ntitle = \"{{{index}}} {process}@{cwd} [{panes}] \
+                  {path} {nope}\"\n";
+    let mut app = app_with(config, Hotkeys::default());
+    perform(&mut app, &[AppAction::Split(Axis::Vertical)]);
+    let focused = app.focused_terminal().unwrap();
+    let shell = app.terminals.get_mut(&focused).unwrap();
+    shell.working_directory = Some("/srv/www".into());
+    shell.process = Some("vim".into());
+    assert_eq!(app.tab_label(0, &app.tabs[0]), "{1} vim@www [2] /srv/www {nope}");
+    assert!(has_text(&app, "{1} vim@www [2] /srv/www {nope}"));
+
+    // What can't be told is left empty.
+    let shell = app.terminals.get_mut(&focused).unwrap();
+    shell.working_directory = None;
+    shell.process = None;
+    assert_eq!(app.tab_label(0, &app.tabs[0]), "{1} @ [2]  {nope}");
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn process_names_are_looked_at_with_the_ticks_while_the_title_shows_them() {
+    let mut app = app();
+    let _ = app.update(Message::Tick);
+    assert_eq!(app.terminals[&0].process, None);
+
+    let mut app = app_with("[tabs]\ntitle = \"{process}\"\n", Hotkeys::default());
+    let _ = app.update(Message::Tick);
+    assert_eq!(app.terminals[&0].process.as_deref(), Some("cat"));
+    assert_eq!(app.tab_label(0, &app.tabs[0]), "cat");
+}
+
+#[test]
+fn only_the_key_table_is_a_segment_by_default() {
+    let app = app_with("[tabs]\nshow = \"Always\"\n", Hotkeys::default());
+
+    assert_eq!(app.options.status.len(), 1);
+    assert_eq!(app.options.status[0].kind, crate::config::tabs::SegmentKind::KeyTable);
+    assert!(app.now.is_none() && app.battery.is_none());
+}
+
+#[test]
 fn bound_keys_are_handled_and_kept_from_the_shell() {
     let hotkeys =
         Hotkeys::default().with(Key::Character("a".into()), Modifiers::empty(), AppAction::NewTab);
@@ -1366,4 +1490,27 @@ fn leader_key_is_left_to_the_shell_without_leader_bindings() {
     let (actions, written) = type_keys(&app, &[ctrl("a"), key("c")]);
     assert_eq!(actions, []);
     assert_eq!(written, b"\x01c");
+}
+
+#[test]
+fn tabs_share_the_bar_evenly_up_to_the_widest_tab() {
+    // Where the button after the tabs starts, in a window 800 wide.
+    let new_tab_button = |app: &App| {
+        let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
+        let plus = ui.find("+").unwrap();
+        iced_test::selector::Bounded::visible_bounds(&plus).unwrap().x
+    };
+
+    // A few tabs are as wide as a tab gets, and leave the rest of the bar empty.
+    let mut app = app_with("[tabs]\nshow = \"Always\"\n", Hotkeys::default());
+    let one = new_tab_button(&app);
+    assert!((MAX_TAB_WIDTH..MAX_TAB_WIDTH + 20.).contains(&one), "{one}");
+    perform(&mut app, &[AppAction::NewTab]);
+    let two = new_tab_button(&app);
+    assert!((two - one - MAX_TAB_WIDTH).abs() < 2., "{one} {two}");
+
+    // Many share the bar, and the button stays in it.
+    perform(&mut app, &vec![AppAction::NewTab; 10]);
+    let crowded = new_tab_button(&app);
+    assert!((600. ..800.).contains(&crowded), "{crowded}");
 }

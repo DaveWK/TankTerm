@@ -47,6 +47,7 @@ mod palette;
 mod panic;
 mod session;
 mod setup;
+mod template;
 mod term_settings;
 mod watch;
 
