@@ -40,7 +40,8 @@ fn tabs_and_panes() {
             foreground: term_settings::foreground(&config),
             tab_bar: term_settings::tab_bar_styles(&config),
         },
-        tabs: config.tabs,
+        tabs: config.tabs.clone(),
+        status: crate::app::status::segments(&config),
         hotkeys: Hotkeys::from_config(&config),
         config_file: None,
         session_file: None,
@@ -470,4 +471,62 @@ fn tab_bar_styles() {
         bold = false
         "##,
     );
+}
+
+#[test]
+#[ignore = "writes screenshots for manual inspection"]
+fn status_segments() {
+    let Some(dir) = env::var_os("TANKTERM_SNAPSHOT_DIR").map(PathBuf::from) else { return };
+    let window = Size::new(900., 120.);
+
+    // The default segment style, then segments with styles of their own.
+    let shots = |name: &str, styles: [&str; 4]| {
+        let config = format!(
+            r##"
+            [keyboard.tables.resize]
+            bindings = []
+
+            [[tabs.status]]
+            segment = "KeyTable"
+            style = {{ {} }}
+
+            [[tabs.status]]
+            segment = "Cwd"
+            style = {{ {} }}
+
+            [[tabs.status]]
+            segment = "Battery"
+            format = "{{percent}}% {{status}}"
+            style = {{ {} }}
+
+            [[tabs.status]]
+            segment = "Clock"
+            format = "%a %d %b %H:%M"
+            style = {{ {} }}
+            "##,
+            styles[0], styles[1], styles[2], styles[3]
+        );
+        let parsed: UiConfig = toml::from_str(&config).unwrap();
+        let mut app = super::tab_tests::app_with(&config, Hotkeys::from_config(&parsed));
+        let _ = app.update(Message::Action(AppAction::NewTab));
+        let _ = app.update(Message::Action(AppAction::ActivateKeyTable("resize".into())));
+        assert!(!app.key_tables.is_empty());
+        settle(&mut app, window);
+
+        app.now = Some("2026-11-12T09:41:00[UTC]".parse().unwrap());
+        app.battery = Some(status::Battery { percent: 81, status: "Charging".into() });
+        let focused = app.focused_terminal().unwrap();
+        let home = home::home_dir().unwrap_or_default();
+        app.terminals.get_mut(&focused).unwrap().working_directory =
+            Some(home.join("src/tankterm"));
+        snapshot(&app, window, &dir, name);
+    };
+
+    shots("status-segments", ["", "", "", ""]);
+    shots("status-segments-styled", [
+        r##"foreground = "#000000", background = "#f4d35e", bold = true"##,
+        r##"foreground = "#00ff00", italic = true"##,
+        r##"foreground = "#000000", background = "#00aa00""##,
+        r##"foreground = "#000000", background = "#00ff00", border = "Rounded", margin = [0, 4]"##,
+    ]);
 }

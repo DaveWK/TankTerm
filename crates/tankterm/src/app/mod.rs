@@ -36,6 +36,7 @@ mod option_tests;
 mod reload_tests;
 #[cfg(all(test, unix))]
 mod render_tests;
+pub mod status;
 #[cfg(all(test, unix))]
 mod tab_tests;
 mod tabs;
@@ -94,6 +95,8 @@ pub struct AppOptions {
     pub dynamic_title: bool,
     pub layout: Layout,
     pub tabs: Tabs,
+    /// The segments at the end of the tab bar.
+    pub status: Vec<status::Segment>,
     pub hotkeys: Hotkeys,
     /// The configuration file, or where a new one goes, for `OpenConfig`.
     pub config_file: Option<PathBuf>,
@@ -165,6 +168,10 @@ pub struct App {
     /// The socket `tankTerm msg` talks to, while there is one.
     #[cfg(unix)]
     socket: Option<crate::ipc::Listener>,
+    /// The time at the last tick, while a clock segment shows it.
+    now: Option<jiff::Zoned>,
+    /// The batteries at the last tick, while a battery segment shows them.
+    battery: Option<status::Battery>,
 }
 
 /// Choosing a pane of a tab by typing its label.
@@ -213,7 +220,7 @@ struct Shell {
     reported_directory: Option<PathBuf>,
     /// Directory the shell was started in, was in at the last tick or reported last, where that
     /// can be told. Only kept up to date from ticks while there is a session file to remember
-    /// it in.
+    /// it in or a status segment to show it.
     working_directory: Option<PathBuf>,
     /// The terminal rang the bell or finished a command while nobody was looking at it.
     attention: bool,

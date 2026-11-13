@@ -98,7 +98,8 @@ pub fn setup(config: &UiConfig, options: &mut Options) -> Setup {
             foreground: term_settings::foreground(config),
             tab_bar: term_settings::tab_bar_styles(config),
         },
-        tabs: config.tabs,
+        tabs: config.tabs.clone(),
+        status: crate::app::status::segments(config),
         hotkeys: Hotkeys::from_config(config),
         config_file: config.config_paths.first().cloned().or_else(config::default_config_path),
         // A window started for a single command isn't a session worth remembering.

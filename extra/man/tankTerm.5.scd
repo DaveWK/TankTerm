@@ -359,11 +359,67 @@ Unix, for shells with job control, and within about a second.
 
 	Default: _true_
 
+*status* = [{ segment = _"<kind>"_, format = _"<format>"_, style = { _<style>_ } }, ...]
+
+	Segments at the right end of the tab bar, before the gear, in order. Each
+	is drawn while it has something to show, and those that change on their
+	own are looked at again every second. They are usually written as
+	*[[tabs.status]]* tables.
+
+	*segment* = _"KeyTable"_ | _"Clock"_ | _"Cwd"_ | _"Battery"_
+
+		*KeyTable*
+			The key table that was activated last, while one is active.
+			Placeholder: _{name}_. Default format: _"{name}"_.
+		*Clock*
+			The local time. Its format is a strftime format, like _"%a %H:%M"_,
+			and has no placeholders. Default format: _"%H:%M"_.
+		*Cwd*
+			The directory of the focused pane's shell. Placeholders: _{path}_,
+			with the home directory written as _~_, and _{basename}_, its last
+			part. Default format: _"{path}"_. The directory is read from
+			_/proc_, so this only shows on Linux.
+		*Battery*
+			The charge of the batteries that power the computer, together.
+			Placeholders: _{percent}_, and _{status}_ as the system gives it:
+			_Charging_, _Discharging_, _Full_ or _Not charging_. Default format:
+			_"{percent}%"_. Batteries are read from _/sys/class/power\_supply_,
+			so this only shows on Linux; batteries of devices like mice are left
+			out, and without a battery the segment isn't drawn.
+
+	*format* = _"<format>"_
+
+		Text with placeholders in braces, like _"{percent}% {status}"_. _{{_ and
+		_}}_ are literal braces. Placeholders the segment doesn't know are
+		reported and drawn as they are written.
+
+	*style* = { _<style>_ }
+
+		Changes to *[style.tab_status]* for this segment, with the properties
+		described in *STYLE*, including _inherit_.
+
+	Default: [{ segment = _"KeyTable"_ }]
+
 Example:
 	*[tabs]*++
 show = _"Always"_++
 position = _"Bottom"_++
 restore = _true_
+
+	*[[tabs.status]]*++
+segment = _"KeyTable"_++
+style = { foreground = _"#000000"_, background = _"#f4d35e"_ }
+
+	*[[tabs.status]]*++
+segment = _"Cwd"_
+
+	*[[tabs.status]]*++
+segment = _"Battery"_++
+format = _"{percent}% {status}"_
+
+	*[[tabs.status]]*++
+segment = _"Clock"_++
+format = _"%a %d %b %H:%M"_
 
 
 # PROFILES
@@ -785,8 +841,7 @@ yet.
 		backgrounds, on the primary background.
 
 	*tab_bar*
-		The tab bar, and the name of the active key table on it. Its padding
-		goes around everything on the bar.
+		The tab bar. Its padding goes around everything on the bar.
 
 		Default: the primary colors, with the background a little towards the
 		foreground, and no padding.
@@ -817,6 +872,12 @@ yet.
 		_tab\_hovered_ is applied over both.
 
 		Default: no changes.
+
+	*tab_status*
+		The status segments, see _tabs.status_. Each segment's own _style_
+		changes it for that segment.
+
+		Default: the bar's colors, and a _padding_ of _[3, 8]_.
 
 	In the tab bar styles, _CellForeground_ and _CellBackground_ refer to the
 	primary colors. The background of _tab\_bar_ is the default background of

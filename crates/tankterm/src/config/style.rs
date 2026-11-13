@@ -53,6 +53,7 @@ pub struct StyleConfig {
     pub tab_hovered: Style,
     pub tab_activity: Style,
     pub tab_attention: Style,
+    pub tab_status: Style,
 
     /// Changes to the styles while the window doesn't have focus.
     pub blurred: BlurredStyleConfig,
@@ -84,6 +85,7 @@ pub struct BlurredStyleConfig {
     pub tab_hovered: Style,
     pub tab_activity: Style,
     pub tab_attention: Style,
+    pub tab_status: Style,
 }
 
 /// Storage for the resolved styles, which can't be set from the configuration itself.
@@ -124,6 +126,7 @@ impl StyleConfig {
                 hovered: style(&self.tab_hovered),
                 activity: style(&self.tab_activity),
                 attention: style(&self.tab_attention),
+                status: style(&self.tab_status),
             },
             colors,
         );
@@ -199,11 +202,18 @@ impl StyleConfig {
                 hovered: style(&blurred.tab_hovered),
                 activity: style(&blurred.tab_activity),
                 attention: style(&blurred.tab_attention),
+                status: style(&blurred.tab_status),
             },
             colors,
         );
 
         self.resolved = Resolved(Some(styles));
+    }
+
+    /// The properties a style sets, with its inherited styles applied, as changes to a part of
+    /// the tab bar.
+    pub fn tab_layer(&self, style: &Style, colors: &Colors) -> TabLayer {
+        TabLayer::new(&resolve_inheritance(style, &self.defs, &mut Vec::new()), colors)
     }
 
     /// Effective styles of every element.
@@ -551,6 +561,7 @@ struct TabBlocks {
     hovered: Style,
     activity: Style,
     attention: Style,
+    status: Style,
 }
 
 /// Effective styles of the tab bar.
@@ -570,6 +581,8 @@ pub struct TabBarStyles {
     pub activity: TabLayer,
     /// Changes to a tab with a terminal that rang the bell or finished a command unseen.
     pub attention: TabLayer,
+    /// The status segments at the end of the bar.
+    pub status: TabStyle,
 }
 
 impl TabBarStyles {
@@ -608,6 +621,8 @@ impl TabBarStyles {
                 .below(&layer(&blocks.hovered)),
             activity: layer(&blocks.activity),
             attention: layer(&blocks.attention),
+            status: TabStyle { foreground: bar.foreground, background: bar.background, ..base }
+                .with(&layer(&blocks.status)),
         }
     }
 
@@ -622,6 +637,7 @@ impl TabBarStyles {
             hovered: self.hovered.below(&layer(&blocks.hovered)),
             activity: self.activity.below(&layer(&blocks.activity)),
             attention: self.attention.below(&layer(&blocks.attention)),
+            status: self.status.with(&layer(&blocks.status)),
         }
     }
 }
@@ -988,6 +1004,10 @@ mod tests {
         assert_eq!(tabs.active.padding, Spacing::new(3, 8));
         assert_eq!(tabs.bar.padding, Spacing::default());
         assert_eq!(tabs.active.border, Border::Hidden);
+        assert_eq!(tabs.status, TabStyle {
+            foreground: Rgb::new(0xff, 0xff, 0xff),
+            ..tabs.inactive
+        });
 
         // Hovering brings the text up to the primary foreground and changes nothing else.
         let hovered = tabs.inactive.with(&tabs.hovered);

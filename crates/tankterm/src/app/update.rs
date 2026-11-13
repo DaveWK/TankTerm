@@ -16,6 +16,7 @@ use log::{debug, error, warn};
 
 use super::actions::zoomed;
 use super::{App, AppOptions, Message, PROCESS_INTERVAL, PendingPaste};
+use crate::config::tabs::SegmentKind;
 use crate::hotkeys::Hotkeys;
 use crate::palette::{self, Palette};
 use crate::session::{SavedNode, SavedTab, Session, ordered_panes};
@@ -52,7 +53,10 @@ impl App {
             config: None,
             #[cfg(unix)]
             socket: None,
+            now: None,
+            battery: None,
         };
+        app.sample_status();
 
         let session = app.options.session_file.as_deref().and_then(Session::load);
         if let Some(session) = session {
@@ -320,7 +324,7 @@ impl App {
         // only needed while the session file waits to be written again, or a key table times
         // out.
         let timing = self.key_tables.iter().any(|table| table.deadline.is_some());
-        let ticking = cfg!(unix) || self.session_error.is_some() || timing;
+        let ticking = cfg!(unix) || self.session_error.is_some() || timing || self.status_ticks();
         let ticks = ticking.then(|| Subscription::run(ticks));
 
         // A flashing visual bell is drawn anew with every frame, until it has faded out.
@@ -452,11 +456,13 @@ impl App {
                 let finished = terminals.into_iter().filter(|id| self.poll_process(*id));
                 let finished: Vec<u64> = finished.collect();
                 self.poll_directories();
+                self.sample_status();
 
                 Task::batch(finished.into_iter().map(|id| self.notify(id)))
             },
             Message::ConfigChanged => {
                 self.reload_config();
+                self.sample_status();
                 Task::none()
             },
             Message::Frame(now) => {
@@ -675,9 +681,10 @@ impl App {
     /// Look up the directories the shells are in, which the session file remembers.
     ///
     /// This takes the file system, so it runs with the ticks and not with every output of a
-    /// terminal, and not at all if there is no session file to write the directories to.
+    /// terminal, and not at all if there is no session file to write the directories to and no
+    /// status segment to show them in.
     fn poll_directories(&mut self) {
-        if self.options.session_file.is_none() {
+        if self.options.session_file.is_none() && !self.shows(SegmentKind::Cwd) {
             return;
         }
 

@@ -55,7 +55,8 @@ pub(super) fn app_from(
             foreground: term_settings::foreground(&config),
             tab_bar: term_settings::tab_bar_styles(&config),
         },
-        tabs: config.tabs,
+        tabs: config.tabs.clone(),
+        status: crate::app::status::segments(&config),
         hotkeys,
         config_file: None,
         session_file,
@@ -1220,6 +1221,55 @@ fn hovered_tabs_handle_a_click_once() {
         Message::CloseTab(1),
         Message::Action(AppAction::SelectTab(1))
     ]));
+}
+
+#[test]
+fn status_segments_show_while_they_have_something_to_show() {
+    let config = r#"
+        [tabs]
+        show = "Always"
+
+        [[tabs.status]]
+        segment = "Cwd"
+        format = "in {basename} {unknown}"
+
+        [[tabs.status]]
+        segment = "Battery"
+        format = "{percent}% {status}"
+
+        [[tabs.status]]
+        segment = "Clock"
+        format = "%a %H:%M"
+    "#;
+    let mut app = app_with(config, Hotkeys::default());
+
+    // The clock is looked at when the window opens.
+    assert!(app.now.is_some());
+    app.now = Some("2026-11-12T09:41:00[UTC]".parse().unwrap());
+    app.battery = None;
+    let focused = app.focused_terminal().unwrap();
+    app.terminals.get_mut(&focused).unwrap().working_directory = Some("/srv/www".into());
+
+    assert!(has_text(&app, "Thu 09:41"));
+    // A placeholder the segment doesn't know stays as it is written.
+    assert!(has_text(&app, "in www {unknown}"));
+    // There is no battery.
+    assert_eq!(app.segment_text(&app.options.status[1]), None);
+
+    app.battery = Some(status::Battery { percent: 81, status: "Charging".into() });
+    assert!(has_text(&app, "81% Charging"));
+
+    app.terminals.get_mut(&focused).unwrap().working_directory = None;
+    assert_eq!(app.segment_text(&app.options.status[0]), None);
+}
+
+#[test]
+fn only_the_key_table_is_a_segment_by_default() {
+    let app = app_with("[tabs]\nshow = \"Always\"\n", Hotkeys::default());
+
+    assert_eq!(app.options.status.len(), 1);
+    assert_eq!(app.options.status[0].kind, crate::config::tabs::SegmentKind::KeyTable);
+    assert!(app.now.is_none() && app.battery.is_none());
 }
 
 #[test]

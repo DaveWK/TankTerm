@@ -171,7 +171,8 @@ bindings = [
 ]
 ```
 
-The name of the active table is shown at the end of the tab bar. Keys that
+The name of the active table is shown at the end of the tab bar, in the
+`KeyTable` status segment. Keys that
 aren't bound in a table keep working as usual, unless the table sets
 `prevent_fallback = true`.
 
@@ -185,6 +186,36 @@ asked to draw attention to the window if that doesn't have focus. A shell with
 it, TankTerm watches which process has the terminal, which works on Unix with
 shells that have job control.
 
+### Status segments
+
+The right end of the tab bar holds status segments, listed as `[[tabs.status]]`
+tables. Each shows one thing in a format of its own: the active key table
+(`KeyTable`), the time (`Clock`, with a strftime format), the directory of the
+focused pane (`Cwd`) or the battery charge (`Battery`). Formats use
+placeholders in braces, and every segment can have a `style` of its own on top
+of `[style.tab_status]`:
+
+```toml
+[[tabs.status]]
+segment = "KeyTable"
+
+[[tabs.status]]
+segment = "Cwd"
+format = "{basename}"
+
+[[tabs.status]]
+segment = "Battery"
+format = "{percent}% {status}"
+
+[[tabs.status]]
+segment = "Clock"
+format = "%a %H:%M"
+style = { foreground = "#000000", background = "#00ff00" }
+```
+
+Without a `[[tabs.status]]` table, only the key table is shown. The directory
+and the battery are only known on Linux.
+
 ### Tab bar styles
 
 The tab bar is styled with `[style.tab_*]` blocks, which take the same Lip Gloss
@@ -196,6 +227,7 @@ and `border_foreground`:
 - `tab_button`: the `+` button and the gear.
 - `tab_hovered`, `tab_activity` and `tab_attention`: changes to a tab under the
   mouse, a tab marked with `*` and a tab marked with `!`.
+- `tab_status`: the status segments.
 
 Like the other styles, they can `inherit` from `[style.defs]`, and
 `[style.blurred.tab_*]` blocks change them while the window doesn't have focus.

@@ -65,6 +65,9 @@ Notable changes to the `tankterm_terminal` crate are documented in its
     with their `[style.blurred.tab_*]` variants. Styles take Lip Gloss's `padding`, `margin`,
     `border` (`Normal`, `Rounded`, `Thick`, `Hidden`) and `border_foreground`, which only the
     tab bar uses
+- Status segments at the end of the tab bar, as `[[tabs.status]]` tables: the active key table,
+    a clock with a strftime format, the focused pane's directory and the battery charge, each
+    with a `{placeholder}` format and a style on top of `[style.tab_status]`
 - `window.padding` accepts Lip Gloss/CSS shorthand in terminal cells, like `[1, 2]`, including
     different padding on every side
 - `tankTerm msg` commands for tabs and panes, following `wezterm cli`: `list`, `spawn`,

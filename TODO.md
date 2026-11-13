@@ -8,8 +8,8 @@ Approved and waiting their turn, in this order.
 2. Config options the iced front end ignores:
    - Port later, low priority: `window.resize_increments` and `window.option_as_alt`.
 3. Vi mode, scrollback search and hints in the iced front end.
-4. Tab bar: tab title templates, status segments, and window buttons in the tab bar in place of
-   the OS title bar. The `[style.tab_*]` blocks are done.
+4. Tab bar: tab title templates, and window buttons in the tab bar in place of the OS title bar.
+   The `[style.tab_*]` blocks and the status segments are done.
 5. `tankTerm ssh` with terminfo negotiation; design and decisions are in the section below
    the deferred list.
 
@@ -48,6 +48,14 @@ Borders on single sides (`border_top` and so on, for a line under the shown tab)
 `Block` and `ASCII` borders, `width`/`max_width` per tab style in place of the fixed 240 pixels,
 and the space between tabs. iced's `Border` has one width for all sides, so single sides need
 widgets of their own.
+
+### More status segments
+
+Offered with the first four and not chosen yet: `Process` (the focused pane's foreground
+program), `Hostname`, `User`, `Load`, `PaneCount`/`TabCount`, `Zoom`, fixed `Text` (separators,
+powerline arrows) and `Command` (a shell command's output, run every N seconds). `Cwd` should
+take the directory from OSC 7 once shell integration has it, which also works on other systems
+than Linux and over SSH. Battery and directory are Linux only so far.
 
 ### Event API (planned, deferred)
 

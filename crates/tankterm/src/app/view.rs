@@ -223,10 +223,20 @@ impl App {
                 .into()
         });
 
-        // The key table that was activated last, while one is active.
-        let table = self.key_tables.last().map(|table| {
-            container(label(table.name.to_string(), &styles.bar, font, size)).padding([3, 8])
+        // The status segments, each drawn while it has something to show.
+        let status = self.options.status.iter().filter_map(|segment| {
+            let content = self.segment_text(segment)?;
+            let style = styles.status.with(&segment.layer);
+            let segment = container(label(content, &style, font, size))
+                .padding(padding(style.padding))
+                .style(move |_| container::Style {
+                    background: Some(color(style.colors().1).into()),
+                    border: border(&style),
+                    ..Default::default()
+                });
+            Some(container(segment).padding(padding(style.margin)).into())
         });
+        let status = row(status).spacing(1).align_y(Vertical::Center);
 
         // A button on the bar. Content that is as high as the padding leaves the other buttons
         // gets only the horizontal padding.
@@ -266,10 +276,10 @@ impl App {
         };
         let settings = bar_button(&gear, false, AppAction::OpenConfig);
 
-        let tabs = row(tabs).push(new_tab).push(table).spacing(1).align_y(Vertical::Center);
+        let tabs = row(tabs).push(new_tab).spacing(1).align_y(Vertical::Center);
         let tabs = container(tabs).width(Length::Fill);
         let bar = styles.bar;
-        container(row![tabs, settings].align_y(Vertical::Center))
+        container(row![tabs, status, settings].spacing(1).align_y(Vertical::Center))
             .width(Length::Fill)
             .padding(padding(bar.padding))
             .style(move |_| container::Style {
