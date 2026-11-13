@@ -56,11 +56,13 @@ _tankterm_prompt() {
 if [[ $(declare -p PROMPT_COMMAND 2> /dev/null) == 'declare -a'* ]]; then
     PROMPT_COMMAND=(_tankterm_precmd "${PROMPT_COMMAND[@]}" _tankterm_prompt)
 else
+    # shellcheck disable=SC2178 # Only reached when PROMPT_COMMAND is not an array.
     PROMPT_COMMAND=$'_tankterm_precmd\n'${PROMPT_COMMAND-}$'\n_tankterm_prompt'
 fi
 
 # PS0 is shown when a command starts. It also notes that one did, so that the next prompt
 # reports how it ended; an empty command line runs nothing.
 if ((BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 4))); then
+    # shellcheck disable=SC2016 # Bash expands PS0 when it shows it.
     PS0='\e]133;C\a${_tankterm_running:0:$((_tankterm_running = 1, 0))}'${PS0-}
 fi
