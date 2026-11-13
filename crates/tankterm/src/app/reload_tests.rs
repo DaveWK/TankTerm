@@ -412,8 +412,10 @@ fn configuration_is_not_watched_without_live_config_reload() {
     let file = ConfigFile::new("general.live_config_reload = false\n");
     assert!(file.start().config.is_none());
 
-    // Nor is there anything to watch without a configuration file.
-    assert!(ConfigSource::new(&UiConfig::default(), Options::default()).is_none());
+    // Without a configuration file, the place a new one goes is watched.
+    let source = ConfigSource::new(&UiConfig::default(), Options::default());
+    let default = crate::config::default_config_path();
+    assert_eq!(source.map(|source| source.paths), default.map(|path| vec![path]));
 
     // Turning it off is the last change that is read.
     let file = ConfigFile::new("");

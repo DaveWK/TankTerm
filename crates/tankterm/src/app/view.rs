@@ -206,19 +206,27 @@ impl App {
             container(label(table.name.to_string()).color(foreground)).padding([3, 8])
         });
 
-        let new_tab = button(label("+".into()))
-            .padding([3, 8])
-            .style(move |_, status| button::Style {
-                background: Some(bar.into()),
-                text_color: match status {
-                    button::Status::Hovered => foreground,
-                    _ => blend(foreground, background, 0.4),
-                },
-                ..Default::default()
-            })
-            .on_press(Message::Action(AppAction::NewTab));
+        let bar_button = move |content: Element<'static, Message>, action: AppAction| {
+            button(content)
+                .padding([3, 8])
+                .style(move |_, status| button::Style {
+                    background: Some(bar.into()),
+                    text_color: match status {
+                        button::Status::Hovered => foreground,
+                        _ => blend(foreground, background, 0.4),
+                    },
+                    ..Default::default()
+                })
+                .on_press(Message::Action(action))
+        };
+        let new_tab = bar_button(label("+".into()).into(), AppAction::NewTab);
+        // The gear at the right end opens the configuration file. The font draws it small, so
+        // it is larger, in the height the padding leaves the other buttons.
+        let gear = text("\u{2699}").font(font).size(size * 1.3).height(size * 1.3 + 6.);
+        let settings = bar_button(gear.center().into(), AppAction::OpenConfig).padding([0, 8]);
 
-        container(row(tabs).push(new_tab).push(table).spacing(1))
+        let tabs = container(row(tabs).push(new_tab).push(table).spacing(1)).width(Length::Fill);
+        container(row![tabs, settings])
             .width(Length::Fill)
             .style(move |_| container::Style { background: Some(bar.into()), ..Default::default() })
             .into()

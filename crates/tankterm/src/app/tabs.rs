@@ -1,7 +1,8 @@
 //! Tab and pane operations: opening, closing, moving between and resizing them.
 
-use std::io;
+use std::path::Path;
 use std::time::Instant;
+use std::{fs, io};
 
 use iced::widget::pane_grid::{self, Direction, Node};
 use iced::{Color, Task, window};
@@ -144,6 +145,24 @@ impl App {
                 let tab = &self.tabs[self.active];
                 let shown = self.pane_title(tab).to_owned();
                 self.palette = Some(Palette::rename(tab.title.as_deref(), &shown));
+            },
+            AppAction::OpenConfig => {
+                let Some(path) = self.options.config_file.clone() else {
+                    warn!("There is no place for a configuration file");
+                    return Task::none();
+                };
+                if let Err(err) = create_config(&path) {
+                    error!("Unable to create the configuration file {}: {err}", path.display());
+                    return Task::none();
+                }
+
+                let mut settings = self.new_settings();
+                (settings.backend.program, settings.backend.args) = editor(&path);
+                settings.backend.working_directory = path.parent().map(Path::to_owned);
+                match self.spawn(settings, self.options.layout.background) {
+                    Ok(terminal) => self.push_tab(terminal),
+                    Err(err) => error!("Unable to open the configuration file: {err}"),
+                }
             },
             AppAction::PaneSelect(mode) => {
                 let tab = &mut self.tabs[self.active];
@@ -417,6 +436,38 @@ impl App {
 
         title.filter(|_| self.options.dynamic_title).unwrap_or(&self.options.title)
     }
+}
+
+/// What a configuration file starts with when `OpenConfig` creates it.
+const NEW_CONFIG: &str = "\
+# TankTerm configuration. The options are in tankTerm(5): `man 5 tankTerm`.
+# Changes take effect when the file is saved.
+";
+
+/// Create the configuration file at `path` if there is none.
+fn create_config(path: &Path) -> io::Result<()> {
+    if path.exists() {
+        return Ok(());
+    }
+    if let Some(directory) = path.parent() {
+        fs::create_dir_all(directory)?;
+    }
+
+    fs::write(path, NEW_CONFIG)
+}
+
+/// The program and arguments that edit the file at `path` in a terminal: `$VISUAL`, `$EDITOR` or
+/// `vi`. The shell splits the variables, which may hold arguments.
+#[cfg(unix)]
+fn editor(path: &Path) -> (String, Vec<String>) {
+    let script = r#"exec ${VISUAL:-${EDITOR:-vi}} "$1""#;
+    let args = ["-c", script, "sh"].map(str::to_owned);
+    ("sh".into(), args.into_iter().chain([path.display().to_string()]).collect())
+}
+
+#[cfg(not(unix))]
+fn editor(path: &Path) -> (String, Vec<String>) {
+    ("notepad.exe".into(), vec![path.display().to_string()])
 }
 
 /// Move every pane to the place of the next one, counting from left to right and top to bottom,

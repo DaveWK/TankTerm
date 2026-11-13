@@ -41,6 +41,7 @@ fn tabs_and_panes() {
         },
         tabs: config.tabs,
         hotkeys: Hotkeys::from_config(&config),
+        config_file: None,
         session_file: None,
         profiles: Vec::new(),
         confirm_multiline_paste: true,

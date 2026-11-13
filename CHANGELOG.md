@@ -73,6 +73,9 @@ Notable changes to the `tankterm_terminal` crate are documented in its
     `RotatePanesClockwise` and `RotatePanesCounterClockwise` move every pane to the next place,
     `ShowTabNavigator` lists the tabs and `RenameTab` gives a tab a title, which the session file
     remembers. The `Leader` preset binds them to `Q`, `W` and `Control+O` like tmux
+- A gear at the end of the tab bar and the `OpenConfig` action open the configuration file in
+    `$VISUAL` or `$EDITOR` in a new tab, creating it if there is none; a configuration file
+    created while TankTerm runs is read like one that was there from the start
 
 ### Changed
 

@@ -45,6 +45,7 @@ const COMMANDS: &[(&str, AppAction)] = {
         ("Go to Tab...", AppAction::ShowTabNavigator),
         ("Rename Tab...", AppAction::RenameTab),
         ("Open Profile...", AppAction::ShowProfiles),
+        ("Open Config", AppAction::OpenConfig),
     ]
 };
 

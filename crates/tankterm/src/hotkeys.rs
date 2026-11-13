@@ -83,6 +83,8 @@ pub enum AppAction {
     ShowTabNavigator,
     /// Ask for a new title for the tab.
     RenameTab,
+    /// Open the configuration file in an editor, in a new tab.
+    OpenConfig,
     /// Activate the key table with this name.
     ActivateKeyTable(Arc<str>),
     /// Leave the key table that was activated last.
@@ -174,6 +176,7 @@ impl AppAction {
             Action::RotatePanesCounterClockwise => Self::RotatePanes(false),
             Action::ShowTabNavigator => Self::ShowTabNavigator,
             Action::RenameTab => Self::RenameTab,
+            Action::OpenConfig => Self::OpenConfig,
             Action::ActivateKeyTable(name) => Self::ActivateKeyTable(name.as_str().into()),
             Action::PopKeyTable => Self::PopKeyTable,
             Action::ClearKeyTableStack => Self::ClearKeyTables,

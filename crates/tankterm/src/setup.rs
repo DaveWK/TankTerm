@@ -30,11 +30,20 @@ pub struct ConfigSource {
 }
 
 impl ConfigSource {
-    /// The source of a configuration, if it asks to be read again when its files change and
-    /// has files that could.
+    /// The source of a configuration, if it asks to be read again when its files change.
+    ///
+    /// Without a configuration file, the place a new one goes is watched, so that one written
+    /// there, as `OpenConfig` does, takes effect.
     pub fn new(config: &UiConfig, cli: Options) -> Option<Self> {
-        let watched = config.live_config_reload() && !config.config_paths.is_empty();
-        watched.then(|| Self { cli, paths: config.config_paths.clone() })
+        if !config.live_config_reload() {
+            return None;
+        }
+
+        let paths = match config.config_paths.is_empty() {
+            true => vec![config::default_config_path()?],
+            false => config.config_paths.clone(),
+        };
+        Some(Self { cli, paths })
     }
 
     /// Read the configuration again.
@@ -90,6 +99,7 @@ pub fn setup(config: &UiConfig, options: &mut Options) -> Setup {
         },
         tabs: config.tabs,
         hotkeys: Hotkeys::from_config(config),
+        config_file: config.config_paths.first().cloned().or_else(config::default_config_path),
         // A window started for a single command isn't a session worth remembering.
         session_file: session::default_path().filter(|_| {
             config.tabs.restore && options.window_options.terminal_options.command().is_none()

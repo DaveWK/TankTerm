@@ -110,6 +110,10 @@ shells themselves are started fresh.
 A pane closes when its shell exits, a tab closes with its last pane and the
 window closes with its last tab.
 
+The gear at the right end of the tab bar opens the configuration file in a new
+tab, in `$VISUAL` or `$EDITOR`, and creates the file if there is none yet.
+Saving it applies the changes. The command palette has it as "Open Config".
+
 ### Key presets
 
 The keys above are those of the default `"Tabby"` preset. `preset` in the

@@ -94,6 +94,8 @@ pub struct AppOptions {
     pub layout: Layout,
     pub tabs: Tabs,
     pub hotkeys: Hotkeys,
+    /// The configuration file, or where a new one goes, for `OpenConfig`.
+    pub config_file: Option<PathBuf>,
     /// File the tabs and panes are remembered in, if they should be.
     pub session_file: Option<PathBuf>,
     /// Profiles offered by the profile selector.

@@ -56,6 +56,7 @@ pub(super) fn app_from(
         },
         tabs: config.tabs,
         hotkeys,
+        config_file: None,
         session_file,
         profiles,
         confirm_multiline_paste: config.terminal.confirm_multiline_paste,

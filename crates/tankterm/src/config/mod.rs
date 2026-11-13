@@ -457,6 +457,18 @@ pub fn installed_config(suffix: &str) -> Option<PathBuf> {
         })
 }
 
+/// Where a new configuration file goes: `$XDG_CONFIG_HOME/tankterm/tankterm.toml`, or
+/// `%APPDATA%\tankterm\tankterm.toml` on Windows.
+pub fn default_config_path() -> Option<PathBuf> {
+    let file_name = format!("{CONFIG_NAME}.toml");
+
+    #[cfg(not(windows))]
+    return xdg::BaseDirectories::with_prefix(CONFIG_NAME).get_config_file(file_name);
+
+    #[cfg(windows)]
+    return dirs::config_dir().map(|path| path.join(CONFIG_NAME).join(file_name));
+}
+
 /// Get the location of the default config file, `%APPDATA%\tankterm\tankterm.toml`.
 #[cfg(windows)]
 pub fn installed_config(suffix: &str) -> Option<PathBuf> {

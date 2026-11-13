@@ -27,6 +27,7 @@ fn terminal_size(config: &str, window: Size) -> (Size, Padding) {
         layout,
         tabs: config.tabs,
         hotkeys: Hotkeys::default(),
+        config_file: None,
         session_file: None,
         profiles: Vec::new(),
         confirm_multiline_paste: true,

@@ -93,7 +93,8 @@ This section documents the *[general]* table of the configuration file.
 	Read the configuration again when the configuration file or a file it
 	imports changes, and apply it to the running window. A change is noticed
 	within a second. A configuration that can't be read is logged and the
-	running one is kept.
+	running one is kept. Without a configuration file, the location a new one
+	is read from first is watched, so a file created there takes effect.
 
 	The colors and theme, font, _window.padding_, _window.title_, key and mouse
 	bindings and the *[tabs]*, *[[profiles]]*, *[scrolling]*, *[cursor]* and
@@ -1557,6 +1558,11 @@ _https://docs.rs/winit/latest/winit/keyboard/enum.Key.html_
 			its focused pane. _Enter_ gives the tab the title, an empty title
 			gives the tab its pane's title back and _Escape_ keeps the title it
 			has. Titles are remembered in the session file.
+		*OpenConfig*
+			Open the configuration file in a new tab, in _$VISUAL_, _$EDITOR_ or
+			_vi_. Without a configuration file, it creates one at the location
+			that is read first, like _$XDG_CONFIG_HOME/tankterm/tankterm.toml_.
+			The gear at the end of the tab bar does the same.
 		*PaneSelect*
 			Show a label over every pane of the tab; typing a label focuses that
 			pane and _Escape_ takes the labels away. The labels are the letters

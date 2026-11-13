@@ -301,6 +301,9 @@ pub enum Action {
     /// Ask for a new title for the current tab.
     RenameTab,
 
+    /// Open the configuration file in an editor, in a new tab.
+    OpenConfig,
+
     /// Leave the key table that was activated last.
     PopKeyTable,
 

@@ -1,5 +1,5 @@
-//! Key tables, choosing panes by their labels, rotating panes, the tab navigator and renaming
-//! tabs, through the real `App`.
+//! Key tables, choosing panes by their labels, rotating panes, the tab navigator, renaming tabs
+//! and opening the configuration file, through the real `App`.
 
 use std::time::{Duration, Instant};
 
@@ -8,7 +8,7 @@ use iced::keyboard::key::Named;
 use iced::widget::pane_grid::Axis;
 use iced_test::simulator::Simulator;
 
-use super::tab_tests::{app_with, focused, has_text, perform};
+use super::tab_tests::{app_with, focused, has_text, perform, wait_for_text};
 use super::*;
 use crate::config::UiConfig;
 use crate::session::ordered_panes;
@@ -230,4 +230,42 @@ fn key_tables_time_out() {
     let _ = app.update(Message::Tick);
     assert_eq!(app.key_tables.len(), 1);
     assert_eq!(&*app.key_tables[0].name, "resize");
+}
+
+#[cfg(unix)]
+#[test]
+fn the_gear_opens_the_configuration_file_in_a_new_tab() {
+    let directory = tempfile::tempdir().unwrap();
+    let file = directory.path().join("tankterm").join("tankterm.toml");
+
+    let mut app = app_with("", Hotkeys::default());
+    app.options.config_file = Some(file.clone());
+    // The editor shows the file and stays open, without starting a real editor.
+    app.settings.backend.env.insert("VISUAL".into(), "tail -f".into());
+    perform(&mut app, &[AppAction::NewTab]);
+
+    // The gear is at the end of the tab bar.
+    let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
+    ui.click("\u{2699}").unwrap();
+    let actions: Vec<_> = ui
+        .into_messages()
+        .filter_map(|message| match message {
+            Message::Action(action) => Some(action),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(actions, [AppAction::OpenConfig]);
+
+    // A missing file is created, with a pointer to the options.
+    perform(&mut app, &actions);
+    assert_eq!((app.tabs.len(), app.active), (3, 2));
+    let created = std::fs::read_to_string(&file).unwrap();
+    assert!(created.contains("man 5 tankTerm"), "{created}");
+    wait_for_text(&app, focused(&app), "man 5 tankTerm");
+
+    // An existing file is left as it is.
+    std::fs::write(&file, "[font]\nsize = 13\n").unwrap();
+    perform(&mut app, &[AppAction::OpenConfig]);
+    assert_eq!(std::fs::read_to_string(&file).unwrap(), "[font]\nsize = 13\n");
+    wait_for_text(&app, focused(&app), "size = 13");
 }
