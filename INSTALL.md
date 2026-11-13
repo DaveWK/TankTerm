@@ -336,10 +336,30 @@ to system menus. This will install the desktop entry for TankTerm:
 
 ```sh
 sudo cp target/release/tankTerm /usr/local/bin # or anywhere else in $PATH
-sudo cp extra/logo/tankterm.svg /usr/share/pixmaps/TankTerm.svg
+sudo install -Dm644 extra/logo/tankterm.svg /usr/share/icons/hicolor/scalable/apps/TankTerm.svg
+sudo install -Dm644 extra/logo/tankterm-small.svg /usr/share/icons/hicolor/24x24/apps/TankTerm.svg
 sudo desktop-file-install extra/linux/TankTerm.desktop
 sudo update-desktop-database
 ```
+
+Or for your user alone, without `sudo`:
+
+```sh
+install -Dm755 target/release/tankTerm ~/.local/bin/tankTerm # ~/.local/bin must be in $PATH
+install -Dm644 extra/logo/tankterm.svg ~/.local/share/icons/hicolor/scalable/apps/TankTerm.svg
+install -Dm644 extra/logo/tankterm-small.svg ~/.local/share/icons/hicolor/24x24/apps/TankTerm.svg
+desktop-file-install --dir ~/.local/share/applications extra/linux/TankTerm.desktop
+update-desktop-database ~/.local/share/applications
+```
+
+On Wayland the desktop entry is where the window's icon comes from: winit, which
+TankTerm opens its window with, can't give a Wayland window an icon, so the
+compositor looks up a desktop entry named after the window's app ID, `TankTerm`.
+Without one, KDE shows its generic Wayland "W" and other desktops a generic
+icon. Windows that were open before the entry was installed keep the generic
+icon until they close. `tankTerm` has to be in `$PATH`, because the entry's
+`TryExec` hides it otherwise. A `--class` other than `TankTerm` needs a desktop
+entry of that name.
 
 If you are having problems with TankTerm's logo, you can replace it with the
 prerendered PNGs available in the `extra/logo/compat` directory. For small
