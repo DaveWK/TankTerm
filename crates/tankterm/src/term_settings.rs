@@ -5,19 +5,20 @@ use std::time::Duration;
 
 use iced::font::{Family, Stretch, Style, Weight};
 use iced::{Color, Font, Padding, Size, Vector};
-use iced_tterm::ColorPalette;
 use iced_tterm::settings::{
     BackendSettings, CursorBlinking, CursorSettings, FontSettings, MouseSettings, ScrollSettings,
     SelectionSettings, Settings, ThemeSettings,
 };
+use iced_tterm::{CellColor, CellColors, ColorPalette};
 use log::warn;
 
 use crate::cli::Options;
-use crate::color::{DIM_FACTOR, Rgb};
+use crate::color::{CellRgb, DIM_FACTOR, Rgb};
 use crate::config::UiConfig;
 use crate::config::color::Colors;
 use crate::config::font::FontDescription;
 use crate::config::profile::Profile;
+use crate::config::style::CellStyle;
 use crate::config::ui_config::{Delta, Program};
 
 /// Logical pixels per typographic point.
@@ -38,7 +39,7 @@ pub fn settings(config: &UiConfig, options: &Options) -> Settings {
         // The application draws the background itself, behind the terminal and its padding in
         // one piece, so that it is equally transparent everywhere with `window.opacity`.
         theme: ThemeSettings {
-            color_pallete: Box::new(palette(&config.colors)),
+            color_pallete: Box::new(theme_palette(config)),
             background_opacity: 0.,
         },
         backend: backend_settings(config, options, std::env::var("SHELL").ok()),
@@ -321,6 +322,28 @@ pub fn foreground(config: &UiConfig) -> Color {
     Color::from_rgb8(foreground.r, foreground.g, foreground.b)
 }
 
+/// The `iced_tterm` palette of a configuration: its colors, and the colors of the cursor and the
+/// selection, which the `[style]` blocks can change too.
+fn theme_palette(config: &UiConfig) -> ColorPalette {
+    let styles = config.style.resolved();
+    ColorPalette {
+        cursor: cell_colors(&styles.cursor),
+        selection: cell_colors(&styles.selection),
+        ..palette(&config.colors)
+    }
+}
+
+/// The colors of an element drawn on cells, like the cursor.
+fn cell_colors(style: &CellStyle) -> CellColors {
+    let color = |color: CellRgb| match color {
+        CellRgb::CellForeground => CellColor::CellForeground,
+        CellRgb::CellBackground => CellColor::CellBackground,
+        CellRgb::Rgb(rgb) => CellColor::Color(Color::from_rgb8(rgb.r, rgb.g, rgb.b)),
+    };
+
+    CellColors { foreground: color(style.foreground), background: color(style.background) }
+}
+
 /// Convert the configured colors into an `iced_tterm` palette.
 fn palette(colors: &Colors) -> ColorPalette {
     let hex = |color: Rgb| color.to_string();
@@ -360,6 +383,13 @@ fn palette(colors: &Colors) -> ColorPalette {
         dim_magenta: dim(dim_colors.map(|d| d.magenta), normal.magenta),
         dim_cyan: dim(dim_colors.map(|d| d.cyan), normal.cyan),
         dim_white: dim(dim_colors.map(|d| d.white), normal.white),
+        indexed_colors: colors
+            .indexed_colors
+            .iter()
+            .map(|indexed| (indexed.index(), hex(indexed.color)))
+            .collect(),
+        draw_bold_text_with_bright_colors: colors.draw_bold_text_with_bright_colors,
+        ..ColorPalette::default()
     }
 }
 
@@ -509,6 +539,68 @@ mod tests {
         assert_eq!(palette.red, "#ff0000");
         assert_eq!(palette.bright_blue, "#0000ff");
         assert_eq!(palette.bright_foreground.as_deref(), Some("#eeeeee"));
+    }
+
+    /// The palette of a configuration, with its styles resolved as loading it does.
+    fn configured_palette(toml: &str) -> ColorPalette {
+        let mut config = config(toml);
+        config.style.resolve(&config.colors);
+        theme_palette(&config)
+    }
+
+    #[test]
+    fn cursor_and_selection_colors_come_from_the_colors_and_styles() {
+        let color = |r, g, b| CellColor::Color(Color::from_rgb8(r, g, b));
+        let black = color(0, 0, 0);
+
+        // The green defaults of `[style]`.
+        let defaults = configured_palette("");
+        assert_eq!(defaults.cursor, CellColors {
+            foreground: black,
+            background: color(0x00, 0xff, 0x00)
+        });
+        assert_eq!(defaults.selection, CellColors {
+            foreground: black,
+            background: color(0x00, 0x80, 0x00)
+        });
+
+        let configured = configured_palette(
+            r##"
+            [colors.cursor]
+            text = "CellBackground"
+            cursor = "CellForeground"
+            [colors.selection]
+            background = "#123456"
+            [style.selection]
+            foreground = "#abcdef"
+            "##,
+        );
+        assert_eq!(configured.cursor, CellColors::default());
+        // A style wins over the color table, and what neither sets keeps its default.
+        assert_eq!(configured.selection, CellColors {
+            foreground: color(0xab, 0xcd, 0xef),
+            background: color(0x12, 0x34, 0x56)
+        });
+    }
+
+    #[test]
+    fn indexed_colors_and_bright_bold_text_come_from_the_colors() {
+        let defaults = configured_palette("");
+        assert!(defaults.indexed_colors.is_empty());
+        assert!(!defaults.draw_bold_text_with_bright_colors);
+
+        let palette = configured_palette(
+            r##"
+            [colors]
+            draw_bold_text_with_bright_colors = true
+            indexed_colors = [{ index = 16, color = "#ff8800" }, { index = 200, color = "#010203" }]
+            "##,
+        );
+        assert_eq!(palette.indexed_colors, [
+            (16, "#ff8800".to_owned()),
+            (200, "#010203".to_owned())
+        ]);
+        assert!(palette.draw_bold_text_with_bright_colors);
     }
 
     #[test]

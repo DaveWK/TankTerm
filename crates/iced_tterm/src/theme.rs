@@ -11,6 +11,44 @@ pub(crate) trait TerminalStyle {
     fn container_style(&self, overrides: &Colors) -> container::Style;
 }
 
+/// A color of something drawn on a cell: one of the cell's own colors, or a
+/// color of its own.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum CellColor {
+    CellForeground,
+    CellBackground,
+    Color(Color),
+}
+
+impl CellColor {
+    /// The color on a cell with these colors.
+    pub(crate) fn on(self, foreground: Color, background: Color) -> Color {
+        match self {
+            Self::CellForeground => foreground,
+            Self::CellBackground => background,
+            Self::Color(color) => color,
+        }
+    }
+}
+
+/// The text and background colors of something drawn on cells, like the
+/// cursor or the selection.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CellColors {
+    pub foreground: CellColor,
+    pub background: CellColor,
+}
+
+impl Default for CellColors {
+    /// The cell's colors swapped.
+    fn default() -> Self {
+        Self {
+            foreground: CellColor::CellBackground,
+            background: CellColor::CellForeground,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ColorPalette {
     pub foreground: String,
@@ -41,6 +79,15 @@ pub struct ColorPalette {
     pub dim_magenta: String,
     pub dim_cyan: String,
     pub dim_white: String,
+    /// Colors replacing entries `16..=255` of the 256 color table.
+    pub indexed_colors: Vec<(u8, String)>,
+    /// Draw bold text in the normal colors with the bright colors instead.
+    pub draw_bold_text_with_bright_colors: bool,
+    /// The block cursor and the text under it. A cursor color an
+    /// application sets wins.
+    pub cursor: CellColors,
+    /// Selected text.
+    pub selection: CellColors,
 }
 
 impl Default for ColorPalette {
@@ -74,6 +121,10 @@ impl Default for ColorPalette {
             dim_magenta: String::from("#704d68"),
             dim_cyan: String::from("#4d7770"),
             dim_white: String::from("#8e8e8e"),
+            indexed_colors: Vec::new(),
+            draw_bold_text_with_bright_colors: false,
+            cursor: CellColors::default(),
+            selection: CellColors::default(),
         }
     }
 }
@@ -109,10 +160,56 @@ impl Theme {
     }
 
     pub fn new(settings: ThemeSettings) -> Self {
+        let mut ansi256_colors = build_ansi256_colors();
+        // The first 16 entries are the named colors of the palette.
+        for (index, color) in &settings.color_pallete.indexed_colors {
+            if *index >= 16 {
+                let color = hex_to_color(color)
+                    .unwrap_or_else(|_| panic!("invalid color {}", color));
+                ansi256_colors.insert(*index, color);
+            }
+        }
+
         Self {
             palette: settings.color_pallete,
-            ansi256_colors: build_ansi256_colors(),
+            ansi256_colors,
             background_opacity: settings.background_opacity.clamp(0.0, 1.0),
+        }
+    }
+
+    /// The colors of the block cursor and the text under it.
+    pub(crate) fn cursor_colors(&self) -> CellColors {
+        self.palette.cursor
+    }
+
+    /// The colors of selected text.
+    pub(crate) fn selection_colors(&self) -> CellColors {
+        self.palette.selection
+    }
+
+    /// The color text in `color` is drawn with when it is bold: the bright
+    /// variant of a normal color if the palette asks for it, or `color`.
+    pub(crate) fn bold_color(&self, color: ansi::Color) -> ansi::Color {
+        if !self.palette.draw_bold_text_with_bright_colors {
+            return color;
+        }
+
+        match color {
+            ansi::Color::Named(
+                named @ (NamedColor::Foreground
+                | NamedColor::Black
+                | NamedColor::Red
+                | NamedColor::Green
+                | NamedColor::Yellow
+                | NamedColor::Blue
+                | NamedColor::Magenta
+                | NamedColor::Cyan
+                | NamedColor::White),
+            ) => ansi::Color::Named(named.to_bright()),
+            ansi::Color::Indexed(index @ 0..=7) => {
+                ansi::Color::Indexed(index + 8)
+            },
+            color => color,
         }
     }
 
@@ -483,6 +580,81 @@ mod tests {
 
     fn rgb(r: u8, g: u8, b: u8) -> Rgb {
         Rgb { r, g, b }
+    }
+
+    #[test]
+    fn indexed_colors_replace_the_256_color_table_above_16() {
+        let palette = ColorPalette {
+            indexed_colors: vec![
+                (16, "#010203".into()),
+                (255, "#040506".into()),
+                // The first 16 are the palette's named colors.
+                (1, "#070809".into()),
+            ],
+            ..ColorPalette::default()
+        };
+        let theme = Theme::new(ThemeSettings {
+            color_pallete: Box::new(palette),
+            ..ThemeSettings::default()
+        });
+        let color = |index| theme.get_color(ansi::Color::Indexed(index));
+
+        assert_eq!(color(16), Color::from_rgb8(1, 2, 3));
+        assert_eq!(color(255), Color::from_rgb8(4, 5, 6));
+        assert_eq!(color(1), hex_to_color("#ac4242").unwrap());
+        assert_eq!(
+            color(17),
+            Theme::default().get_color(ansi::Color::Indexed(17))
+        );
+    }
+
+    #[test]
+    fn bold_text_takes_bright_colors_only_when_asked() {
+        let named = |color| ansi::Color::Named(color);
+        assert_eq!(
+            Theme::default().bold_color(named(NamedColor::Red)),
+            named(NamedColor::Red)
+        );
+
+        let palette = ColorPalette {
+            draw_bold_text_with_bright_colors: true,
+            ..ColorPalette::default()
+        };
+        let theme = Theme::new(ThemeSettings {
+            color_pallete: Box::new(palette),
+            ..ThemeSettings::default()
+        });
+        for (color, bright) in [
+            (named(NamedColor::Red), named(NamedColor::BrightRed)),
+            (
+                named(NamedColor::Foreground),
+                named(NamedColor::BrightForeground),
+            ),
+            (ansi::Color::Indexed(3), ansi::Color::Indexed(11)),
+            // Colors that are bright already, or not one of the eight, stay.
+            (named(NamedColor::BrightRed), named(NamedColor::BrightRed)),
+            (ansi::Color::Indexed(9), ansi::Color::Indexed(9)),
+            (ansi::Color::Indexed(100), ansi::Color::Indexed(100)),
+        ] {
+            assert_eq!(theme.bold_color(color), bright, "{color:?}");
+        }
+    }
+
+    #[test]
+    fn cell_colors_are_the_cells_or_their_own() {
+        let (fg, bg) = (Color::WHITE, Color::BLACK);
+        let own = Color::from_rgb8(0, 255, 0);
+
+        assert_eq!(CellColor::CellForeground.on(fg, bg), fg);
+        assert_eq!(CellColor::CellBackground.on(fg, bg), bg);
+        assert_eq!(CellColor::Color(own).on(fg, bg), own);
+
+        // By default the cursor and the selection swap the cell's colors.
+        let swapped = CellColors::default();
+        assert_eq!(
+            (swapped.foreground.on(fg, bg), swapped.background.on(fg, bg)),
+            (bg, fg)
+        );
     }
 
     #[test]

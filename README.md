@@ -54,6 +54,7 @@ This front end is new and doesn't support everything the OpenGL one did yet:
 - Key bindings to `SpawnNewInstance`, `CreateNewWindow` and `HideOtherApplications`; mouse
   bindings other than pasting and expanding the selection with the middle and right buttons
 - `window.blur`, `colors.transparent_background_colors` and `font.builtin_box_drawing`
+- The text attributes of `[style]` blocks and `[style.blurred]`
 
 Command line options that aren't supported yet fail with an error; config
 options that aren't supported yet are ignored. Changes to the configuration

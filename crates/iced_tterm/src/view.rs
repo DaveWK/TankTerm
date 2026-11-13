@@ -705,15 +705,23 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                 let cell_center_y = y + half_h;
                 let cell_center_x = x + half_w;
 
-                // Resolve colors for this cell
+                // Resolve colors for this cell. Bold text that isn't dim can
+                // take the bright variant of its color.
+                let flags = indexed.cell.flags;
+                let fg_color =
+                    if flags & cell::Flags::DIM_BOLD == cell::Flags::BOLD {
+                        theme.bold_color(indexed.fg)
+                    } else {
+                        indexed.fg
+                    };
                 let mut fg =
-                    theme.get_color_with_overrides(indexed.fg, overrides);
+                    theme.get_color_with_overrides(fg_color, overrides);
                 let mut bg =
                     theme.get_color_with_overrides(indexed.bg, overrides);
-                // Pre-swap background: the block cursor is painted in the
-                // cell's (pre-swap) fg, so this is the contrasting color
-                // for the glyph under it regardless of INVERSE/selection.
-                let cell_bg = bg;
+                // The cell's own colors, before INVERSE and the selection:
+                // the block cursor and the glyph under it are drawn in
+                // these, so they contrast regardless of INVERSE/selection.
+                let (cell_fg, cell_bg) = (fg, bg);
 
                 // If the new line was detected,
                 // need to flush pending background rect and init the new one
@@ -741,12 +749,18 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                 {
                     fg.a *= 0.7;
                 }
-                if indexed.cell.flags.contains(cell::Flags::INVERSE)
-                    || content
-                        .selectable_range
-                        .is_some_and(|r| r.contains(indexed.point))
-                {
+                if indexed.cell.flags.contains(cell::Flags::INVERSE) {
                     std::mem::swap(&mut fg, &mut bg);
+                }
+                if content
+                    .selectable_range
+                    .is_some_and(|r| r.contains(indexed.point))
+                {
+                    let selection = theme.selection_colors();
+                    (fg, bg) = (
+                        selection.foreground.on(fg, bg),
+                        selection.background.on(fg, bg),
+                    );
                 }
 
                 // Batch draw backgrounds: skip default background (container already paints it)
@@ -806,12 +820,15 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                 let is_cursor = content.grid.cursor.point == indexed.point;
                 if is_cursor {
                     // An application-set cursor color (OSC 12) wins;
-                    // otherwise the cursor takes the cell's foreground.
+                    // otherwise the theme's, on the cell's colors.
                     let cursor_color = match overrides[NamedColor::Cursor] {
                         Some(rgb) => Color::from_rgb8(rgb.r, rgb.g, rgb.b),
-                        None => theme.get_color_with_overrides(
-                            content.cursor.fg,
-                            overrides,
+                        None => theme.cursor_colors().background.on(
+                            theme.get_color_with_overrides(
+                                content.cursor.fg,
+                                overrides,
+                            ),
+                            cell_bg,
                         ),
                     };
                     for rectangle in cursor_rectangles(
@@ -830,15 +847,19 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
 
                 // Draw text
                 if indexed.c != ' ' && indexed.c != '\t' {
-                    // The glyph under the block cursor must contrast with
-                    // the cursor rect (painted above in the cell's pre-swap
-                    // fg). Using the post-swap bg — or gating this on
-                    // APP_CURSOR, a keypad mode unrelated to rendering —
-                    // made the glyph invisible whenever the cell was
-                    // INVERSE or inside a selection.
+                    // The glyph under the block cursor takes the theme's
+                    // cursor text color, on the cell's own colors before
+                    // INVERSE and the selection, so it contrasts with the
+                    // cursor rect. Using the post-swap colors — or gating
+                    // this on APP_CURSOR, a keypad mode unrelated to
+                    // rendering — made the glyph invisible whenever the cell
+                    // was INVERSE or inside a selection.
                     // The other cursor shapes leave the glyph as it is.
                     if is_cursor && cursor_shape == CursorShape::Block {
-                        fg = cell_bg;
+                        fg = theme
+                            .cursor_colors()
+                            .foreground
+                            .on(cell_fg, cell_bg);
                     }
                     let flags = indexed.cell.flags;
                     let font = self.term.font.face(

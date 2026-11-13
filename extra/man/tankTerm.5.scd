@@ -741,6 +741,10 @@ Each property of an element is taken from, in order:
 	. The matching *[colors]* setting, like _colors.selection.background_.
 	. TankTerm's default for the element.
 
+The iced front end draws the colors of _cursor_ and _selection_. It doesn't
+draw the text attributes of styles or the *[style.blurred]* blocks yet, and the
+other elements belong to features it doesn't have yet.
+
 *Elements*
 
 	*cursor*, *vi_mode_cursor*

@@ -19,5 +19,5 @@ pub use tankterm_terminal::selection::SelectionType;
 pub use tankterm_terminal::term::TermMode;
 pub use tankterm_terminal::vte::ansi::CursorShape;
 pub use terminal::{Command, Event, Terminal};
-pub use theme::{ColorPalette, Theme};
+pub use theme::{CellColor, CellColors, ColorPalette, Theme};
 pub use view::TerminalView;
