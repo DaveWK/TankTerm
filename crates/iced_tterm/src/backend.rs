@@ -207,6 +207,9 @@ impl From<TerminalSize> for WindowSize {
 pub struct Backend {
     term: Arc<FairMutex<Term<EventProxy>>>,
     size: TerminalSize,
+    /// Whether the widget was given the size of its layout yet. Until then
+    /// `size` holds a placeholder layout, which isn't divided into cells.
+    laid_out: bool,
     notifier: Notifier,
     /// The options the `Term` was last given.
     config: term::Config,
@@ -299,6 +302,7 @@ impl Backend {
         Ok(Self {
             term: term.clone(),
             size: terminal_size,
+            laid_out: false,
             notifier,
             config,
             last_content: initial_content,
@@ -647,6 +651,7 @@ impl Backend {
         if let Some(size) = layout_size {
             self.size.layout_height = size.height;
             self.size.layout_width = size.width;
+            self.laid_out = true;
         };
 
         if let Some(size) = font_measure {
@@ -654,6 +659,13 @@ impl Backend {
             // the layout by.
             self.size.cell_height = (size.height as u16).max(1);
             self.size.cell_width = (size.width as u16).max(1);
+        }
+
+        // The placeholder layout of a terminal that wasn't laid out yet is
+        // a few cells of a real font, and the program in it would start in
+        // a terminal of that size.
+        if !self.laid_out {
+            return;
         }
 
         let lines = (self.size.layout_height / self.size.cell_height as f32)
@@ -1349,6 +1361,29 @@ mod tests {
 
         backend.handle(Command::ClearSelection);
         assert_eq!(backend.selection(), None);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn terminal_keeps_its_size_until_it_is_laid_out() {
+        use tankterm_terminal::grid::Dimensions;
+
+        let mut backend = backend_running("exec cat");
+        let size = |backend: &Backend| {
+            let term = backend.term.lock();
+            (term.columns(), term.screen_lines())
+        };
+        assert_eq!(size(&backend), (80, 50));
+
+        // The font is known before the layout: the size stays.
+        let cell = Size::new(8., 16.);
+        backend.handle(Command::Resize(None, Some(cell)));
+        assert_eq!(size(&backend), (80, 50));
+
+        backend.handle(Command::Resize(Some(Size::new(800., 320.)), None));
+        assert_eq!(size(&backend), (100, 20));
+        backend.handle(Command::Resize(None, Some(Size::new(10., 32.))));
+        assert_eq!(size(&backend), (80, 10));
     }
 
     #[cfg(unix)]
