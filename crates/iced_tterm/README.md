@@ -2,7 +2,11 @@
 
 The terminal emulator widget TankTerm is built on: it renders a `tankterm_terminal` terminal in an
 [iced](https://github.com/iced-rs/iced) application and handles its keyboard, mouse, selection,
-scrolling and hyperlinks.
+scrolling and hyperlinks. With a nod to Gucci Mane's "So Iced Up", off *Chicken Talk*.
+
+A terminal is the oldest conversation people have with computers: you type a line and it answers
+with a line. Everything in this crate is there to keep that conversation clear, quick, and so
+iced up.
 
 `iced_tterm` is a fork of [iced_term](https://github.com/Harzu/iced_term) by Ilia Shvyrialkin,
 released under the MIT license (see [LICENSE](./LICENSE)). It was developed in a separate
