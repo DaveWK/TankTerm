@@ -24,6 +24,10 @@ pub struct WindowConfig {
     /// Draw the window with title bar / borders.
     pub decorations: Decorations,
 
+    /// Where the tab bar has the window's buttons when it is the title bar, with
+    /// `decorations = "None"`.
+    pub buttons: WindowButtons,
+
     /// Startup mode.
     pub startup_mode: StartupMode,
 
@@ -73,6 +77,7 @@ impl Default for WindowConfig {
             identity: Default::default(),
             dimensions: Default::default(),
             decorations: Default::default(),
+            buttons: Default::default(),
             startup_mode: Default::default(),
             dynamic_padding: Default::default(),
             resize_increments: Default::default(),
@@ -197,6 +202,20 @@ pub enum Decorations {
     Full,
     Transparent,
     Buttonless,
+    None,
+}
+
+/// Where the tab bar has the minimize, maximize and close buttons when it is the title bar.
+#[derive(ConfigDeserialize, Serialize, Default, Debug, Copy, Clone, PartialEq, Eq)]
+pub enum WindowButtons {
+    /// At the right end, with the close button last.
+    #[default]
+    Right,
+
+    /// At the left end, with the close button first.
+    Left,
+
+    /// Nowhere, and the tab bar isn't the title bar.
     None,
 }
 

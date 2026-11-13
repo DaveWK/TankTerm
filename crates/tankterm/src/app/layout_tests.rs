@@ -28,6 +28,8 @@ fn terminal_size(config: &str, window: Size) -> (Size, Padding) {
         layout,
         tabs: config.tabs.clone(),
         status: crate::app::status::segments(&config),
+        frameless: config.window.decorations == crate::config::window::Decorations::None,
+        window_buttons: config.window.buttons,
         hotkeys: Hotkeys::default(),
         config_file: None,
         session_file: None,

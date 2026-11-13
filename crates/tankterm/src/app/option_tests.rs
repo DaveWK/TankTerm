@@ -281,6 +281,7 @@ enum Asked {
     ToggleMaximize,
     Minimize,
     Close,
+    Drag,
 }
 
 /// Run a task the way iced's runtime would, with `clipboard` as the text of the regular and of
@@ -332,6 +333,10 @@ fn run_task(
             runtime::Action::Window(runtime::window::Action::Close(id)) => {
                 assert_eq!(id, window);
                 asked.push(Asked::Close);
+            },
+            runtime::Action::Window(runtime::window::Action::Drag(id)) => {
+                assert_eq!(id, window);
+                asked.push(Asked::Drag);
             },
             // Giving a widget keyboard focus needs the widgets.
             runtime::Action::Widget(_) => (),
@@ -975,4 +980,136 @@ fn window_is_only_cleared_to_a_color_when_it_is_opaque() {
     assert_eq!(style.background_color.a, 1.);
     assert_eq!(style.text_color, transparent.style(&Theme::Dark).text_color);
     assert_eq!(opaque.opacity(), 1.);
+}
+
+const FRAMELESS: &str = "[window]\ndecorations = \"None\"\n";
+
+/// The middle of the tab bar from top to bottom, in a window of 800 by 400.
+fn tab_bar_middle(app: &App) -> f32 {
+    let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
+    let tab = ui.find("1: test").unwrap();
+    iced_test::selector::Bounded::visible_bounds(&tab).unwrap().center_y()
+}
+
+/// The actions run by clicking along the tab bar from one end, each once, in order.
+fn actions_along_the_tab_bar(app: &App, from_left: bool) -> Vec<AppAction> {
+    let y = tab_bar_middle(app);
+    let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
+    for step in 0..60 {
+        let x = 2. * step as f32 + 1.;
+        ui.point_at((if from_left { x } else { 800. - x }, y));
+        ui.simulate(iced_test::simulator::click());
+    }
+
+    let mut actions: Vec<AppAction> = ui
+        .into_messages()
+        .filter_map(|message| match message {
+            Message::Action(action) => Some(action),
+            _ => None,
+        })
+        .collect();
+    actions.dedup();
+    actions
+}
+
+#[test]
+fn the_tab_bar_of_a_frameless_window_has_the_window_buttons() {
+    let right = app_with(FRAMELESS, Hotkeys::default());
+    assert_eq!(actions_along_the_tab_bar(&right, false)[..4], [
+        AppAction::Quit,
+        AppAction::ToggleMaximized,
+        AppAction::Minimize,
+        AppAction::OpenConfig,
+    ]);
+
+    let left = app_with(&format!("{FRAMELESS}buttons = \"Left\"\n"), Hotkeys::default());
+    assert_eq!(actions_along_the_tab_bar(&left, true)[..4], [
+        AppAction::Quit,
+        AppAction::ToggleMaximized,
+        AppAction::Minimize,
+        AppAction::SelectTab(0),
+    ]);
+    // The gear is the last thing at the right end then.
+    assert_eq!(actions_along_the_tab_bar(&left, false)[0], AppAction::OpenConfig);
+}
+
+#[test]
+fn the_tab_bar_is_the_title_bar_only_without_the_system_one() {
+    let shown = |config: &str| {
+        let app = app_with(config, Hotkeys::default());
+        let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
+        ui.find("1: test").is_ok()
+    };
+
+    // One tab, so the tab bar is only shown as the title bar.
+    assert!(shown(FRAMELESS));
+    assert!(shown(&format!("{FRAMELESS}\n[tabs]\nshow = \"Never\"\n")));
+    assert!(!shown(""));
+    assert!(!shown("[window]\ndecorations = \"Full\"\nbuttons = \"Left\"\n"));
+    assert!(!shown(&format!("{FRAMELESS}buttons = \"None\"\n")));
+}
+
+#[test]
+fn the_window_moves_when_the_tab_bar_is_dragged() {
+    use iced::mouse::{Button, Event as MouseEvent};
+
+    let mut app = app_with(FRAMELESS, Hotkeys::default());
+    let y = tab_bar_middle(&app);
+    // Where nothing on the bar takes the mouse: right of the tab and its `+` button.
+    let empty = 500.;
+
+    // The mouse moving over the bar isn't followed until a button is pressed there.
+    let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
+    ui.point_at((empty, y));
+    ui.simulate([Event::Mouse(MouseEvent::ButtonPressed(Button::Left))]);
+    let messages: Vec<_> =
+        ui.into_messages().filter(|message| !matches!(message, Message::Terminal(_))).collect();
+    assert!(matches!(messages[..], [Message::TitleBarPressed]), "{messages:?}");
+    let _ = app.update(Message::TitleBarPressed);
+
+    // Moving a little is still a click; moving further hands the window to the window manager,
+    // once.
+    let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
+    let mut asked = Vec::new();
+    for x in [empty + 1., empty + 3., empty + 12., empty + 30.] {
+        ui.point_at((x, y));
+        ui.simulate([Event::Mouse(MouseEvent::CursorMoved { position: (x, y).into() })]);
+    }
+    let messages: Vec<_> =
+        ui.into_messages().filter(|message| !matches!(message, Message::Terminal(_))).collect();
+    for message in messages {
+        assert!(matches!(message, Message::TitleBarMoved(_)), "{message:?}");
+        asked.extend(run_task(app.update(message), [None, None], window::Mode::Windowed).0);
+    }
+    assert_eq!(asked, [Asked::Drag]);
+
+    // A press and release without moving moves nothing.
+    let _ = app.update(Message::TitleBarPressed);
+    let _ = app.update(Message::TitleBarReleased);
+    let task = app.update(Message::TitleBarMoved((empty + 50., y).into()));
+    assert_eq!(run_task(task, [None, None], window::Mode::Windowed).0, []);
+}
+
+#[test]
+fn double_clicking_the_tab_bar_maximizes_the_window() {
+    let mut app = app_with(FRAMELESS, Hotkeys::default());
+    let y = tab_bar_middle(&app);
+
+    let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
+    ui.point_at((500., y));
+    ui.simulate(iced_test::simulator::click());
+    ui.simulate(iced_test::simulator::click());
+
+    let mut asked = Vec::new();
+    for message in ui.into_messages().collect::<Vec<_>>() {
+        asked.extend(run_task(app.update(message), [None, None], window::Mode::Windowed).0);
+    }
+    assert_eq!(asked, [Asked::ToggleMaximize]);
+
+    // Clicks on a tab are the tab's.
+    let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
+    ui.click("1: test").unwrap();
+    let messages: Vec<_> =
+        ui.into_messages().filter(|message| !matches!(message, Message::Terminal(_))).collect();
+    assert!(matches!(messages[..], [Message::Action(AppAction::SelectTab(0))]), "{messages:?}");
 }

@@ -196,7 +196,8 @@ This section documents the *[window]* table of the configuration file.
 	*Full*
 		Borders and title bar.
 	*None*
-		Neither borders nor title bar.
+		Neither borders nor title bar. The tab bar takes the title bar's
+		place, unless *buttons* is _"None"_; see there.
 	*Transparent* _(macOS only)_
 		Title bar, transparent background and title bar buttons. Currently drawn
 		like _Full_.
@@ -205,6 +206,21 @@ This section documents the *[window]* table of the configuration file.
 		drawn like _Full_.
 
 	Default: _"Full"_
+
+*buttons* = _"Right"_ | _"Left"_ | _"None"_
+
+	Where the tab bar has the minimize, maximize and close buttons in a window
+	with *decorations* = _"None"_, with the close button at the outer end.
+
+	Such a tab bar is the window's title bar: it is shown even with a single
+	tab, whatever *tabs.show* says. Dragging it where there is no tab or button
+	moves the window, and double-clicking it there maximizes the window or
+	gives it its size back. With _"None"_ the tab bar is only the tab bar.
+
+	*decorations* only changes for a new window; *buttons* changes in the
+	window that is open.
+
+	Default: _"Right"_
 
 *opacity* = _<float>_
 
@@ -386,8 +402,10 @@ Unix, for shells with job control, and within about a second.
 	*{zoom}*
 		_" Z"_ while a pane of the tab is zoomed, or nothing.
 
-	The directory and the program are read from _/proc_ every second while the
-	format has them, so they are only known on Linux.
+	The directory is the one the shell reported with shell integration, or
+	else it is read from _/proc_ every second while the format has it, which
+	only works on Linux. The program is read from _/proc_ too, so it is only
+	known on Linux.
 
 	Default: _"{index}: {title}{zoom}{marker}"_
 
@@ -409,8 +427,9 @@ Unix, for shells with job control, and within about a second.
 		*Cwd*
 			The directory of the focused pane's shell. Placeholders: _{path}_,
 			with the home directory written as _~_, and _{basename}_, its last
-			part. Default format: _"{path}"_. The directory is read from
-			_/proc_, so this only shows on Linux.
+			part. Default format: _"{path}"_. The directory is the one the
+			shell reported with shell integration, or else it is read from
+			_/proc_, which only works on Linux.
 		*Battery*
 			The charge of the batteries that power the computer, together.
 			Placeholders: _{percent}_, and _{status}_ as the system gives it:
@@ -887,7 +906,8 @@ yet.
 		background and a dimmer foreground. Both have a _padding_ of _[3, 8]_.
 
 	*tab_button*
-		The new tab button and the gear.
+		The new tab button, the gear, and the window buttons of a tab bar that is
+		the title bar.
 
 		Default: like _tab\_inactive_.
 

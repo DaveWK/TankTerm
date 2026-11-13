@@ -200,7 +200,8 @@ directory instead:
 title = "{index} {process} in {cwd}{zoom}{marker}"
 ```
 
-The directory and the program are only known on Linux.
+The program is only known on Linux, and the directory on Linux and with
+[shell integration](#shell-integration).
 
 ### Status segments
 
@@ -229,8 +230,9 @@ format = "%a %H:%M"
 style = { foreground = "#000000", background = "#00ff00" }
 ```
 
-Without a `[[tabs.status]]` table, only the key table is shown. The directory
-and the battery are only known on Linux.
+Without a `[[tabs.status]]` table, only the key table is shown. The battery is
+only known on Linux, and the directory on Linux and with
+[shell integration](#shell-integration).
 
 ### Tab bar styles
 
@@ -240,7 +242,7 @@ and `border_foreground`:
 
 - `tab_bar`: the bar itself.
 - `tab_active` and `tab_inactive`: the shown tab and the others.
-- `tab_button`: the `+` button and the gear.
+- `tab_button`: the `+` button, the gear and the window buttons.
 - `tab_hovered`, `tab_activity` and `tab_attention`: changes to a tab under the
   mouse, a tab marked with `*` and a tab marked with `!`.
 - `tab_status`: the status segments.
@@ -268,6 +270,24 @@ border_foreground = "#3a3a4a"
 [style.tab_hovered]
 border_foreground = "#00ff00"
 ```
+
+### The tab bar as title bar
+
+With `decorations = "None"` in the `[window]` section the window has no title
+bar of its own, and the tab bar takes its place. It is shown even with a single
+tab and has minimize, maximize and close buttons, at the right end or, with
+`buttons = "Left"`, at the left end. Dragging the bar where there is no tab or
+button moves the window, and double-clicking it there maximizes the window.
+`buttons = "None"` leaves the tab bar as it is, for window managers that move
+windows on their own.
+
+```toml
+[window]
+decorations = "None"
+buttons = "Right"
+```
+
+The buttons are drawn with the `tab_button` and `tab_hovered` styles.
 
 [tankTerm(5) manpage]: ../extra/man/tankTerm.5.scd
 [tankTerm-bindings(5) manpage]: ../extra/man/tankTerm-bindings.5.scd

@@ -57,6 +57,8 @@ pub(super) fn app_from(
         },
         tabs: config.tabs.clone(),
         status: crate::app::status::segments(&config),
+        frameless: config.window.decorations == crate::config::window::Decorations::None,
+        window_buttons: config.window.buttons,
         hotkeys,
         config_file: None,
         session_file,
@@ -1488,4 +1490,27 @@ fn leader_key_is_left_to_the_shell_without_leader_bindings() {
     let (actions, written) = type_keys(&app, &[ctrl("a"), key("c")]);
     assert_eq!(actions, []);
     assert_eq!(written, b"\x01c");
+}
+
+#[test]
+fn tabs_share_the_bar_evenly_up_to_the_widest_tab() {
+    // Where the button after the tabs starts, in a window 800 wide.
+    let new_tab_button = |app: &App| {
+        let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
+        let plus = ui.find("+").unwrap();
+        iced_test::selector::Bounded::visible_bounds(&plus).unwrap().x
+    };
+
+    // A few tabs are as wide as a tab gets, and leave the rest of the bar empty.
+    let mut app = app_with("[tabs]\nshow = \"Always\"\n", Hotkeys::default());
+    let one = new_tab_button(&app);
+    assert!((MAX_TAB_WIDTH..MAX_TAB_WIDTH + 20.).contains(&one), "{one}");
+    perform(&mut app, &[AppAction::NewTab]);
+    let two = new_tab_button(&app);
+    assert!((two - one - MAX_TAB_WIDTH).abs() < 2., "{one} {two}");
+
+    // Many share the bar, and the button stays in it.
+    perform(&mut app, &vec![AppAction::NewTab; 10]);
+    let crowded = new_tab_button(&app);
+    assert!((600. ..800.).contains(&crowded), "{crowded}");
 }

@@ -42,6 +42,8 @@ fn tabs_and_panes() {
         },
         tabs: config.tabs.clone(),
         status: crate::app::status::segments(&config),
+        frameless: config.window.decorations == crate::config::window::Decorations::None,
+        window_buttons: config.window.buttons,
         hotkeys: Hotkeys::from_config(&config),
         config_file: None,
         session_file: None,
@@ -561,4 +563,30 @@ fn tab_title_formats() {
     }
 
     snapshot(&app, window, &dir, "tab-title-format");
+}
+
+#[test]
+#[ignore = "writes screenshots for manual inspection"]
+fn window_buttons() {
+    let Some(dir) = env::var_os("TANKTERM_SNAPSHOT_DIR").map(PathBuf::from) else { return };
+    let window = Size::new(900., 120.);
+
+    // A window without the system's title bar, with one tab: the tab bar is shown anyway, with
+    // the window's buttons. The mouse is over the close button in the `-hovered` picture.
+    let shot = |name: &str, config: &str, close: f32| {
+        let config = format!("[window]\ndecorations = \"None\"\n{config}");
+        let mut app = super::tab_tests::app_with(&config, Hotkeys::default());
+        settle(&mut app, window);
+        snapshot(&app, window, &dir, name);
+
+        let mut ui = Simulator::with_size(Default::default(), window, app.view());
+        let tab = ui.find("1: test").unwrap();
+        let y = iced_test::selector::Bounded::visible_bounds(&tab).unwrap().center_y();
+        ui.point_at((close, y));
+        let hovered = ui.snapshot(&Theme::Dark).unwrap();
+        assert!(hovered.matches_image(dir.join(format!("{name}-hovered"))).unwrap());
+    };
+
+    shot("window-buttons-right", "", window.width - 4.);
+    shot("window-buttons-left", "buttons = \"Left\"\n", 4.);
 }

@@ -14,8 +14,11 @@ use iced_tterm::settings::Settings;
 use iced_tterm::{AlacrittyEvent, BackendCommand, TermMode, TerminalView};
 use log::{debug, error, warn};
 
-use super::actions::zoomed;
-use super::{App, AppOptions, Message, PROCESS_INTERVAL, PendingPaste, process_name};
+use super::actions::{toggle_maximized, zoomed};
+use super::{
+    App, AppOptions, DRAG_THRESHOLD, Message, PROCESS_INTERVAL, PendingPaste, TitleDrag,
+    process_name,
+};
 use crate::config::tabs::SegmentKind;
 use crate::hotkeys::Hotkeys;
 use crate::palette::{self, Palette};
@@ -32,6 +35,8 @@ impl App {
         let mut app = Self {
             // A window that starts opaque stays opaque, see `opacity`.
             transparent: options.opacity < 1.,
+            frameless: options.frameless,
+            title_drag: TitleDrag::default(),
             options,
             settings,
             tabs: Vec::new(),
@@ -343,6 +348,24 @@ impl App {
         Subscription::batch(subscriptions.chain(socket))
     }
 
+    /// The mouse moved over the tab bar with the button down: once it has moved far enough,
+    /// the window manager moves the window with the mouse until the button is released.
+    fn drag_window(&mut self, position: iced::Point) -> Task<Message> {
+        match self.title_drag {
+            TitleDrag::Released => Task::none(),
+            TitleDrag::Pressed => {
+                self.title_drag = TitleDrag::Moved(position);
+                Task::none()
+            },
+            TitleDrag::Moved(from) if from.distance(position) < DRAG_THRESHOLD => Task::none(),
+            TitleDrag::Moved(_) => {
+                // The window manager has the mouse now, and iced doesn't hear the release.
+                self.title_drag = TitleDrag::Released;
+                window::latest().and_then(window::drag)
+            },
+        }
+    }
+
     /// Whether the visual bell flashes for a terminal.
     pub(super) fn is_flashing(&self) -> bool {
         self.terminals.values().any(|shell| shell.rang.is_some())
@@ -460,6 +483,19 @@ impl App {
                 self.sample_status();
 
                 Task::batch(finished.into_iter().map(|id| self.notify(id)))
+            },
+            Message::TitleBarPressed => {
+                self.title_drag = TitleDrag::Pressed;
+                Task::none()
+            },
+            Message::TitleBarMoved(position) => self.drag_window(position),
+            Message::TitleBarReleased => {
+                self.title_drag = TitleDrag::Released;
+                Task::none()
+            },
+            Message::TitleBarDoubleClicked => {
+                self.title_drag = TitleDrag::Released;
+                toggle_maximized()
             },
             Message::ConfigChanged => {
                 self.reload_config();

@@ -16,6 +16,7 @@ use iced_tterm::settings::Settings;
 use crate::bell::Bell;
 use crate::config::style::TabBarStyles;
 use crate::config::tabs::Tabs;
+use crate::config::window::WindowButtons;
 use crate::hotkeys::{ActiveTable, AppAction, Hotkeys, PaneSelectMode};
 use crate::palette::Palette;
 use crate::session::Session;
@@ -37,6 +38,7 @@ mod reload_tests;
 #[cfg(all(test, unix))]
 mod render_tests;
 pub mod status;
+mod tab_strip;
 #[cfg(all(test, unix))]
 mod tab_tests;
 mod tabs;
@@ -54,6 +56,9 @@ const RESIZE_LIMITS: (f32, f32) = (0.1, 0.9);
 
 /// Widest a tab gets in the tab bar, in logical pixels.
 const MAX_TAB_WIDTH: f32 = 240.;
+
+/// How far the mouse moves with the button down on the tab bar before the window moves.
+const DRAG_THRESHOLD: f32 = 4.;
 
 /// How often the shells are looked at for finished commands and changed directories.
 const PROCESS_INTERVAL: Duration = Duration::from_secs(1);
@@ -76,6 +81,14 @@ pub enum Message {
     PaletteSubmit,
     /// Run the item at this position among the matching ones.
     PaletteChoose(usize),
+    /// The left button was pressed on empty space of the tab bar.
+    TitleBarPressed,
+    /// The mouse moved over the tab bar, to this position in it, with the button pressed.
+    TitleBarMoved(iced::Point),
+    /// The left button was released, or the mouse left the tab bar.
+    TitleBarReleased,
+    /// Empty space of the tab bar was double-clicked.
+    TitleBarDoubleClicked,
     /// Time to look at the shells again.
     Tick,
     /// A frame is about to be drawn while a visual bell flashes.
@@ -97,6 +110,10 @@ pub struct AppOptions {
     pub tabs: Tabs,
     /// The segments at the end of the tab bar.
     pub status: Vec<status::Segment>,
+    /// Whether the window was opened without the system's title bar and borders.
+    pub frameless: bool,
+    /// Where the tab bar has the window's buttons in a frameless window.
+    pub window_buttons: WindowButtons,
     pub hotkeys: Hotkeys,
     /// The configuration file, or where a new one goes, for `OpenConfig`.
     pub config_file: Option<PathBuf>,
@@ -165,6 +182,11 @@ pub struct App {
     config: Option<ConfigSource>,
     /// Whether the window was opened transparent, which it is for the rest of its life.
     transparent: bool,
+    /// Whether the window was opened without the system's title bar, which it is for the rest
+    /// of its life.
+    frameless: bool,
+    /// The left button was pressed on empty space of the tab bar, while it is the title bar.
+    title_drag: TitleDrag,
     /// The socket `tankTerm msg` talks to, while there is one.
     #[cfg(unix)]
     socket: Option<crate::ipc::Listener>,
@@ -172,6 +194,18 @@ pub struct App {
     now: Option<jiff::Zoned>,
     /// The batteries at the last tick, while a battery segment shows them.
     battery: Option<status::Battery>,
+}
+
+/// Dragging the window by the tab bar. The window moves once the mouse has moved a few
+/// pixels with the button down, so a double click doesn't start a move.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+enum TitleDrag {
+    #[default]
+    Released,
+    /// Pressed, before the mouse moved.
+    Pressed,
+    /// Pressed, and the mouse was here when it first moved.
+    Moved(iced::Point),
 }
 
 /// Choosing a pane of a tab by typing its label.

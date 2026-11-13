@@ -70,6 +70,9 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 - Status segments at the end of the tab bar, as `[[tabs.status]]` tables: the active key table,
     a clock with a strftime format, the focused pane's directory and the battery charge, each
     with a `{placeholder}` format and a style on top of `[style.tab_status]`
+- With `window.decorations = "None"` the tab bar is the title bar: it is always shown, has
+    minimize, maximize and close buttons on the side `window.buttons` gives (`Right`, `Left`,
+    `None`), moves the window when dragged and maximizes it when double-clicked
 - `window.padding` accepts Lip Gloss/CSS shorthand in terminal cells, like `[1, 2]`, including
     different padding on every side
 - `tankTerm msg` commands for tabs and panes, following `wezterm cli`: `list`, `spawn`,
