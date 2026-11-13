@@ -1,13 +1,14 @@
-# Checks for pushes to main and for pull requests, on GitHub-hosted runners: rustfmt, Clippy on
-# the minimum supported Rust version, stable and Windows, the tests, the man pages and
-# shellcheck, plus a build on macOS and Windows.
+# Checks for pushes to main and for pull requests: rustfmt, Clippy on the minimum supported Rust
+# version, stable and Windows, the tests, the man pages and shellcheck, plus a build on macOS and
+# Windows.
 #
 # The private Forgejo runs a smaller set of these in .forgejo/workflows/ci.yml.
 #
-# Toolchains come from the rustup on the runner image, chosen per job with RUSTUP_TOOLCHAIN.
-# The Linux build needs no system libraries: winit loads Wayland, X11 and xkbcommon at run time,
-# and text goes through cosmic-text. The headless iced_test tests fall back to the tiny-skia
-# software renderer when wgpu finds no GPU.
+# The Linux jobs run in a Fedora 45 container on GitHub-hosted runners. Each one installs git
+# (actions/checkout needs it for a full clone) and rustup with dnf, then the toolchain it needs,
+# chosen with RUSTUP_TOOLCHAIN. The build needs no system libraries: winit loads Wayland, X11 and
+# xkbcommon at run time, and text goes through cosmic-text. The headless iced_test tests fall
+# back to the tiny-skia software renderer when wgpu finds no GPU.
 name: CI
 
 on:
@@ -31,13 +32,21 @@ env:
   MSRV: 1.95.0
   # The rustfmt options in rustfmt.toml need a nightly toolchain.
   RUSTFMT_TOOLCHAIN: nightly-2026-09-08
+  DNF_INSTALL: dnf install -y --setopt=install_weak_deps=False
 
 jobs:
   fmt:
     name: Rustfmt
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    container: registry.fedoraproject.org/fedora:45
+    timeout-minutes: 15
     steps:
+      - name: Install packages
+        run: |
+          $DNF_INSTALL git-core rustup
+          rustup-init -y --profile minimal --default-toolchain none --no-modify-path
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -52,6 +61,7 @@ jobs:
   clippy:
     name: Clippy (${{ matrix.name }})
     runs-on: ubuntu-latest
+    container: registry.fedoraproject.org/fedora:45
     timeout-minutes: 45
     strategy:
       fail-fast: false
@@ -68,6 +78,12 @@ jobs:
             args: -p tankterm -p iced_tterm --all-targets --target x86_64-pc-windows-msvc
             target: x86_64-pc-windows-msvc
     steps:
+      - name: Install packages
+        run: |
+          $DNF_INSTALL git-core gcc rustup
+          rustup-init -y --profile minimal --default-toolchain none --no-modify-path
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -99,8 +115,15 @@ jobs:
   test:
     name: Tests
     runs-on: ubuntu-latest
+    container: registry.fedoraproject.org/fedora:45
     timeout-minutes: 45
     steps:
+      - name: Install packages
+        run: |
+          $DNF_INSTALL git-core gcc rustup
+          rustup-init -y --profile minimal --default-toolchain none --no-modify-path
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -123,17 +146,16 @@ jobs:
   docs:
     name: Man pages and shellcheck
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    container: registry.fedoraproject.org/fedora:45
+    timeout-minutes: 15
     steps:
+      - name: Install packages
+        run: $DNF_INSTALL git-core scdoc ShellCheck
+
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-
-      - name: Install scdoc and shellcheck
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends scdoc shellcheck
 
       - name: Build the man pages
         run: |
