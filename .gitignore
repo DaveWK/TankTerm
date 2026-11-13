@@ -1,1 +1,4 @@
 target
+
+# Worktrees and other local state of Claude Code
+/.claude/

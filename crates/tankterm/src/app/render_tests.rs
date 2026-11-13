@@ -169,6 +169,76 @@ fn box_drawing() {
     snapshot(&app, window, &dir, "box-drawing-font");
 }
 
+/// The picture at the top of the README: real commands in tabs and split panes.
+///
+/// Needs `bash`, `bat`, `git` and `tree`. Run with
+/// `TANKTERM_SNAPSHOT_DIR=<dir> cargo test -p tankterm readme_screenshot -- --ignored`, then copy
+/// `<dir>/readme-wgpu.png` to `extra/promo/tankterm-readme.png`.
+#[test]
+#[ignore = "writes the README screenshot"]
+fn readme_screenshot() {
+    let Some(dir) = env::var_os("TANKTERM_SNAPSHOT_DIR").map(PathBuf::from) else { return };
+    let window = Size::new(1100., 560.);
+    let repo =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap();
+
+    // A fixed prompt, so no user or host name ends up in the picture, and tool options in the
+    // environment, so the commands typed stay short.
+    let config = format!(
+        r#"
+        [general]
+        working_directory = '{}'
+        [terminal]
+        shell = {{ program = "bash", args = ["--norc", "--noprofile", "-i"] }}
+        [env]
+        PS1 = '\[\e[1;32m\]tank\[\e[0m\]:\[\e[1;36m\]~/tankterm\[\e[0m\]$ '
+        COLORTERM = "truecolor"
+        TERM = "xterm-256color"
+        BAT_PAGING = "never"
+        BAT_STYLE = "numbers,header"
+        GIT_PAGER = "cat"
+        GIT_CONFIG_COUNT = "1"
+        GIT_CONFIG_KEY_0 = "alias.lg"
+        GIT_CONFIG_VALUE_0 = "log --graph --color=always --format='%C(yellow)%h%C(reset) %<(42,trunc)%s'"
+        [tabs]
+        show = "Always"
+        inherit_working_directory = false
+        "#,
+        repo.display()
+    );
+    let mut app = super::tab_tests::app_with(&config, Hotkeys::default());
+    app.options.title = "TankTerm".into();
+    for action in [
+        AppAction::Split(Axis::Vertical),
+        AppAction::Split(Axis::Horizontal),
+        AppAction::NewTab,
+        AppAction::NewTab,
+        AppAction::SelectTab(0),
+    ] {
+        let _ = app.update(Message::Action(action));
+    }
+    settle(&mut app, window);
+
+    let commands =
+        ["bat -r 5:27 extra/themes/charm.toml", "git lg -10 main", "tree -C -L 1 crates"];
+    let write = |app: &mut App, id: usize, text: &str| {
+        let write = BackendCommand::Write(text.as_bytes().to_vec());
+        let _ = app.update(Message::Terminal(iced_tterm::Event::BackendCall(id as u64, write)));
+    };
+    for (id, command) in commands.into_iter().enumerate() {
+        // Typed once the prompt is there, as someone would.
+        super::tab_tests::wait_for_text(&app, id as u64, "tankterm$");
+        write(&mut app, id, &format!("{command}\n"));
+    }
+
+    thread::sleep(Duration::from_secs(2));
+    for id in 0..app.next_terminal {
+        let wakeup = BackendCommand::ProcessAlacrittyEvent(AlacrittyEvent::Wakeup);
+        let _ = app.update(Message::Terminal(iced_tterm::Event::BackendCall(id, wakeup)));
+    }
+    snapshot(&app, window, &dir, "readme");
+}
+
 /// Lay the terminals out so they get their size, then let them show what their shells printed.
 fn settle(app: &mut App, window: Size) {
     let resizes: Vec<_> = {
