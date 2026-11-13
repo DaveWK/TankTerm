@@ -8,7 +8,7 @@ Approved and waiting their turn, in this order.
 2. Config options the iced front end ignores:
    - Port next: `[style.blurred]`, which needs the widget to know whether the window has focus,
      not only the pane.
-   - Port later, low priority: `window.blur`, `window.resize_increments`,
+   - Port later, low priority: `window.resize_increments`,
      `window.dynamic_padding`, `window.option_as_alt`, and `font.builtin_box_drawing` (the
      built-in font for box drawing, block and powerline characters, which needs drawing of its
      own in `iced_tterm`).

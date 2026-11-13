@@ -221,6 +221,8 @@ fn window_settings(config: &UiConfig, options: &Options, size: Option<Size>) -> 
         },
         // Only a transparent window shows what is behind a background that isn't opaque.
         transparent: config.window_opacity() < 1.,
+        // The compositor blurs what shows through a transparent window, where it supports blur.
+        blur: window.blur,
         #[cfg(all(feature = "x11", not(any(target_os = "macos", windows))))]
         icon: window_icon(),
         #[cfg(not(any(target_os = "macos", windows)))]
@@ -288,6 +290,18 @@ mod tests {
         assert!(settings.decorations);
         assert_eq!(settings.level, window::Level::Normal);
         assert!(!settings.transparent);
+        assert!(!settings.blur);
+    }
+
+    #[test]
+    fn window_requests_blur_when_configured() {
+        let blur = |value: &str| {
+            let config = config(&format!("[window]\nblur = {value}\n"));
+            window_settings(&config, &options(&[]), None).blur
+        };
+
+        assert!(blur("true"));
+        assert!(!blur("false"));
     }
 
     #[test]

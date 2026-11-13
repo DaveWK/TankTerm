@@ -214,7 +214,8 @@ This section documents the *[window]* table of the configuration file.
 
 *blur* = _true_ | _false_ # _(works on macOS/KDE Wayland)_
 
-	Request compositor to blur content behind transparent windows.
+	Request compositor to blur content behind transparent windows. The blur is
+	chosen when the window opens, so a change needs a restart.
 
 	Default: _false_
 
