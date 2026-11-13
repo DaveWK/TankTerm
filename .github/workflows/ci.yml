@@ -1,0 +1,173 @@
+# Checks for pushes to main and for pull requests, on GitHub-hosted runners: rustfmt, Clippy on
+# the minimum supported Rust version, stable and Windows, the tests, the man pages and
+# shellcheck, plus a build on macOS and Windows.
+#
+# The private Forgejo runs a smaller set of these in .forgejo/workflows/ci.yml.
+#
+# Toolchains come from the rustup on the runner image, chosen per job with RUSTUP_TOOLCHAIN.
+# The Linux build needs no system libraries: winit loads Wayland, X11 and xkbcommon at run time,
+# and text goes through cosmic-text. The headless iced_test tests fall back to the tiny-skia
+# software renderer when wgpu finds no GPU.
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  # Keep in step with rust-version in Cargo.toml.
+  MSRV: 1.95.0
+  # The rustfmt options in rustfmt.toml need a nightly toolchain.
+  RUSTFMT_TOOLCHAIN: nightly-2026-09-08
+
+jobs:
+  fmt:
+    name: Rustfmt
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install the toolchain
+        run: rustup toolchain install "$RUSTFMT_TOOLCHAIN" --profile minimal --component rustfmt
+
+      - name: Check formatting
+        run: cargo "+${RUSTFMT_TOOLCHAIN}" fmt --all -- --check
+
+  clippy:
+    name: Clippy (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: MSRV
+            toolchain: msrv
+            args: --workspace --all-targets
+          - name: stable
+            toolchain: stable
+            args: --workspace --all-targets
+          - name: Windows
+            toolchain: msrv
+            args: -p tankterm -p iced_tterm --all-targets --target x86_64-pc-windows-msvc
+            target: x86_64-pc-windows-msvc
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install the toolchain
+        env:
+          TOOLCHAIN: ${{ matrix.toolchain }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          if [ "$TOOLCHAIN" = msrv ]; then TOOLCHAIN="$MSRV"; fi
+          rustup toolchain install "$TOOLCHAIN" --profile minimal --component clippy
+          if [ -n "$TARGET" ]; then rustup target add --toolchain "$TOOLCHAIN" "$TARGET"; fi
+          echo "RUSTUP_TOOLCHAIN=$TOOLCHAIN" >> "$GITHUB_ENV"
+
+      - name: Cache the build
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: clippy-${{ matrix.name }}
+
+      - name: Run Clippy
+        env:
+          ARGS: ${{ matrix.args }}
+        run: |
+          # ARGS is split into words on purpose.
+          # shellcheck disable=SC2086
+          cargo clippy --locked $ARGS -- -D warnings
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install the toolchain
+        run: |
+          rustup toolchain install "$MSRV" --profile minimal
+          echo "RUSTUP_TOOLCHAIN=$MSRV" >> "$GITHUB_ENV"
+
+      - name: Cache the build
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+
+      - name: Run the tests
+        run: cargo test --workspace --locked
+
+      - name: Run the tankterm_terminal tests without default features
+        run: cargo test -p tankterm_terminal --no-default-features --locked
+
+  docs:
+    name: Man pages and shellcheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install scdoc and shellcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends scdoc shellcheck
+
+      - name: Build the man pages
+        run: |
+          for f in extra/man/*.scd; do
+            extra/man/scdoc.sh "$f" > /dev/null
+          done
+
+      - name: Run shellcheck
+        run: git ls-files -z '*.sh' '*.bash' | xargs -0 shellcheck
+
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-latest
+          - windows-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install the toolchain
+        shell: bash
+        run: |
+          rustup toolchain install "$MSRV" --profile minimal
+          echo "RUSTUP_TOOLCHAIN=$MSRV" >> "$GITHUB_ENV"
+
+      - name: Cache the build
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+
+      - name: Build
+        run: cargo build --locked
