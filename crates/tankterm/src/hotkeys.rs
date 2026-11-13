@@ -35,6 +35,10 @@ pub enum ScrollTo {
     LineDown,
     Top,
     Bottom,
+    /// The prompt before the top of the view, where the shell marks its prompts.
+    PreviousPrompt,
+    /// The prompt after the top of the view.
+    NextPrompt,
 }
 
 /// What choosing a pane by its label does.
@@ -115,6 +119,9 @@ pub enum AppAction {
     Scroll(ScrollTo),
     /// Drop the scrollback buffer of the focused terminal.
     ClearHistory,
+    /// Select the output of a command in the focused terminal, where the shell marks its
+    /// commands.
+    SelectCommandOutput,
     ToggleFullscreen,
     ToggleMaximized,
     /// Put the text selected in the focused terminal on the selection clipboard.
@@ -194,6 +201,9 @@ impl AppAction {
             Action::ScrollLineDown => Self::Scroll(ScrollTo::LineDown),
             Action::ScrollToTop => Self::Scroll(ScrollTo::Top),
             Action::ScrollToBottom => Self::Scroll(ScrollTo::Bottom),
+            Action::ScrollToPreviousPrompt => Self::Scroll(ScrollTo::PreviousPrompt),
+            Action::ScrollToNextPrompt => Self::Scroll(ScrollTo::NextPrompt),
+            Action::SelectCommandOutput => Self::SelectCommandOutput,
             Action::ClearHistory => Self::ClearHistory,
             Action::ToggleFullscreen => Self::ToggleFullscreen,
             Action::ToggleMaximized => Self::ToggleMaximized,

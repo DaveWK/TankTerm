@@ -101,9 +101,10 @@ split tab is framed. Dividers are dragged with the mouse or moved with
 <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>Z</kbd> zooms the current pane to fill
 the tab until it is pressed again.
 
-On Linux, new tabs and panes start in the directory the shell of the current
-pane is in, unless `inherit_working_directory = false` is set in the `[tabs]`
-section. With `restore = true` there, TankTerm opens the tabs and panes of the
+New tabs and panes start in the directory the shell of the current pane is in,
+unless `inherit_working_directory = false` is set in the `[tabs]` section. A
+shell with [shell integration](#shell-integration) reports its directory on
+every platform; without it TankTerm only finds the directory on Linux. With `restore = true` there, TankTerm opens the tabs and panes of the
 last window again when it starts, in the directories their shells were in; the
 shells themselves are started fresh.
 
@@ -179,12 +180,49 @@ aren't bound in a table keep working as usual, unless the table sets
 Tabs that aren't shown are marked with `*` in the tab bar when they print
 something. A terminal that rings the bell or finishes a command while it isn't
 looked at marks its tab with `!` and gets a bright frame, and the desktop is
-asked to draw attention to the window if that doesn't have focus. Finished
-commands are noticed without shell integration, by watching which process has
-the terminal; this works on Unix with shells that have job control.
+asked to draw attention to the window if that doesn't have focus. A shell with
+[shell integration](#shell-integration) says when its commands finish. Without
+it, TankTerm watches which process has the terminal, which works on Unix with
+shells that have job control.
 
 [tankTerm(5) manpage]: ../extra/man/tankTerm.5.scd
 [tankTerm-bindings(5) manpage]: ../extra/man/tankTerm-bindings.5.scd
+
+## Shell Integration
+
+Shells can tell TankTerm where their prompts, command lines and command output
+are (OSC 133) and which directory they are in (OSC 7). The `extra/shell-integration`
+folder has scripts that do this for bash, zsh and fish; source the one for your
+shell at the end of its startup file, after anything else that sets the prompt:
+
+```sh
+source /path/to/tankterm.bash   # in ~/.bashrc
+source /path/to/tankterm.zsh    # in ~/.zshrc
+source /path/to/tankterm.fish   # in ~/.config/fish/config.fish
+```
+
+Shells that send these sequences themselves need nothing more. With them:
+
+- A mark at the left edge shows where every prompt starts. It turns red when
+  the command typed at that prompt fails.
+- `ScrollToPreviousPrompt` and `ScrollToNextPrompt` scroll the next prompt up
+  or down to the top of the terminal.
+- `SelectCommandOutput` selects the output of the command whose prompt is at
+  the top of the terminal, or of the last command while the terminal is
+  scrolled to the bottom, and puts it on the selection clipboard.
+- Finished commands are noticed on every platform, and new tabs and panes start
+  in the shell's directory, also in nested shells.
+
+The three actions are in the command palette and have no keys by default; bind
+them in the `[keyboard]` section:
+
+```toml
+[keyboard]
+bindings = [
+  { key = "ArrowUp", mods = "Shift", action = "ScrollToPreviousPrompt" },
+  { key = "ArrowDown", mods = "Shift", action = "ScrollToNextPrompt" },
+]
+```
 
 ## Copying and Pasting
 

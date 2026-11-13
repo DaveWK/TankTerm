@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::fmt::{self, Debug, Formatter};
+use std::path::PathBuf;
 use std::process::ExitStatus;
 use std::sync::Arc;
 
@@ -56,6 +57,16 @@ pub enum Event {
 
     /// Child process exited.
     ChildExit(ExitStatus),
+
+    /// The shell reported the directory it is in (OSC 7), on this computer.
+    WorkingDirectory(PathBuf),
+
+    /// The shell started a command (OSC 133 `C`).
+    CommandStarted,
+
+    /// The command the shell started finished (OSC 133 `D`, or the next prompt), with its exit
+    /// status if the shell reported it.
+    CommandFinished(Option<i32>),
 }
 
 impl Debug for Event {
@@ -74,6 +85,9 @@ impl Debug for Event {
             Event::Bell => write!(f, "Bell"),
             Event::Exit => write!(f, "Exit"),
             Event::ChildExit(status) => write!(f, "ChildExit({status:?})"),
+            Event::WorkingDirectory(path) => write!(f, "WorkingDirectory({})", path.display()),
+            Event::CommandStarted => write!(f, "CommandStarted"),
+            Event::CommandFinished(status) => write!(f, "CommandFinished({status:?})"),
         }
     }
 }

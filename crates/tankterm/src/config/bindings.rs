@@ -169,6 +169,16 @@ pub enum Action {
     /// Scroll all the way to the bottom.
     ScrollToBottom,
 
+    /// Scroll the prompt before the top of the view to the top, where the shell marks its
+    /// prompts.
+    ScrollToPreviousPrompt,
+
+    /// Scroll the prompt after the top of the view to the top, or to the bottom.
+    ScrollToNextPrompt,
+
+    /// Select the output of the command at the top of the view, or of the last command.
+    SelectCommandOutput,
+
     /// Clear the display buffer(s) to remove history.
     ClearHistory,
 

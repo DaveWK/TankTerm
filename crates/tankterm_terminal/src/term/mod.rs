@@ -17,7 +17,7 @@ use crate::event::{Event, EventListener};
 use crate::grid::{Dimensions, Grid, GridIterator, Scroll};
 use crate::index::{self, Boundary, Column, Direction, Line, Point, Side};
 use crate::selection::{Selection, SelectionRange, SelectionType};
-use crate::term::cell::{Cell, Flags, LineLength};
+use crate::term::cell::{Cell, Flags, LineLength, Zone};
 use crate::term::color::Colors;
 use crate::vi_mode::{ViModeCursor, ViMotion};
 use crate::vte::ansi::{
@@ -29,6 +29,7 @@ use crate::vte::ansi::{
 pub mod cell;
 pub mod color;
 pub mod search;
+pub mod shell_integration;
 
 /// Minimum number of columns.
 ///
@@ -344,6 +345,9 @@ pub struct Term<T> {
 
     /// Config directly for the terminal.
     config: Config,
+
+    /// What the shell marked with OSC 133 and OSC 7.
+    shell: shell_integration::ShellState,
 }
 
 /// Configuration options for the [`Term`].
@@ -492,6 +496,7 @@ impl<T> Term<T> {
             selection: Default::default(),
             title: Default::default(),
             mode: Default::default(),
+            shell: Default::default(),
         }
     }
 
@@ -1038,6 +1043,11 @@ impl<T> Term<T> {
         let bg = self.grid.cursor.template.bg;
         let flags = self.grid.cursor.template.flags;
         let extra = self.grid.cursor.template.extra.clone();
+        let zone = self.shell.zone;
+        // Only the first cell of a prompt marks where it starts.
+        if let Zone::PromptStart(_) = zone {
+            self.shell.zone = Zone::Prompt;
+        }
 
         let mut cursor_cell = self.grid.cursor_cell();
 
@@ -1066,6 +1076,11 @@ impl<T> Term<T> {
         cursor_cell.bg = bg;
         cursor_cell.flags = flags;
         cursor_cell.extra = extra;
+        // A prompt drawn again without a new mark, as shells do when the window is resized,
+        // still starts where it did.
+        if zone != Zone::Prompt || !matches!(cursor_cell.zone, Zone::PromptStart(_)) {
+            cursor_cell.zone = zone;
+        }
     }
 
     #[inline]
@@ -1898,6 +1913,7 @@ impl<T: EventListener> Handler for Term<T> {
         self.vi_mode_cursor = Default::default();
         self.keyboard_mode_stack = Default::default();
         self.inactive_keyboard_mode_stack = Default::default();
+        self.shell = Default::default();
 
         // Preserve vi mode across resets.
         self.mode &= TermMode::VI;

@@ -990,6 +990,62 @@ fn finished_commands_are_noticed_with_the_output_that_follows_them() {
     assert!(!app.terminals[&0].busy && app.terminals[&0].attention);
 }
 
+/// An event of a terminal, as the application is told about it.
+fn terminal_event(terminal: u64, event: AlacrittyEvent) -> Message {
+    let event = BackendCommand::ProcessAlacrittyEvent(event);
+    Message::Terminal(iced_tterm::Event::BackendCall(terminal, event))
+}
+
+#[cfg(unix)]
+#[test]
+fn commands_the_shell_marks_are_noticed_without_watching_its_process() {
+    let mut app = app_with(INTERACTIVE_SHELL, Hotkeys::default());
+    perform(&mut app, &[AppAction::NewTab]);
+
+    let _ = app.update(terminal_event(0, AlacrittyEvent::CommandStarted));
+    assert!(app.terminals[&0].busy && !app.terminals[&0].attention);
+
+    // The shell has the terminal, which would end the command if its process was watched.
+    let _ = app.update(wakeup(0));
+    let _ = app.update(Message::Tick);
+    assert!(app.terminals[&0].busy && !app.terminals[&0].attention);
+
+    let _ = app.update(terminal_event(0, AlacrittyEvent::CommandFinished(Some(1))));
+    assert!(!app.terminals[&0].busy && app.terminals[&0].attention);
+
+    // Commands the shell doesn't mark aren't looked for either.
+    run(&mut app, 0, "cat");
+    let shell = &app.terminals[&0].terminal;
+    wait_until("the command never started", || {
+        shell.foreground_process_group() != shell.child_pid()
+    });
+    let _ = app.update(Message::Tick);
+    assert!(!app.terminals[&0].busy);
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn directories_the_shell_reports_come_first() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().canonicalize().unwrap();
+
+    let mut app = app_with(INTERACTIVE_SHELL, Hotkeys::default());
+    let start = self::directory(&app, 0);
+    assert_ne!(start.as_ref(), Some(&path));
+
+    let reported = AlacrittyEvent::WorkingDirectory(path.clone());
+    let _ = app.update(terminal_event(0, reported));
+    assert_eq!(app.terminals[&0].working_directory, Some(path.clone()));
+
+    perform(&mut app, &[AppAction::NewTab]);
+    assert_eq!(self::directory(&app, 1), Some(path));
+
+    // A reported directory that is gone since leaves the one the shell's process is in.
+    drop(directory);
+    perform(&mut app, &[AppAction::SelectTab(0), AppAction::NewTab]);
+    assert_eq!(self::directory(&app, 2), start);
+}
+
 /// The directory the shell of a terminal is in right now.
 #[cfg(target_os = "linux")]
 fn directory(app: &App, terminal: u64) -> Option<PathBuf> {

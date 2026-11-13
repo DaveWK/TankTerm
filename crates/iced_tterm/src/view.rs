@@ -25,6 +25,27 @@ use tankterm_terminal::selection::SelectionType;
 use tankterm_terminal::term::{cell, TermMode};
 use tankterm_terminal::vte::ansi::{self as ansi, CursorShape, NamedColor};
 
+/// The color of the mark at a prompt: red when the command typed at it
+/// failed, faint text color otherwise.
+fn prompt_mark_color(
+    theme: &crate::theme::Theme,
+    overrides: &tankterm_terminal::term::color::Colors,
+    status: cell::CommandStatus,
+) -> Color {
+    match status {
+        cell::CommandStatus::Failure => theme.get_color_with_overrides(
+            ansi::Color::Named(NamedColor::Red),
+            overrides,
+        ),
+        _ => theme
+            .get_color_with_overrides(
+                ansi::Color::Named(NamedColor::Foreground),
+                overrides,
+            )
+            .scale_alpha(0.4),
+    }
+}
+
 pub struct TerminalView<'a> {
     term: &'a Terminal,
 }
@@ -719,6 +740,8 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
             // Built-in characters' shapes go over the backgrounds and the
             // cursor, where text goes too.
             let mut builtin_glyphs: Vec<(Path, Color)> = Vec::new();
+            // Lines where a prompt starts, marked at the left edge.
+            let mut prompts: Vec<(i32, cell::CommandStatus)> = Vec::new();
 
             for indexed in content.grid.display_iter() {
                 // Compute per-cell geometry cheaply
@@ -760,6 +783,12 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                 // the block cursor and the glyph under it are drawn in
                 // these, so they contrast regardless of INVERSE/selection.
                 let (cell_fg, cell_bg) = (fg, bg);
+
+                if let cell::Zone::PromptStart(status) = indexed.cell.zone {
+                    if prompts.last().is_none_or(|(last, _)| *last != line) {
+                        prompts.push((line, status));
+                    }
+                }
 
                 // If the new line was detected,
                 // need to flush pending background rect and init the new one
@@ -964,6 +993,19 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                 frame.stroke(
                     line,
                     Stroke::default().with_width(*width).with_color(*color),
+                );
+            }
+            // Prompt marks go under the cursor, which can be on a prompt's
+            // first cell.
+            let mark_width = (cell_width * 0.15).round().max(2.);
+            for (line, status) in prompts {
+                let y = layout_offset_y
+                    + ((line as f32) + display_offset) * cell_height;
+                let color = prompt_mark_color(theme, overrides, status);
+                frame.fill_rectangle(
+                    Point::new(layout_offset_x, y),
+                    Size::new(mark_width, cell_height),
+                    color,
                 );
             }
             for (position, size, color) in cursor_rects {

@@ -8,10 +8,9 @@ Approved and waiting their turn, in this order.
 2. Config options the iced front end ignores:
    - Port later, low priority: `window.resize_increments` and `window.option_as_alt`.
 3. Vi mode, scrollback search and hints in the iced front end.
-4. Shell integration: OSC 7 working directory and OSC 133 prompt zones.
-5. Tab bar: `[style.tab_*]` blocks, tab title templates, status segments, and window buttons in
+4. Tab bar: `[style.tab_*]` blocks, tab title templates, status segments, and window buttons in
    the tab bar in place of the OS title bar.
-6. `tankTerm ssh` with terminfo negotiation; design and decisions are in the section below
+5. `tankTerm ssh` with terminfo negotiation; design and decisions are in the section below
    the deferred list.
 
 ## Deferred
@@ -23,6 +22,19 @@ Nothing below is started; each item lists what has to be decided or built first.
 `get-text --escapes`, `split-pane --cells`, `--top-level` and `--move-pane-id`,
 `activate-pane-direction`, `get-pane-direction`, `adjust-pane-size` and `move-pane-to-new-tab`;
 `create-window`, `config` and `get-config` once there is more than one window.
+
+### Rest of shell integration
+
+- Injecting the integration into bash, zsh and fish when TankTerm starts them, like Ghostty and
+  kitty, instead of having users source the scripts in `extra/shell-integration`. Decide how to
+  reach each shell's startup (`ENV`/`--rcfile`, `ZDOTDIR`, `XDG_DATA_DIRS`) and how to turn it off.
+- Default keys for `ScrollToPreviousPrompt`, `ScrollToNextPrompt` and `SelectCommandOutput`, and
+  an option to hide the prompt marks.
+- Selecting a command's output with the mouse, and clicking in a command line to move the cursor
+  there (OSC 133 `click_events`).
+- The fish script marks the prompt on the `fish_prompt` event only; a prompt fish erases and
+  draws again, such as on a resize, loses its mark until the next prompt. Wrapping `fish_prompt`
+  would fix that, if it keeps `$status` and `$pipestatus` for the prompt.
 
 ### Rest of WezTerm's key tables and pane select
 
@@ -40,7 +52,10 @@ Needs first:
 
 - Done: `tankTerm msg` with tab and pane commands and stable IDs (`TANKTERM_PANE_ID` in each
   shell's environment).
-- Shell integration (OSC 7, OSC 133, OSC 1337 user variables) for the events marked `*`.
+- Done: shell integration with OSC 7 and OSC 133, which `tankterm_terminal` reports as
+  `Event::WorkingDirectory`, `Event::CommandStarted` and `Event::CommandFinished`, for
+  `cwd-changed` and `command-finished`.
+- OSC 1337 user variables, for `user-var-changed`.
 
 Plan:
 

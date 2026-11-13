@@ -43,6 +43,39 @@ bitflags! {
     }
 }
 
+/// The part of a shell's prompt and commands a cell was written in, as the shell marked it with
+/// OSC 133. Shells without these marks leave every cell in [`Zone::None`].
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum Zone {
+    /// Not marked.
+    #[default]
+    None,
+    /// The first cell of a prompt, with how the command typed at that prompt ended.
+    PromptStart(CommandStatus),
+    /// The rest of a prompt.
+    Prompt,
+    /// The command line typed at a prompt.
+    Input,
+    /// The output of a command.
+    Output,
+}
+
+/// How the command typed at a prompt ended.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum CommandStatus {
+    /// No command ran at the prompt, or the shell didn't say how it ended.
+    #[default]
+    Unknown,
+    /// The command is running.
+    Running,
+    /// The command exited with status 0.
+    Success,
+    /// The command exited with another status.
+    Failure,
+}
+
 /// Counter for hyperlinks without explicit ID.
 static HYPERLINK_ID_SUFFIX: AtomicU32 = AtomicU32::new(0);
 
@@ -144,6 +177,9 @@ pub struct Cell {
     pub bg: Color,
     pub flags: Flags,
     pub extra: Option<Arc<CellExtra>>,
+    /// Where in the shell's prompts and commands the cell was written.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub zone: Zone,
 }
 
 impl Default for Cell {
@@ -155,6 +191,7 @@ impl Default for Cell {
             fg: Color::Named(NamedColor::Foreground),
             flags: Flags::empty(),
             extra: None,
+            zone: Zone::None,
         }
     }
 }

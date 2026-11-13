@@ -205,8 +205,14 @@ struct Shell {
     background: Color,
     /// Whether a command was running in the shell when it was last looked at.
     busy: bool,
-    /// Directory the shell was started in or was in at the last tick, where that can be told.
-    /// Only kept up to date while there is a session file to remember it in.
+    /// The shell marks where its commands start and end (OSC 133), so its process isn't
+    /// watched for that.
+    marks_commands: bool,
+    /// Directory the shell reported last (OSC 7).
+    reported_directory: Option<PathBuf>,
+    /// Directory the shell was started in, was in at the last tick or reported last, where that
+    /// can be told. Only kept up to date from ticks while there is a session file to remember
+    /// it in.
     working_directory: Option<PathBuf>,
     /// The terminal rang the bell or finished a command while nobody was looking at it.
     attention: bool,
@@ -229,6 +235,15 @@ pub struct Layout {
     pub background: Color,
     /// Text color, used for the tab bar and pane frames.
     pub foreground: Color,
+}
+
+impl Shell {
+    /// The directory the shell is in: the one it reported, if it still exists, or else the one
+    /// its process is in, where the platform has a simple way to ask.
+    fn directory(&self) -> Option<PathBuf> {
+        let reported = self.reported_directory.as_ref().filter(|directory| directory.is_dir());
+        reported.cloned().or_else(|| self.terminal.child_pid().and_then(working_directory))
+    }
 }
 
 /// The directory a process is in, where the platform has a simple way to ask.

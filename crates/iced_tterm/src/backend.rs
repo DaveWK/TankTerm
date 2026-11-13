@@ -73,6 +73,16 @@ pub enum Command {
     ScrollDisplay(Scroll),
     /// Drop the scrollback buffer, keeping what is on the screen.
     ClearHistory,
+    /// Scroll the view to put the prompt before the top of the view at
+    /// the top, where the shell marks its prompts (OSC 133).
+    ScrollToPreviousPrompt,
+    /// Scroll the view to put the prompt after the top of the view at the
+    /// top, or to the bottom.
+    ScrollToNextPrompt,
+    /// Select the output of the command whose prompt is at the top of the
+    /// view, or of the last command while the view is at the bottom, where
+    /// the shell marks its commands (OSC 133).
+    SelectCommandOutput,
     /// The cursor's blink interval passed. The widget's subscription sends
     /// this while the cursor blinks.
     BlinkCursor,
@@ -430,6 +440,15 @@ impl Backend {
             },
             Command::ClearHistory => {
                 term.clear_screen(ClearMode::Saved);
+            },
+            Command::ScrollToPreviousPrompt => {
+                term.scroll_to_prompt(Direction::Left);
+            },
+            Command::ScrollToNextPrompt => {
+                term.scroll_to_prompt(Direction::Right);
+            },
+            Command::SelectCommandOutput => {
+                term.select_command_output();
             },
             // The cursor's blinking is the widget's, not the terminal's.
             Command::BlinkCursor => {},
@@ -1658,5 +1677,132 @@ mod tests {
         // ...but doesn't block the next one.
         proxy.send_event(Event::Wakeup);
         assert!(matches!(receiver.recv().await, Some(Event::Wakeup)));
+    }
+
+    /// A terminal running `program` with `args`, and what it sends.
+    #[cfg(unix)]
+    fn backend_with_events(
+        program: &str,
+        args: &[&str],
+    ) -> (Backend, EventReceiver) {
+        let (proxy, receiver) = event_channel(100);
+        let settings = BackendSettings {
+            program: program.into(),
+            args: args.iter().map(|arg| (*arg).to_owned()).collect(),
+            ..BackendSettings::default()
+        };
+        let backend = Backend::new(
+            0,
+            proxy,
+            settings,
+            tankterm_terminal::term::ColorScheme::Dark,
+            10_000,
+            CursorStyle::default(),
+        )
+        .unwrap();
+        (backend, receiver)
+    }
+
+    /// Wait until the terminal sent `event`; returns what it sent, but
+    /// for its wakeups.
+    #[cfg(unix)]
+    fn events_until(receiver: &mut EventReceiver, event: &str) -> Vec<String> {
+        let mut events = Vec::new();
+        eventually(&format!("no {event}"), || {
+            while let Ok(event) = receiver.receiver.try_recv() {
+                if !matches!(event, Event::Wakeup | Event::MouseCursorDirty) {
+                    events.push(format!("{event:?}"));
+                }
+            }
+            events.iter().any(|sent| sent == event)
+        });
+        events
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn shell_integration_sequences_from_a_script() {
+        use tankterm_terminal::term::cell::{CommandStatus, Zone};
+
+        // Two commands, the first failing, and a prompt waiting for the
+        // next one.
+        let script = r#"
+            prompt='\033]133;A\007$ \033]133;B\007'
+            printf '\033]7;file://localhost/tmp\007'
+            printf "${prompt}false\r\n\033]133;C\007\033]133;D;1\007"
+            printf "${prompt}seq 60\r\n\033]133;C\007"
+            seq 60
+            printf '\033]133;D;0\007'
+            printf "${prompt}"
+            exec cat
+        "#;
+        let (mut backend, mut receiver) =
+            backend_with_events("/bin/sh", &["-c", script]);
+
+        let events = events_until(&mut receiver, "CommandFinished(Some(0))");
+        assert_eq!(
+            events,
+            [
+                "WorkingDirectory(/tmp)",
+                "CommandStarted",
+                "CommandFinished(Some(1))",
+                "CommandStarted",
+                "CommandFinished(Some(0))",
+            ]
+        );
+
+        // The output of the last command is selected.
+        backend.handle(Command::SelectCommandOutput);
+        let numbers: Vec<String> = (1..=60).map(|n| n.to_string()).collect();
+        assert_eq!(backend.selection(), Some(numbers.join("\n")));
+
+        // 63 lines on a screen of 50: the prompts of both commands are in
+        // the scrollback.
+        let offset = |backend: &mut Backend, command| {
+            backend.handle(command);
+            backend.sync();
+            backend.renderable_content().grid.display_offset()
+        };
+        assert_eq!(offset(&mut backend, Command::ScrollToPreviousPrompt), 12);
+        assert_eq!(offset(&mut backend, Command::ScrollToPreviousPrompt), 13);
+        assert_eq!(offset(&mut backend, Command::ScrollToPreviousPrompt), 13);
+        assert_eq!(offset(&mut backend, Command::ScrollToNextPrompt), 12);
+        assert_eq!(offset(&mut backend, Command::ScrollToNextPrompt), 0);
+
+        let grid = &backend.renderable_content().grid;
+        let zone = |line| grid[Line(line)][Column(0)].zone;
+        assert_eq!(zone(-13), Zone::PromptStart(CommandStatus::Failure));
+        assert_eq!(zone(-12), Zone::PromptStart(CommandStatus::Success));
+        assert_eq!(zone(49), Zone::PromptStart(CommandStatus::Unknown));
+    }
+
+    /// The bash integration in `extra/`, in an interactive bash.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn bash_integration_marks_commands_and_directories() {
+        let snippet = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../extra/shell-integration/tankterm.bash"
+        );
+        let (mut backend, mut receiver) =
+            backend_with_events("bash", &["--norc", "--noprofile", "-i"]);
+
+        backend.handle(Command::Write(
+            format!("HISTFILE= PS1='$ '; source {snippet}\n").into_bytes(),
+        ));
+        backend.handle(Command::Write(b"false\n".to_vec()));
+        events_until(&mut receiver, "CommandFinished(Some(1))");
+
+        // An empty command line runs nothing.
+        backend.handle(Command::Write(b"\ncd /\n".to_vec()));
+        let events = events_until(&mut receiver, "WorkingDirectory(/)");
+        assert_eq!(
+            events,
+            [
+                "CommandStarted",
+                "CommandFinished(Some(0))",
+                "WorkingDirectory(/)"
+            ]
+        );
     }
 }

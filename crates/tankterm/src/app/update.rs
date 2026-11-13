@@ -12,10 +12,10 @@ use iced_tterm::actions::Action;
 use iced_tterm::bindings::BindingAction;
 use iced_tterm::settings::Settings;
 use iced_tterm::{AlacrittyEvent, BackendCommand, TermMode, TerminalView};
-use log::{error, warn};
+use log::{debug, error, warn};
 
 use super::actions::zoomed;
-use super::{App, AppOptions, Message, PROCESS_INTERVAL, PendingPaste, working_directory};
+use super::{App, AppOptions, Message, PROCESS_INTERVAL, PendingPaste};
 use crate::hotkeys::Hotkeys;
 use crate::palette::{self, Palette};
 use crate::session::{SavedNode, SavedTab, Session, ordered_panes};
@@ -359,7 +359,7 @@ impl App {
             shell.rang = Some(Instant::now());
         }
 
-        let directory = shell.terminal.child_pid().and_then(working_directory);
+        let directory = shell.directory();
         self.options.bell.run_command(directory.as_deref());
     }
 
@@ -419,6 +419,30 @@ impl App {
                     Some(AlacrittyEvent::Bell) => {
                         self.ring(id);
                         self.notify(id)
+                    },
+                    Some(AlacrittyEvent::WorkingDirectory(directory)) => {
+                        if let Some(shell) = self.terminals.get_mut(&id) {
+                            shell.working_directory = Some(directory.clone());
+                            shell.reported_directory = Some(directory);
+                        }
+                        Task::none()
+                    },
+                    Some(AlacrittyEvent::CommandStarted) => {
+                        if let Some(shell) = self.terminals.get_mut(&id) {
+                            shell.marks_commands = true;
+                            shell.busy = true;
+                        }
+                        Task::none()
+                    },
+                    Some(AlacrittyEvent::CommandFinished(status)) => {
+                        debug!("A command in terminal {id} finished with status {status:?}");
+                        match self.terminals.get_mut(&id) {
+                            Some(shell) => {
+                                shell.busy = false;
+                                self.notify(id)
+                            },
+                            None => Task::none(),
+                        }
                     },
                     _ => Task::none(),
                 }
@@ -516,7 +540,7 @@ impl App {
 
     /// Put the text selected in a terminal on the selection clipboard, and on the regular
     /// clipboard too if the configuration asks for it.
-    fn copy_selection(&self, terminal: u64) -> Task<Message> {
+    pub(super) fn copy_selection(&self, terminal: u64) -> Task<Message> {
         let selection = self.terminals.get(&terminal).and_then(|shell| shell.terminal.selection());
         let Some(text) = selection else { return Task::none() };
 
@@ -629,9 +653,13 @@ impl App {
     /// while another process group than the shell's has the terminal.
     ///
     /// This runs with every output of the terminal, so it only asks the terminal for its
-    /// foreground process group.
+    /// foreground process group. A shell that marks its commands says when they finish.
     fn poll_process(&mut self, terminal: u64) -> bool {
         let Some(shell) = self.terminals.get_mut(&terminal) else { return false };
+        if shell.marks_commands {
+            return false;
+        }
+
         let (Some(pid), Some(foreground)) =
             (shell.terminal.child_pid(), shell.terminal.foreground_process_group())
         else {
@@ -654,7 +682,7 @@ impl App {
         }
 
         for shell in self.terminals.values_mut() {
-            if let Some(directory) = shell.terminal.child_pid().and_then(working_directory) {
+            if let Some(directory) = shell.directory() {
                 shell.working_directory = Some(directory);
             }
         }

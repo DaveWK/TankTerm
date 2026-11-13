@@ -14,10 +14,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - `Term::set_color_scheme` and `Term::report_color_scheme`, answering `CSI ? 996 n` color scheme
     queries and reporting changes to applications that enable private mode 2031
+- `parser::Parser`, `vte`'s processor plus the shell integration sequences it drops: OSC 7
+    (`Event::WorkingDirectory`) and OSC 133 prompt marks (`Event::CommandStarted`,
+    `Event::CommandFinished`)
+- `Cell::zone` records the prompt, command line or output a cell was written in;
+    `Term::scroll_to_prompt` and `Term::select_command_output` use it
 
 ### Changed
 
 - **Crate renamed from `alacritty_terminal` to `tankterm_terminal`**
+- **`Event` has the shell integration events, and `Cell` the `zone` field**
 - **Child processes receive `TANKTERM_WINDOW_ID` instead of `ALACRITTY_WINDOW_ID`**
 - Ref test recordings are written to `tankterm.recording` instead of `alacritty.recording`
 - Generated hyperlink IDs end in `_tankterm` instead of `_alacritty`
