@@ -65,6 +65,21 @@ impl<'a> TerminalView<'a> {
         false
     }
 
+    /// Where the top left corner of the grid is: the layout's, or with
+    /// dynamic padding moved to centre the grid in the layout's bounds.
+    ///
+    /// Drawing and turning mouse positions into grid points both measure
+    /// from here, so that a click lands on the cell drawn under it.
+    fn grid_origin(&self, layout: iced_graphics::core::Layout<'_>) -> Point {
+        let bounds = layout.bounds();
+        if !self.term.dynamic_padding {
+            return bounds.position();
+        }
+
+        let size = &self.term.backend.renderable_content().terminal_size;
+        bounds.position() + size.centring_offset(bounds.size())
+    }
+
     fn is_cursor_hovered_hyperlink(&self, state: &TerminalViewState) -> bool {
         let content = self.term.backend.renderable_content();
         if let Some(hyperlink_range) = &content.hovered_hyperlink {
@@ -109,7 +124,7 @@ impl<'a> TerminalView<'a> {
         &self,
         state: &mut TerminalViewState,
         clipboard: &mut dyn iced_graphics::core::Clipboard,
-        layout_position: Point,
+        grid_origin: Point,
         cursor_position: Point,
         event: &iced::mouse::Event,
     ) -> Vec<Command> {
@@ -137,7 +152,7 @@ impl<'a> TerminalView<'a> {
                             state,
                             *button,
                             cursor_position,
-                            layout_position,
+                            grid_origin,
                         ))
                     },
                     _ => (),
@@ -154,7 +169,7 @@ impl<'a> TerminalView<'a> {
                     state,
                     &terminal_mode,
                     cursor_position,
-                    layout_position,
+                    grid_origin,
                     &mut commands,
                 );
             },
@@ -167,7 +182,7 @@ impl<'a> TerminalView<'a> {
                     state,
                     self.term.backend.renderable_content(),
                     position,
-                    layout_position,
+                    grid_origin,
                     &mut commands,
                 );
             },
@@ -204,7 +219,7 @@ impl<'a> TerminalView<'a> {
         state: &mut TerminalViewState,
         terminal_mode: &TermMode,
         cursor_position: Point,
-        layout_position: Point,
+        grid_origin: Point,
         commands: &mut Vec<Command>,
     ) {
         let cmd = if terminal_mode.intersects(TermMode::MOUSE_MODE) {
@@ -229,8 +244,8 @@ impl<'a> TerminalView<'a> {
             Command::SelectStart(
                 selection_type,
                 (
-                    cursor_position.x - layout_position.x,
-                    cursor_position.y - layout_position.y,
+                    cursor_position.x - grid_origin.x,
+                    cursor_position.y - grid_origin.y,
                 ),
             )
         };
@@ -244,7 +259,7 @@ impl<'a> TerminalView<'a> {
         state: &mut TerminalViewState,
         button: mouse::Button,
         cursor_position: Point,
-        layout_position: Point,
+        grid_origin: Point,
     ) -> Command {
         let click = Click::new(cursor_position, button, state.last_click);
         let selection_type = if state.keyboard_modifiers.control() {
@@ -261,8 +276,8 @@ impl<'a> TerminalView<'a> {
         Command::ExpandSelection(
             selection_type,
             (
-                cursor_position.x - layout_position.x,
-                cursor_position.y - layout_position.y,
+                cursor_position.x - grid_origin.x,
+                cursor_position.y - grid_origin.y,
             ),
         )
     }
@@ -271,11 +286,11 @@ impl<'a> TerminalView<'a> {
         state: &mut TerminalViewState,
         terminal_content: &RenderableContent,
         position: &Point,
-        layout_position: Point,
+        grid_origin: Point,
         commands: &mut Vec<Command>,
     ) {
-        let cursor_x = position.x - layout_position.x;
-        let cursor_y = position.y - layout_position.y;
+        let cursor_x = position.x - grid_origin.x;
+        let cursor_y = position.y - grid_origin.y;
         state.mouse_position_on_grid = Backend::selection_point(
             cursor_x,
             cursor_y,
@@ -667,8 +682,9 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
         let cell_height = term_size.cell_height as f32;
         let font_size = self.term.font.size;
         let font_scale_factor = self.term.font.scale_factor;
-        let layout_offset_x = layout.position().x;
-        let layout_offset_y = layout.position().y;
+        let grid_origin = self.grid_origin(layout);
+        let layout_offset_x = grid_origin.x;
+        let layout_offset_y = grid_origin.y;
 
         let geom = self.term.cache.draw(renderer, viewport.size(), |frame| {
             // Precompute constants used in the inner loop
@@ -981,7 +997,7 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                 .handle_mouse_event(
                     state,
                     clipboard,
-                    layout.position(),
+                    self.grid_origin(layout),
                     cursor.position().unwrap(),
                     mouse_event,
                 ),
@@ -1642,6 +1658,96 @@ mod tests {
                 ),);
                 assert!(state.is_dragged);
             }
+        }
+    }
+
+    #[cfg(unix)]
+    mod grid_origin_tests {
+        use super::*;
+        use crate::settings::{BackendSettings, Settings};
+        use iced_core::layout::Node;
+        use iced_core::Layout;
+        use tankterm_terminal::index::{Column, Line};
+
+        /// A terminal running `cat` that was laid out at `size`.
+        fn terminal(dynamic_padding: bool, size: Size) -> Terminal {
+            let settings = Settings {
+                backend: BackendSettings {
+                    program: "cat".into(),
+                    ..BackendSettings::default()
+                },
+                dynamic_padding,
+                ..Settings::default()
+            };
+            let mut terminal = Terminal::new(0, settings).unwrap();
+            terminal.handle(crate::Command::ProxyToBackend(Command::Resize(
+                Some(size),
+                None,
+            )));
+            terminal
+        }
+
+        #[test]
+        fn dynamic_padding_centres_the_grid_and_the_mouse_follows() {
+            let position = Point::new(30., 20.);
+            // Room for 10 by 4 cells and a few pixels more.
+            let cell = terminal(false, Size::new(1000., 1000.))
+                .backend
+                .renderable_content()
+                .terminal_size;
+            let (width, height) =
+                (f32::from(cell.cell_width), f32::from(cell.cell_height));
+            let size = Size::new(10. * width + 7., 4. * height + 5.);
+            let node = Node::new(size).move_to(position);
+            let layout = Layout::new(&node);
+
+            // Without dynamic padding the grid starts at the layout.
+            let term = terminal(false, size);
+            assert_eq!(
+                TerminalView { term: &term }.grid_origin(layout),
+                position
+            );
+
+            let mut term = terminal(true, size);
+            let origin = TerminalView { term: &term }.grid_origin(layout);
+            assert_eq!(origin, Point::new(33., 22.));
+
+            // A pointer over the middle of the cell drawn at line 1, column 2
+            // points at that cell, and a click there selects from it.
+            let pointer = origin + iced::Vector::new(2.5 * width, 1.5 * height);
+            let mut state = TerminalViewState::new(0);
+            TerminalView::handle_cursor_moved(
+                &mut state,
+                term.backend.renderable_content(),
+                &pointer,
+                origin,
+                &mut Vec::new(),
+            );
+            assert_eq!(
+                state.mouse_position_on_grid,
+                TerminalGridPoint::new(Line(1), Column(2))
+            );
+
+            let mut commands = Vec::new();
+            TerminalView::handle_left_button_pressed(
+                &mut state,
+                &TermMode::empty(),
+                pointer,
+                origin,
+                &mut commands,
+            );
+            let [Command::SelectStart(_, (x, y))] = commands[..] else {
+                panic!("not a selection: {commands:?}");
+            };
+            assert_eq!((x, y), (2.5 * width, 1.5 * height));
+
+            // Turned off by a configuration reload, the grid is at the
+            // layout again.
+            term.handle(crate::Command::ChangeDynamicPadding(false));
+            assert_eq!(
+                TerminalView { term: &term }.grid_origin(layout),
+                position
+            );
         }
     }
 

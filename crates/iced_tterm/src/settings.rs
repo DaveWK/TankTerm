@@ -21,6 +21,10 @@ pub struct Settings {
     pub cursor: CursorSettings,
     pub selection: SelectionSettings,
     pub mouse: MouseSettings,
+    /// Centre the grid in the widget, sharing the space that is left over
+    /// by whole cells evenly between both sides, instead of leaving it all
+    /// at the right and the bottom.
+    pub dynamic_padding: bool,
 }
 
 /// How text is selected with the mouse.

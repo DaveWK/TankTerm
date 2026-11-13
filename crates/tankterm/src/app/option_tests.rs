@@ -542,6 +542,52 @@ fn right_click_expands_the_selection() {
     assert_eq!(finished, 2);
 }
 
+#[test]
+fn clicks_find_the_cells_dynamic_padding_moved() {
+    let shell = "[terminal]\nshell = { program = \"sh\", args = [\"-c\", \"printf 'one\\\\nhello \
+                 world\\\\nthree'; exec cat\"] }\n";
+
+    // The cells, whole pixels as the terminal counts them, and a padding on each side of the
+    // 800 by 400 pixels of `ui_events` that leaves at least two pixels over on both axes.
+    let cell = crate::term_settings::settings(&UiConfig::default(), &Default::default());
+    let cell = cell.font.cell_size();
+    let (width, height) = (cell.width.trunc(), cell.height.trunc());
+    let padding = |space: f32, cell: f32| (0..).find(|p| (space - 2. * *p as f32) % cell >= 2.);
+    let padding = (padding(800., width).unwrap(), padding(400., height).unwrap());
+    let mut app =
+        app_with(&format!("[window]\ndynamic_padding = true\n{shell}"), Hotkeys::default());
+    // The test application has no padding of its own.
+    let (x, y) = (padding.0 as f32, padding.1 as f32);
+    app.options.layout.padding = iced::Padding { top: y, right: x, bottom: y, left: x };
+    wait_for_text(&app, 0, "three");
+
+    // Lay the terminal out, so it gets its size.
+    let moved = Event::Mouse(mouse::Event::CursorMoved { position: (0., 0.).into() });
+    let (_, messages) = ui_events(&app, &[((0., 0.), vec![moved])]);
+    for message in messages {
+        let _ = app.update(message);
+    }
+
+    // The grid is centred in what whole cells leave over inside the padding, in whole pixels.
+    let space = (800. - 2. * x, 400. - 2. * y);
+    let lines = (space.1 / height).floor();
+    assert_eq!(app.terminals[&0].terminal.screen_lines(), lines as usize);
+    let centred = |space: f32, cell: f32| ((space % cell) / 2.).floor();
+    let origin = (x + centred(space.0, width), y + centred(space.1, height));
+
+    // Double click the last pixel of the "o" of "hello". Measured from the corner of the
+    // padding instead of the grid's, the click would land a cell to the right and a line down.
+    let at = (origin.0 + 5. * width - 1., origin.1 + 2. * height - 1.);
+    let mut clicks = click(mouse::Button::Left);
+    clicks.extend(click(mouse::Button::Left));
+    let (_, messages) = ui_events(&app, &[(at, clicks)]);
+    for message in messages {
+        let _ = app.update(message);
+    }
+
+    assert_eq!(app.terminals[&0].terminal.selection().as_deref(), Some("hello"));
+}
+
 #[cfg(unix)]
 #[test]
 fn held_terminal_stays_open_with_its_output_when_its_program_exits() {

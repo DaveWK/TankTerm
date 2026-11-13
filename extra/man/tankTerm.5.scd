@@ -178,6 +178,14 @@ This section documents the *[window]* table of the configuration file.
 
 	Spread additional padding evenly around the terminal content.
 
+	A terminal only fills whole cells, so its space is rarely used up exactly.
+	Without dynamic padding what is left over stays at the right and the
+	bottom; with it, it is shared evenly between the left and the right, and
+	between the top and the bottom, rounded down to whole pixels. It comes on
+	top of _padding_. Each split pane centres its own terminal in its own
+	space, and the mouse selects the cell drawn under it either way. Changes
+	apply to the running window.
+
 	Default: _false_
 
 *decorations* = _"Full"_ | _"None"_ | _"Transparent"_ | _"Buttonless"_

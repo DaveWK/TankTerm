@@ -151,6 +151,26 @@ impl Default for TerminalSize {
     }
 }
 
+impl TerminalSize {
+    /// How far the grid is moved into `space` to centre it: half of what
+    /// whole cells leave over on each axis, in whole pixels.
+    ///
+    /// A grid bigger than `space`, which it is for a moment while the
+    /// terminal hasn't been resized yet, isn't moved.
+    pub fn centring_offset(&self, space: Size<f32>) -> iced_core::Vector {
+        let half_left_over = |space: f32, cell: u16, cells: u16| {
+            ((space - f32::from(cell) * f32::from(cells)) / 2.)
+                .floor()
+                .max(0.)
+        };
+
+        iced_core::Vector::new(
+            half_left_over(space.width, self.cell_width, self.num_cols),
+            half_left_over(space.height, self.cell_height, self.num_lines),
+        )
+    }
+}
+
 impl Dimensions for TerminalSize {
     fn total_lines(&self) -> usize {
         self.screen_lines()
@@ -1408,6 +1428,31 @@ mod tests {
         });
         backend.set_default_cursor_style(style(CursorShape::Block, true));
         assert_eq!(synced(&mut backend), style(CursorShape::Block, true));
+    }
+
+    #[test]
+    fn centring_offset_shares_what_whole_cells_leave_over() {
+        let size = TerminalSize {
+            cell_width: 8,
+            cell_height: 17,
+            num_cols: 10,
+            num_lines: 4,
+            ..TerminalSize::default()
+        };
+
+        // 85 - 80 = 5 pixels across, 75 - 68 = 7 down, halved and rounded
+        // down to whole pixels.
+        let offset = size.centring_offset(Size::new(85., 75.));
+        assert_eq!((offset.x, offset.y), (2., 3.));
+
+        // Space that whole cells fill leaves nothing to share.
+        let offset = size.centring_offset(Size::new(80., 68.));
+        assert_eq!((offset.x, offset.y), (0., 0.));
+
+        // A grid that is bigger than its space until it is resized stays at
+        // the top left.
+        let offset = size.centring_offset(Size::new(40., 10.));
+        assert_eq!((offset.x, offset.y), (0., 0.));
     }
 
     #[cfg(unix)]

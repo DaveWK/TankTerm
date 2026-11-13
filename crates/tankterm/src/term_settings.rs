@@ -49,6 +49,7 @@ pub fn settings(config: &UiConfig, options: &Options) -> Settings {
             semantic_escape_chars: config.selection.semantic_escape_chars.clone(),
         },
         mouse: MouseSettings { hide_when_typing: config.mouse.hide_when_typing },
+        dynamic_padding: config.window.dynamic_padding,
     }
 }
 

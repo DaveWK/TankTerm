@@ -219,3 +219,22 @@ fn window_opacity() {
     settle(&mut app, window);
     snapshot(&app, window, &dir, "window-opacity");
 }
+
+#[test]
+#[ignore = "writes screenshots for manual inspection"]
+fn dynamic_padding() {
+    let Some(dir) = env::var_os("TANKTERM_SNAPSHOT_DIR").map(PathBuf::from) else { return };
+    let window = Size::new(940., 430.);
+
+    let mut app = three_panes("[window]\ndynamic_padding = true\n", ["", "", ""]);
+    settle(&mut app, window);
+
+    // Each grid is cleared to blue once it has its size, which shows where it is: every pane
+    // leaves as much space on its left as on its right, and above as below.
+    for id in 0..3 {
+        let blue = BackendCommand::Write(b"\x1b[44m\x1b[2J\x1b[H blue grid\n".to_vec());
+        let _ = app.update(Message::Terminal(iced_tterm::Event::BackendCall(id, blue)));
+    }
+    settle(&mut app, window);
+    snapshot(&app, window, &dir, "dynamic-padding");
+}

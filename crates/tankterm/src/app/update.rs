@@ -123,6 +123,7 @@ impl App {
                 iced_tterm::Command::ChangeCursor(settings.cursor),
                 iced_tterm::Command::ChangeSelection(settings.selection.clone()),
                 iced_tterm::Command::ChangeMouse(settings.mouse),
+                iced_tterm::Command::ChangeDynamicPadding(settings.dynamic_padding),
                 iced_tterm::Command::AddBindings(bindings.clone()),
             ] {
                 shell.terminal.handle(command);

@@ -46,6 +46,9 @@ pub enum Command {
     ChangeSelection(SelectionSettings),
     /// Change how the mouse pointer behaves.
     ChangeMouse(MouseSettings),
+    /// Change whether the grid is centred in the widget; see
+    /// [`Settings::dynamic_padding`].
+    ChangeDynamicPadding(bool),
     /// Tell the terminal whether it has the keyboard focus. Without it the
     /// cursor doesn't blink and is drawn hollow, if the settings say so. A
     /// new terminal has the focus.
@@ -69,6 +72,8 @@ pub struct Terminal {
     pub(crate) scroll_multiplier: f32,
     pub(crate) cursor: Cursor,
     pub(crate) mouse: MouseSettings,
+    /// Centre the grid in the widget.
+    pub(crate) dynamic_padding: bool,
     pub(crate) backend: backend::Backend,
     backend_event_rx: Arc<Mutex<backend::EventReceiver>>,
 }
@@ -100,6 +105,7 @@ impl Terminal {
             scroll_multiplier: settings.scroll.multiplier,
             cursor,
             mouse: settings.mouse,
+            dynamic_padding: settings.dynamic_padding,
             cache: Cache::default(),
             backend,
             backend_event_rx: Arc::new(Mutex::new(backend_event_rx)),
@@ -248,6 +254,9 @@ impl Terminal {
                 );
             },
             Command::ChangeMouse(mouse) => self.mouse = mouse,
+            Command::ChangeDynamicPadding(dynamic) => {
+                self.dynamic_padding = dynamic;
+            },
             Command::Focus(focused) => {
                 self.cursor.set_focused(focused, Instant::now());
             },
