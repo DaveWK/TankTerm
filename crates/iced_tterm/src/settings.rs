@@ -2,7 +2,7 @@ use std::time::Duration;
 use std::{collections::HashMap, path::PathBuf};
 
 use crate::ColorPalette;
-use iced::Font;
+use iced::{Font, Vector};
 use tankterm_terminal::term::SEMANTIC_ESCAPE_CHARS;
 use tankterm_terminal::vte::ansi::CursorShape;
 
@@ -139,7 +139,20 @@ impl Default for BackendSettings {
 pub struct FontSettings {
     pub size: f32,
     pub scale_factor: f32,
+    /// The font of regular text.
     pub font_type: Font,
+    /// The font of bold text; without one it is `font_type` in bold.
+    pub bold: Option<Font>,
+    /// The font of italic text; without one it is `font_type` in italic.
+    pub italic: Option<Font>,
+    /// The font of bold italic text; without one it is `font_type` in bold
+    /// italic.
+    pub bold_italic: Option<Font>,
+    /// Space added to every cell, in logical pixels; it can be negative.
+    pub offset: Vector,
+    /// How far glyphs are moved from the middle of their cell, in logical
+    /// pixels.
+    pub glyph_offset: Vector,
 }
 
 impl Default for FontSettings {
@@ -148,6 +161,11 @@ impl Default for FontSettings {
             size: 14.0,
             scale_factor: 1.3,
             font_type: Font::MONOSPACE,
+            bold: None,
+            italic: None,
+            bold_italic: None,
+            offset: Vector::ZERO,
+            glyph_offset: Vector::ZERO,
         }
     }
 }

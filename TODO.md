@@ -4,11 +4,13 @@
 
 Approved and waiting their turn, in this order.
 
-1. Delete the `xitely/iced_term` repository and the merged `forgejo-ci` branch on Forgejo.
+1. Delete the `xitely/iced_term` repository on Forgejo (web UI; `forgejo-repos` can't).
 2. Config options the iced front end ignores:
-   - Port next: font faces and offsets, and the remaining colour options.
+   - Port next: the remaining colour options.
    - Port later, low priority: `window.blur`, `window.resize_increments`,
-     `window.dynamic_padding`, `window.option_as_alt`.
+     `window.dynamic_padding`, `window.option_as_alt`, and `font.builtin_box_drawing` (the
+     built-in font for box drawing, block and powerline characters, which needs drawing of its
+     own in `iced_tterm`).
 3. `tankTerm msg` in the iced front end: spawn, split, send-text, get-text, list, activate.
 4. Key tables and user-defined leader bindings in `[keyboard] bindings` (the leader key itself
    comes with the key preset option), with pane select, rotate panes, tab navigator and rename

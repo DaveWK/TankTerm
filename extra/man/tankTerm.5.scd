@@ -436,6 +436,13 @@ This section documents the *[font]* table of the configuration file.
 	If the font can't be loaded, the system's monospace font is used instead:
 	_"monospace"_ on Linux/BSD, _"Consolas"_ on Windows and _"Menlo"_ on macOS.
 
+	The _style_ of a face is made of words for its weight (_Thin_,
+	_ExtraLight_, _Light_, _Regular_, _Medium_, _SemiBold_, _Bold_,
+	_ExtraBold_, _Black_ or _Heavy_), its slant (_Italic_ or _Oblique_) and its
+	width (_Condensed_, _Expanded_ and their _Ultra_, _Extra_ and _Semi_
+	forms), in any order, like _"SemiBold Italic"_. What a style leaves out is
+	regular. Other words are ignored, with a warning in the log.
+
 *bold* = { family = _"<string>"_, style = _"<string>"_ }
 
 	If the family is not specified, it will fall back to the value specified for
@@ -465,22 +472,28 @@ This section documents the *[font]* table of the configuration file.
 
 *offset* = { x = _<integer>_, y = _<integer>_ }
 
-	Offset is the extra space around each character. _y_ can be thought of as
-	modifying the line spacing, and _x_ as modifying the letter spacing.
+	Offset is the extra space around each character, in pixels. _y_ can be
+	thought of as modifying the line spacing, and _x_ as modifying the letter
+	spacing; negative values move characters closer together.
 
 	Default: { x = _0_, y = _0_ }
 
 *glyph_offset* = { x = _<integer>_, y = _<integer>_ }
 
-	Glyph offset determines the locations of the glyphs within their cells with
-	the default being at the bottom. Increasing _x_ moves the glyph to the
-	right, increasing _y_ moves the glyph upward.
+	Glyph offset determines the locations of the glyphs within their cells, in
+	pixels, with the default being the middle of the cell. Increasing _x_
+	moves the glyph to the right, increasing _y_ moves the glyph upward.
+
+	Default: { x = _0_, y = _0_ }
 
 *builtin_box_drawing* = _true_ | _false_
 
 	When _true_, TankTerm will use a custom built-in font for box drawing
 	characters (Unicode points _U+2500_ - _U+259F_), legacy computing symbols
 	(_U+1FB00_ - _U+1FB3B_), and powerline symbols (_U+E0B0_ - _U+E0B3_).
+
+	The iced front end doesn't have this built-in font yet and draws these
+	characters with the configured font.
 
 	Default: _true_
 

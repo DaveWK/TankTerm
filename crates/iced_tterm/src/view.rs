@@ -7,7 +7,6 @@ use crate::keyboard::{self, KeyInput, KeyState, KittyOutput};
 use crate::terminal::{Event, Terminal};
 use crate::theme::TerminalStyle;
 use iced::alignment::Vertical;
-use iced::font::{Style as FontStyle, Weight as FontWeight};
 use iced::mouse::{Cursor, ScrollDelta};
 use iced::widget::canvas::{Path, Text};
 use iced::widget::container;
@@ -841,21 +840,20 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                     if is_cursor && cursor_shape == CursorShape::Block {
                         fg = cell_bg;
                     }
-                    // Resolve font style (bold/italic) from cell flags
-                    let mut font = self.term.font.font_type;
-                    if indexed
-                        .cell
-                        .flags
-                        .intersects(cell::Flags::BOLD | cell::Flags::DIM_BOLD)
-                    {
-                        font.weight = FontWeight::Bold;
-                    }
-                    if indexed.cell.flags.contains(cell::Flags::ITALIC) {
-                        font.style = FontStyle::Italic;
-                    }
+                    let flags = indexed.cell.flags;
+                    let font = self.term.font.face(
+                        flags.intersects(
+                            cell::Flags::BOLD | cell::Flags::DIM_BOLD,
+                        ),
+                        flags.contains(cell::Flags::ITALIC),
+                    );
+                    let glyph_offset = self.term.font.glyph_offset;
                     let text = Text {
                         content: indexed.cell.c.to_string(),
-                        position: Point::new(cell_center_x, cell_center_y),
+                        position: Point::new(
+                            cell_center_x + glyph_offset.x,
+                            cell_center_y + glyph_offset.y,
+                        ),
                         font,
                         size: iced_core::Pixels(font_size),
                         color: fg,

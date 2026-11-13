@@ -307,8 +307,9 @@ impl Terminal {
         self.redraw();
     }
 
+    /// Tell the backend the cell size of the font, which `ChangeFont`
+    /// measured.
     fn sync_font(&mut self) {
-        self.font.sync();
         self.backend
             .handle(backend::Command::Resize(None, Some(self.font.measure)));
     }

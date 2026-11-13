@@ -3,11 +3,8 @@
 use std::sync::{Mutex, PoisonError};
 use std::time::Duration;
 
-use iced::font::Family;
-use iced::{Color, Font, Padding, Size};
-use iced_core::alignment::Vertical;
-use iced_core::text::{Alignment, LineHeight, Paragraph as _, Shaping, Text, Wrapping};
-use iced_graphics::text::paragraph::Paragraph;
+use iced::font::{Family, Stretch, Style, Weight};
+use iced::{Color, Font, Padding, Size, Vector};
 use iced_tterm::ColorPalette;
 use iced_tterm::settings::{
     BackendSettings, CursorBlinking, CursorSettings, FontSettings, MouseSettings, ScrollSettings,
@@ -21,7 +18,7 @@ use crate::config::UiConfig;
 use crate::config::color::Colors;
 use crate::config::font::FontDescription;
 use crate::config::profile::Profile;
-use crate::config::ui_config::Program;
+use crate::config::ui_config::{Delta, Program};
 
 /// Logical pixels per typographic point.
 ///
@@ -103,11 +100,108 @@ pub fn tab_settings(config: &UiConfig, options: &Options) -> Settings {
 }
 
 fn font_settings(config: &UiConfig) -> FontSettings {
+    let font = &config.font;
+    let delta = |delta: Delta<i8>| Vector::new(delta.x.into(), delta.y.into());
+
+    // Faces in the normal family share its lookup, and its warning if it is missing.
+    let normal = self::font(font.normal());
+    let face = |description: &FontDescription, default| {
+        let family = if description.family == font.normal().family {
+            normal
+        } else {
+            self::font(description)
+        };
+        face(family, description, default)
+    };
+
     FontSettings {
-        size: config.font.size() * PX_PER_PT,
-        font_type: font(config.font.normal()),
+        size: font.size() * PX_PER_PT,
+        font_type: face(font.normal(), Face::default()),
+        bold: Some(face(&font.bold(), Face { weight: Weight::Bold, ..Face::default() })),
+        italic: Some(face(&font.italic(), Face { style: Style::Italic, ..Face::default() })),
+        bold_italic: Some(face(&font.bold_italic(), Face {
+            weight: Weight::Bold,
+            style: Style::Italic,
+            ..Face::default()
+        })),
+        offset: delta(font.offset),
+        // The configuration moves glyphs up for a positive `y`; iced's `y` grows downwards.
+        glyph_offset: Vector::new(font.glyph_offset.x.into(), (-font.glyph_offset.y).into()),
         ..FontSettings::default()
     }
+}
+
+/// The weight, slant and width of a font face.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct Face {
+    weight: Weight,
+    style: Style,
+    stretch: Stretch,
+}
+
+impl Face {
+    /// The face a font style name like `"Bold Italic"` or `"SemiCondensed Light"` asks for.
+    ///
+    /// What the name leaves out is regular. Words that don't name a weight, slant or width are
+    /// logged and ignored.
+    fn from_style(name: &str) -> Self {
+        let mut face = Self::default();
+        let words: Vec<String> =
+            name.split([' ', '-', '_']).filter(|w| !w.is_empty()).map(str::to_lowercase).collect();
+
+        let mut index = 0;
+        while index < words.len() {
+            // Two-word names like `Semi Bold` are read as one.
+            if let Some(next) = words.get(index + 1)
+                && face.apply(&format!("{}{next}", words[index]))
+            {
+                index += 2;
+                continue;
+            }
+
+            if !face.apply(&words[index]) {
+                warn!("Unknown word {:?} in font style {name:?}", words[index]);
+            }
+            index += 1;
+        }
+
+        face
+    }
+
+    /// Take a lowercase word of a style name into the face, if it names a weight, slant or
+    /// width.
+    fn apply(&mut self, word: &str) -> bool {
+        match word {
+            "thin" | "hairline" => self.weight = Weight::Thin,
+            "extralight" | "ultralight" => self.weight = Weight::ExtraLight,
+            "light" => self.weight = Weight::Light,
+            "regular" | "normal" | "book" | "roman" => self.weight = Weight::Normal,
+            "medium" => self.weight = Weight::Medium,
+            "semibold" | "demibold" => self.weight = Weight::Semibold,
+            "bold" => self.weight = Weight::Bold,
+            "extrabold" | "ultrabold" => self.weight = Weight::ExtraBold,
+            "black" | "heavy" => self.weight = Weight::Black,
+            "italic" => self.style = Style::Italic,
+            "oblique" => self.style = Style::Oblique,
+            "ultracondensed" => self.stretch = Stretch::UltraCondensed,
+            "extracondensed" => self.stretch = Stretch::ExtraCondensed,
+            "condensed" => self.stretch = Stretch::Condensed,
+            "semicondensed" => self.stretch = Stretch::SemiCondensed,
+            "semiexpanded" => self.stretch = Stretch::SemiExpanded,
+            "expanded" => self.stretch = Stretch::Expanded,
+            "extraexpanded" => self.stretch = Stretch::ExtraExpanded,
+            "ultraexpanded" => self.stretch = Stretch::UltraExpanded,
+            _ => return false,
+        }
+        true
+    }
+}
+
+/// The iced font for a configured face: the family of `family`, and the weight, slant and width
+/// the face's style names, or those of `default` without a style.
+fn face(family: Font, description: &FontDescription, default: Face) -> Font {
+    let face = description.style.as_deref().map_or(default, Face::from_style);
+    Font { weight: face.weight, style: face.style, stretch: face.stretch, ..family }
 }
 
 /// Convert a config font description into an iced font.
@@ -188,20 +282,9 @@ pub fn profile_settings(profile: &Profile, config: &UiConfig, options: &Options)
     settings
 }
 
-/// Size of a terminal cell, measured the same way `iced_tterm` measures its grid.
+/// Size of a terminal cell, as `iced_tterm` measures its grid.
 pub fn cell_size(font: &FontSettings) -> Size {
-    Paragraph::with_text(Text {
-        content: "m",
-        font: font.font_type,
-        size: iced::Pixels(font.size),
-        align_y: Vertical::Center,
-        align_x: Alignment::Center,
-        shaping: Shaping::Advanced,
-        line_height: LineHeight::Relative(font.scale_factor),
-        bounds: Size::INFINITE,
-        wrapping: Wrapping::Glyph,
-    })
-    .min_bounds()
+    font.cell_size()
 }
 
 /// Padding around the terminal, in logical pixels.
@@ -683,6 +766,67 @@ mod tests {
         let plain = profile_settings(&config.profiles[1], &config, &options).backend;
         assert_eq!((plain.program.as_str(), plain.args.len()), ("zsh", 0));
         assert_eq!(plain.env["EDITOR"], "vi");
+    }
+
+    #[test]
+    fn font_styles_name_the_weight_slant_and_width() {
+        let face = |weight, style, stretch| Face { weight, style, stretch };
+        let regular = Face::default();
+
+        assert_eq!(Face::from_style("Regular"), regular);
+        assert_eq!(
+            Face::from_style("Bold Italic"),
+            face(Weight::Bold, Style::Italic, Stretch::Normal)
+        );
+        assert_eq!(Face::from_style("Semi Bold"), Face { weight: Weight::Semibold, ..regular });
+        assert_eq!(Face::from_style("extra-light"), Face { weight: Weight::ExtraLight, ..regular });
+        assert_eq!(
+            Face::from_style("SemiCondensed Medium Oblique"),
+            face(Weight::Medium, Style::Oblique, Stretch::SemiCondensed)
+        );
+        assert_eq!(Face::from_style("Heavy"), Face { weight: Weight::Black, ..regular });
+        // Words that mean nothing here are skipped.
+        assert_eq!(Face::from_style("Fancy Bold"), Face { weight: Weight::Bold, ..regular });
+    }
+
+    #[test]
+    fn font_faces_and_offsets_come_from_the_config() {
+        let defaults = font_settings(&config("[font.normal]\nfamily = \"monospace\"\n"));
+        let regular = Font { family: Family::Monospace, ..Font::MONOSPACE };
+        assert_eq!(defaults.font_type, regular);
+        assert_eq!(defaults.bold, Some(Font { weight: Weight::Bold, ..regular }));
+        assert_eq!(defaults.italic, Some(Font { style: Style::Italic, ..regular }));
+        assert_eq!(
+            defaults.bold_italic,
+            Some(Font { weight: Weight::Bold, style: Style::Italic, ..regular })
+        );
+        assert_eq!((defaults.offset, defaults.glyph_offset), (Vector::ZERO, Vector::ZERO));
+
+        let settings = font_settings(&config(
+            r#"
+            [font]
+            normal = { family = "monospace", style = "Light" }
+            bold = { style = "Heavy" }
+            italic = { style = "Medium Oblique" }
+            offset = { x = 1, y = -2 }
+            glyph_offset = { x = -1, y = 3 }
+            "#,
+        ));
+        assert_eq!(settings.font_type, Font { weight: Weight::Light, ..regular });
+        // A face with a style of its own takes nothing from the default one.
+        assert_eq!(settings.bold, Some(Font { weight: Weight::Black, ..regular }));
+        assert_eq!(
+            settings.italic,
+            Some(Font { weight: Weight::Medium, style: Style::Oblique, ..regular })
+        );
+        assert_eq!(settings.offset, Vector::new(1., -2.));
+        // Upwards in the configuration, downwards in iced.
+        assert_eq!(settings.glyph_offset, Vector::new(-1., -3.));
+
+        // The offset makes the cell bigger or smaller.
+        let plain = cell_size(&defaults);
+        let spaced = cell_size(&FontSettings { font_type: defaults.font_type, ..settings });
+        assert_eq!(spaced, Size::new(plain.width + 1., plain.height - 2.));
     }
 
     #[test]
