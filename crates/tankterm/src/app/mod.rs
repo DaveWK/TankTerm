@@ -21,6 +21,10 @@ use crate::session::Session;
 use crate::setup::ConfigSource;
 
 mod actions;
+#[cfg(unix)]
+mod ipc;
+#[cfg(all(test, unix))]
+mod ipc_tests;
 #[cfg(all(test, unix))]
 mod layout_tests;
 #[cfg(all(test, unix))]
@@ -34,6 +38,9 @@ mod tab_tests;
 mod tabs;
 mod update;
 mod view;
+
+/// Environment variable with the ID of the pane a shell runs in, for `tankTerm msg`.
+pub const PANE_ID_ENV: &str = "TANKTERM_PANE_ID";
 
 /// Share of the tab a divider moves by when a pane is resized with the keyboard.
 const RESIZE_STEP: f32 = 0.05;
@@ -71,6 +78,9 @@ pub enum Message {
     Frame(Instant),
     /// A configuration file changed.
     ConfigChanged,
+    /// A message from `tankTerm msg`.
+    #[cfg(unix)]
+    Ipc(crate::ipc::Request),
 }
 
 /// Settings of the application, which only change when the configuration is read again.
@@ -141,6 +151,9 @@ pub struct App {
     config: Option<ConfigSource>,
     /// Whether the window was opened transparent, which it is for the rest of its life.
     transparent: bool,
+    /// The socket `tankTerm msg` talks to, while there is one.
+    #[cfg(unix)]
+    socket: Option<crate::ipc::Listener>,
 }
 
 /// Text that was pasted into a terminal but not sent to it yet.
@@ -161,6 +174,9 @@ struct Tab {
     seen: bool,
     /// A terminal of the tab printed something since the tab was last shown.
     activity: bool,
+    /// Title given to the tab with `tankTerm msg set-tab-title`, shown in place of the title
+    /// of its focused pane.
+    title: Option<String>,
 }
 
 /// A terminal and what the application tracks about it.

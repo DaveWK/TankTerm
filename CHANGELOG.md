@@ -62,6 +62,10 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 - Named styles in `[style.defs]` that other styles can `inherit` from, like Lip Gloss's `Inherit`
 - `window.padding` accepts Lip Gloss/CSS shorthand in terminal cells, like `[1, 2]`, including
     different padding on every side
+- `tankTerm msg` commands for tabs and panes, following `wezterm cli`: `list`, `spawn`,
+    `split-pane`, `send-text`, `get-text`, `activate-pane`, `activate-tab`, `kill-pane`,
+    `zoom-pane` and `set-tab-title`. Shells find their pane in `TANKTERM_PANE_ID`, and errors
+    are reported with exit status 1
 
 ### Changed
 
@@ -120,7 +124,7 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 
 ### Removed
 
-- IPC (`tankTerm msg`, `--socket`) and `--daemon`
+- `--daemon`, and the `create-window`, `config` and `get-config` messages of `tankTerm msg`
 - Key bindings to `command`, `chars` and the actions for vi mode, search, hints, the key help,
     new windows, hiding, minimizing and quitting; mouse bindings other than pasting; hints, vi
     mode, search and the message bar

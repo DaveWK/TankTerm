@@ -59,7 +59,100 @@ _arguments "${_arguments_options[@]}" : \
         (( CURRENT += 1 ))
         curcontext="${curcontext%:*:*}:tankTerm-msg-command-$line[1]:"
         case $line[1] in
-            (create-window)
+            (list)
+_arguments "${_arguments_options[@]}" : \
+'--format=[How to print the panes]:FORMAT:((table\:"A table, one pane per line"
+json\:""))' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+&& ret=0
+;;
+(spawn)
+_arguments "${_arguments_options[@]}" : \
+'()--profile=[Open the tab from this profile]:PROFILE:_default' \
+'--cwd=[Start the program in this directory \[default\: as for a new tab or pane\]]:CWD:_files -/' \
+'-h[Print help]' \
+'--help[Print help]' \
+'*::command -- Program and arguments to run \[default\: the shell\]:_default' \
+&& ret=0
+;;
+(split-pane)
+_arguments "${_arguments_options[@]}" : \
+'--pane-id=[Pane to split \[default\: \$TANKTERM_PANE_ID, or the focused pane\]]:PANE_ID:_default' \
+'--percent=[Share of the space the new pane gets, in percent \[default\: 50\]]:PERCENT:_default' \
+'--cwd=[Start the program in this directory \[default\: as for a new tab or pane\]]:CWD:_files -/' \
+'(--left --right --top --bottom)--horizontal[The same as \`--right\`]' \
+'(--right --top --bottom)--left[Put the new pane left of the pane]' \
+'(--top --bottom)--right[Put the new pane right of the pane]' \
+'(--bottom)--top[Put the new pane above the pane]' \
+'--bottom[Put the new pane below the pane (the default)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+'*::command -- Program and arguments to run \[default\: the shell\]:_default' \
+&& ret=0
+;;
+(send-text)
+_arguments "${_arguments_options[@]}" : \
+'--pane-id=[Pane to send the text to \[default\: \$TANKTERM_PANE_ID, or the focused pane\]]:PANE_ID:_default' \
+'--no-paste[Send the text as it is, instead of pasting it]' \
+'-h[Print help]' \
+'--help[Print help]' \
+'::text -- Text to send \[default\: read from standard input\]:_default' \
+&& ret=0
+;;
+(get-text)
+_arguments "${_arguments_options[@]}" : \
+'--pane-id=[Pane to read \[default\: \$TANKTERM_PANE_ID, or the focused pane\]]:PANE_ID:_default' \
+'--start-line=[First line to print\: 0 is the top of the screen, negative lines are scrollback \[default\: 0\]]:START_LINE:_default' \
+'--end-line=[Last line to print \[default\: the bottom of the screen\]]:END_LINE:_default' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(activate-pane)
+_arguments "${_arguments_options[@]}" : \
+'--pane-id=[The pane \[default\: \$TANKTERM_PANE_ID, or the focused pane\]]:PANE_ID:_default' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(activate-tab)
+_arguments "${_arguments_options[@]}" : \
+'(--tab-index --tab-relative)--tab-id=[The tab with this ID]:TAB_ID:_default' \
+'(--tab-relative)--tab-index=[The tab at this position, counting from 0; negative positions count from the last tab, which is -1]:TAB_INDEX:_default' \
+'--tab-relative=[The tab this many tabs right of the shown one, or left of it for negative numbers, wrapping around at the ends]:TAB_RELATIVE:_default' \
+'(--tab-id --tab-index)--no-wrap[Stop at the first or last tab instead of wrapping around]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(kill-pane)
+_arguments "${_arguments_options[@]}" : \
+'--pane-id=[The pane \[default\: \$TANKTERM_PANE_ID, or the focused pane\]]:PANE_ID:_default' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(zoom-pane)
+_arguments "${_arguments_options[@]}" : \
+'--pane-id=[The pane \[default\: \$TANKTERM_PANE_ID, or the focused pane\]]:PANE_ID:_default' \
+'(--unzoom --toggle)--zoom[Zoom the pane (the default)]' \
+'(--toggle)--unzoom[Unzoom the pane'\''s tab]' \
+'--toggle[Zoom the pane, or unzoom its tab if it is zoomed]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(set-tab-title)
+_arguments "${_arguments_options[@]}" : \
+'--pane-id=[A pane of the tab \[default\: \$TANKTERM_PANE_ID, or the focused pane\]]:PANE_ID:_default' \
+'--tab-id=[The tab with this ID, in place of a pane'\''s tab]:TAB_ID:_default' \
+'-h[Print help]' \
+'--help[Print help]' \
+':title -- The new title; an empty title goes back to the title of the tab'\''s focused pane:_default' \
+&& ret=0
+;;
+(create-window)
 _arguments "${_arguments_options[@]}" : \
 '--working-directory=[Start the shell in the specified working directory]:WORKING_DIRECTORY:_files' \
 '*-e+[Command and args to execute (must be last argument)]:COMMAND:_default' \
@@ -105,7 +198,47 @@ _arguments "${_arguments_options[@]}" : \
         (( CURRENT += 1 ))
         curcontext="${curcontext%:*:*}:tankTerm-msg-help-command-$line[1]:"
         case $line[1] in
-            (create-window)
+            (list)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(spawn)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(split-pane)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(send-text)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(get-text)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(activate-pane)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(activate-tab)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(kill-pane)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(zoom-pane)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(set-tab-title)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(create-window)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -168,7 +301,47 @@ _arguments "${_arguments_options[@]}" : \
         (( CURRENT += 1 ))
         curcontext="${curcontext%:*:*}:tankTerm-help-msg-command-$line[1]:"
         case $line[1] in
-            (create-window)
+            (list)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(spawn)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(split-pane)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(send-text)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(get-text)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(activate-pane)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(activate-tab)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(kill-pane)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(zoom-pane)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(set-tab-title)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(create-window)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -232,11 +405,31 @@ _tankTerm__subcmd__help__subcmd__migrate_commands() {
 (( $+functions[_tankTerm__subcmd__help__subcmd__msg_commands] )) ||
 _tankTerm__subcmd__help__subcmd__msg_commands() {
     local commands; commands=(
-'create-window:Create a new window in the same TankTerm process' \
-'config:Update the TankTerm configuration' \
-'get-config:Read runtime TankTerm configuration' \
+'list:List the tabs and their panes' \
+'spawn:Open a new tab and print the ID of its pane' \
+'split-pane:Split a pane and print the ID of the new pane' \
+'send-text:Send text to a pane, as if it was pasted' \
+'get-text:Print the text of a pane' \
+'activate-pane:Focus a pane and show its tab' \
+'activate-tab:Show a tab' \
+'kill-pane:Close a pane' \
+'zoom-pane:Zoom a pane, so that it fills its tab, or unzoom it' \
+'set-tab-title:Name a tab, in place of the title of its focused pane' \
+'create-window:Create a new window in the same TankTerm process (not supported yet)' \
+'config:Update the TankTerm configuration (not supported yet)' \
+'get-config:Read runtime TankTerm configuration (not supported yet)' \
     )
     _describe -t commands 'tankTerm help msg commands' commands "$@"
+}
+(( $+functions[_tankTerm__subcmd__help__subcmd__msg__subcmd__activate-pane_commands] )) ||
+_tankTerm__subcmd__help__subcmd__msg__subcmd__activate-pane_commands() {
+    local commands; commands=()
+    _describe -t commands 'tankTerm help msg activate-pane commands' commands "$@"
+}
+(( $+functions[_tankTerm__subcmd__help__subcmd__msg__subcmd__activate-tab_commands] )) ||
+_tankTerm__subcmd__help__subcmd__msg__subcmd__activate-tab_commands() {
+    local commands; commands=()
+    _describe -t commands 'tankTerm help msg activate-tab commands' commands "$@"
 }
 (( $+functions[_tankTerm__subcmd__help__subcmd__msg__subcmd__config_commands] )) ||
 _tankTerm__subcmd__help__subcmd__msg__subcmd__config_commands() {
@@ -253,6 +446,46 @@ _tankTerm__subcmd__help__subcmd__msg__subcmd__get-config_commands() {
     local commands; commands=()
     _describe -t commands 'tankTerm help msg get-config commands' commands "$@"
 }
+(( $+functions[_tankTerm__subcmd__help__subcmd__msg__subcmd__get-text_commands] )) ||
+_tankTerm__subcmd__help__subcmd__msg__subcmd__get-text_commands() {
+    local commands; commands=()
+    _describe -t commands 'tankTerm help msg get-text commands' commands "$@"
+}
+(( $+functions[_tankTerm__subcmd__help__subcmd__msg__subcmd__kill-pane_commands] )) ||
+_tankTerm__subcmd__help__subcmd__msg__subcmd__kill-pane_commands() {
+    local commands; commands=()
+    _describe -t commands 'tankTerm help msg kill-pane commands' commands "$@"
+}
+(( $+functions[_tankTerm__subcmd__help__subcmd__msg__subcmd__list_commands] )) ||
+_tankTerm__subcmd__help__subcmd__msg__subcmd__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'tankTerm help msg list commands' commands "$@"
+}
+(( $+functions[_tankTerm__subcmd__help__subcmd__msg__subcmd__send-text_commands] )) ||
+_tankTerm__subcmd__help__subcmd__msg__subcmd__send-text_commands() {
+    local commands; commands=()
+    _describe -t commands 'tankTerm help msg send-text commands' commands "$@"
+}
+(( $+functions[_tankTerm__subcmd__help__subcmd__msg__subcmd__set-tab-title_commands] )) ||
+_tankTerm__subcmd__help__subcmd__msg__subcmd__set-tab-title_commands() {
+    local commands; commands=()
+    _describe -t commands 'tankTerm help msg set-tab-title commands' commands "$@"
+}
+(( $+functions[_tankTerm__subcmd__help__subcmd__msg__subcmd__spawn_commands] )) ||
+_tankTerm__subcmd__help__subcmd__msg__subcmd__spawn_commands() {
+    local commands; commands=()
+    _describe -t commands 'tankTerm help msg spawn commands' commands "$@"
+}
+(( $+functions[_tankTerm__subcmd__help__subcmd__msg__subcmd__split-pane_commands] )) ||
+_tankTerm__subcmd__help__subcmd__msg__subcmd__split-pane_commands() {
+    local commands; commands=()
+    _describe -t commands 'tankTerm help msg split-pane commands' commands "$@"
+}
+(( $+functions[_tankTerm__subcmd__help__subcmd__msg__subcmd__zoom-pane_commands] )) ||
+_tankTerm__subcmd__help__subcmd__msg__subcmd__zoom-pane_commands() {
+    local commands; commands=()
+    _describe -t commands 'tankTerm help msg zoom-pane commands' commands "$@"
+}
 (( $+functions[_tankTerm__subcmd__migrate_commands] )) ||
 _tankTerm__subcmd__migrate_commands() {
     local commands; commands=()
@@ -261,12 +494,32 @@ _tankTerm__subcmd__migrate_commands() {
 (( $+functions[_tankTerm__subcmd__msg_commands] )) ||
 _tankTerm__subcmd__msg_commands() {
     local commands; commands=(
-'create-window:Create a new window in the same TankTerm process' \
-'config:Update the TankTerm configuration' \
-'get-config:Read runtime TankTerm configuration' \
+'list:List the tabs and their panes' \
+'spawn:Open a new tab and print the ID of its pane' \
+'split-pane:Split a pane and print the ID of the new pane' \
+'send-text:Send text to a pane, as if it was pasted' \
+'get-text:Print the text of a pane' \
+'activate-pane:Focus a pane and show its tab' \
+'activate-tab:Show a tab' \
+'kill-pane:Close a pane' \
+'zoom-pane:Zoom a pane, so that it fills its tab, or unzoom it' \
+'set-tab-title:Name a tab, in place of the title of its focused pane' \
+'create-window:Create a new window in the same TankTerm process (not supported yet)' \
+'config:Update the TankTerm configuration (not supported yet)' \
+'get-config:Read runtime TankTerm configuration (not supported yet)' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'tankTerm msg commands' commands "$@"
+}
+(( $+functions[_tankTerm__subcmd__msg__subcmd__activate-pane_commands] )) ||
+_tankTerm__subcmd__msg__subcmd__activate-pane_commands() {
+    local commands; commands=()
+    _describe -t commands 'tankTerm msg activate-pane commands' commands "$@"
+}
+(( $+functions[_tankTerm__subcmd__msg__subcmd__activate-tab_commands] )) ||
+_tankTerm__subcmd__msg__subcmd__activate-tab_commands() {
+    local commands; commands=()
+    _describe -t commands 'tankTerm msg activate-tab commands' commands "$@"
 }
 (( $+functions[_tankTerm__subcmd__msg__subcmd__config_commands] )) ||
 _tankTerm__subcmd__msg__subcmd__config_commands() {
@@ -283,15 +536,40 @@ _tankTerm__subcmd__msg__subcmd__get-config_commands() {
     local commands; commands=()
     _describe -t commands 'tankTerm msg get-config commands' commands "$@"
 }
+(( $+functions[_tankTerm__subcmd__msg__subcmd__get-text_commands] )) ||
+_tankTerm__subcmd__msg__subcmd__get-text_commands() {
+    local commands; commands=()
+    _describe -t commands 'tankTerm msg get-text commands' commands "$@"
+}
 (( $+functions[_tankTerm__subcmd__msg__subcmd__help_commands] )) ||
 _tankTerm__subcmd__msg__subcmd__help_commands() {
     local commands; commands=(
-'create-window:Create a new window in the same TankTerm process' \
-'config:Update the TankTerm configuration' \
-'get-config:Read runtime TankTerm configuration' \
+'list:List the tabs and their panes' \
+'spawn:Open a new tab and print the ID of its pane' \
+'split-pane:Split a pane and print the ID of the new pane' \
+'send-text:Send text to a pane, as if it was pasted' \
+'get-text:Print the text of a pane' \
+'activate-pane:Focus a pane and show its tab' \
+'activate-tab:Show a tab' \
+'kill-pane:Close a pane' \
+'zoom-pane:Zoom a pane, so that it fills its tab, or unzoom it' \
+'set-tab-title:Name a tab, in place of the title of its focused pane' \
+'create-window:Create a new window in the same TankTerm process (not supported yet)' \
+'config:Update the TankTerm configuration (not supported yet)' \
+'get-config:Read runtime TankTerm configuration (not supported yet)' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'tankTerm msg help commands' commands "$@"
+}
+(( $+functions[_tankTerm__subcmd__msg__subcmd__help__subcmd__activate-pane_commands] )) ||
+_tankTerm__subcmd__msg__subcmd__help__subcmd__activate-pane_commands() {
+    local commands; commands=()
+    _describe -t commands 'tankTerm msg help activate-pane commands' commands "$@"
+}
+(( $+functions[_tankTerm__subcmd__msg__subcmd__help__subcmd__activate-tab_commands] )) ||
+_tankTerm__subcmd__msg__subcmd__help__subcmd__activate-tab_commands() {
+    local commands; commands=()
+    _describe -t commands 'tankTerm msg help activate-tab commands' commands "$@"
 }
 (( $+functions[_tankTerm__subcmd__msg__subcmd__help__subcmd__config_commands] )) ||
 _tankTerm__subcmd__msg__subcmd__help__subcmd__config_commands() {
@@ -308,10 +586,85 @@ _tankTerm__subcmd__msg__subcmd__help__subcmd__get-config_commands() {
     local commands; commands=()
     _describe -t commands 'tankTerm msg help get-config commands' commands "$@"
 }
+(( $+functions[_tankTerm__subcmd__msg__subcmd__help__subcmd__get-text_commands] )) ||
+_tankTerm__subcmd__msg__subcmd__help__subcmd__get-text_commands() {
+    local commands; commands=()
+    _describe -t commands 'tankTerm msg help get-text commands' commands "$@"
+}
 (( $+functions[_tankTerm__subcmd__msg__subcmd__help__subcmd__help_commands] )) ||
 _tankTerm__subcmd__msg__subcmd__help__subcmd__help_commands() {
     local commands; commands=()
     _describe -t commands 'tankTerm msg help help commands' commands "$@"
+}
+(( $+functions[_tankTerm__subcmd__msg__subcmd__help__subcmd__kill-pane_commands] )) ||
+_tankTerm__subcmd__msg__subcmd__help__subcmd__kill-pane_commands() {
+    local commands; commands=()
+    _describe -t commands 'tankTerm msg help kill-pane commands' commands "$@"
+}
+(( $+functions[_tankTerm__subcmd__msg__subcmd__help__subcmd__list_commands] )) ||
+_tankTerm__subcmd__msg__subcmd__help__subcmd__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'tankTerm msg help list commands' commands "$@"
+}
+(( $+functions[_tankTerm__subcmd__msg__subcmd__help__subcmd__send-text_commands] )) ||
+_tankTerm__subcmd__msg__subcmd__help__subcmd__send-text_commands() {
+    local commands; commands=()
+    _describe -t commands 'tankTerm msg help send-text commands' commands "$@"
+}
+(( $+functions[_tankTerm__subcmd__msg__subcmd__help__subcmd__set-tab-title_commands] )) ||
+_tankTerm__subcmd__msg__subcmd__help__subcmd__set-tab-title_commands() {
+    local commands; commands=()
+    _describe -t commands 'tankTerm msg help set-tab-title commands' commands "$@"
+}
+(( $+functions[_tankTerm__subcmd__msg__subcmd__help__subcmd__spawn_commands] )) ||
+_tankTerm__subcmd__msg__subcmd__help__subcmd__spawn_commands() {
+    local commands; commands=()
+    _describe -t commands 'tankTerm msg help spawn commands' commands "$@"
+}
+(( $+functions[_tankTerm__subcmd__msg__subcmd__help__subcmd__split-pane_commands] )) ||
+_tankTerm__subcmd__msg__subcmd__help__subcmd__split-pane_commands() {
+    local commands; commands=()
+    _describe -t commands 'tankTerm msg help split-pane commands' commands "$@"
+}
+(( $+functions[_tankTerm__subcmd__msg__subcmd__help__subcmd__zoom-pane_commands] )) ||
+_tankTerm__subcmd__msg__subcmd__help__subcmd__zoom-pane_commands() {
+    local commands; commands=()
+    _describe -t commands 'tankTerm msg help zoom-pane commands' commands "$@"
+}
+(( $+functions[_tankTerm__subcmd__msg__subcmd__kill-pane_commands] )) ||
+_tankTerm__subcmd__msg__subcmd__kill-pane_commands() {
+    local commands; commands=()
+    _describe -t commands 'tankTerm msg kill-pane commands' commands "$@"
+}
+(( $+functions[_tankTerm__subcmd__msg__subcmd__list_commands] )) ||
+_tankTerm__subcmd__msg__subcmd__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'tankTerm msg list commands' commands "$@"
+}
+(( $+functions[_tankTerm__subcmd__msg__subcmd__send-text_commands] )) ||
+_tankTerm__subcmd__msg__subcmd__send-text_commands() {
+    local commands; commands=()
+    _describe -t commands 'tankTerm msg send-text commands' commands "$@"
+}
+(( $+functions[_tankTerm__subcmd__msg__subcmd__set-tab-title_commands] )) ||
+_tankTerm__subcmd__msg__subcmd__set-tab-title_commands() {
+    local commands; commands=()
+    _describe -t commands 'tankTerm msg set-tab-title commands' commands "$@"
+}
+(( $+functions[_tankTerm__subcmd__msg__subcmd__spawn_commands] )) ||
+_tankTerm__subcmd__msg__subcmd__spawn_commands() {
+    local commands; commands=()
+    _describe -t commands 'tankTerm msg spawn commands' commands "$@"
+}
+(( $+functions[_tankTerm__subcmd__msg__subcmd__split-pane_commands] )) ||
+_tankTerm__subcmd__msg__subcmd__split-pane_commands() {
+    local commands; commands=()
+    _describe -t commands 'tankTerm msg split-pane commands' commands "$@"
+}
+(( $+functions[_tankTerm__subcmd__msg__subcmd__zoom-pane_commands] )) ||
+_tankTerm__subcmd__msg__subcmd__zoom-pane_commands() {
+    local commands; commands=()
+    _describe -t commands 'tankTerm msg zoom-pane commands' commands "$@"
 }
 
 if [ "$funcstack[1]" = "_tankTerm" ]; then

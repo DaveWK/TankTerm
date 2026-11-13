@@ -181,6 +181,14 @@ impl Terminal {
         self.backend.text()
     }
 
+    /// The rows from `start` to `end` as text, both included: row 0 is the
+    /// top of the screen when it isn't scrolled and negative rows are
+    /// scrollback. Rows outside the buffer are left out, and rows a line
+    /// wrapped across come back joined, as in [`Self::text`].
+    pub fn lines(&self, start: i32, end: i32) -> Vec<String> {
+        self.backend.lines(start, end)
+    }
+
     /// The terminal's current modes, like whether the application in it asked
     /// for bracketed paste or mouse reports.
     pub fn mode(&self) -> TermMode {
@@ -204,6 +212,11 @@ impl Terminal {
     /// scrolling.
     pub fn screen_lines(&self) -> usize {
         self.backend.screen_lines()
+    }
+
+    /// Number of columns of the terminal.
+    pub fn columns(&self) -> usize {
+        self.backend.columns()
     }
 
     /// How many lines the view is scrolled back into the scrollback buffer;

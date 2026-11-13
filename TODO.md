@@ -7,20 +7,26 @@ Approved and waiting their turn, in this order.
 1. Delete the `xitely/iced_term` repository on Forgejo (web UI; `forgejo-repos` can't).
 2. Config options the iced front end ignores:
    - Port later, low priority: `window.resize_increments` and `window.option_as_alt`.
-3. `tankTerm msg` in the iced front end: spawn, split, send-text, get-text, list, activate.
-4. Key tables and user-defined leader bindings in `[keyboard] bindings` (the leader key itself
+3. Key tables and user-defined leader bindings in `[keyboard] bindings` (the leader key itself
    comes with the key preset option), with pane select, rotate panes, tab navigator and rename
    tab.
-5. Vi mode, scrollback search and hints in the iced front end.
-6. Shell integration: OSC 7 working directory and OSC 133 prompt zones.
-7. Tab bar: `[style.tab_*]` blocks, tab title templates, status segments, and window buttons in
+4. Vi mode, scrollback search and hints in the iced front end.
+5. Shell integration: OSC 7 working directory and OSC 133 prompt zones.
+6. Tab bar: `[style.tab_*]` blocks, tab title templates, status segments, and window buttons in
    the tab bar in place of the OS title bar.
-8. `tankTerm ssh` with terminfo negotiation; design and decisions are in the section below
+7. `tankTerm ssh` with terminfo negotiation; design and decisions are in the section below
    the deferred list.
 
 ## Deferred
 
 Nothing below is started; each item lists what has to be decided or built first.
+
+### Rest of `wezterm cli` in `tankTerm msg`
+
+`get-text --escapes`, `split-pane --cells`, `--top-level` and `--move-pane-id`,
+`activate-pane-direction`, `get-pane-direction`, `adjust-pane-size` and `move-pane-to-new-tab`;
+`create-window`, `config` and `get-config` once there is more than one window. Tab titles set
+with `set-tab-title` aren't remembered in the session file yet.
 
 ### Event API (planned, deferred)
 
@@ -30,8 +36,8 @@ embedding a scripting language. Events leave TankTerm as JSON; scripts act throu
 
 Needs first:
 
-- `tankTerm msg` working in the iced front end, with tab and pane commands and stable IDs
-  (`TANKTERM_PANE_ID` in each shell's environment).
+- Done: `tankTerm msg` with tab and pane commands and stable IDs (`TANKTERM_PANE_ID` in each
+  shell's environment).
 - Shell integration (OSC 7, OSC 133, OSC 1337 user variables) for the events marked `*`.
 
 Plan:

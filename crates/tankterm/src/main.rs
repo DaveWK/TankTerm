@@ -36,6 +36,8 @@ mod color;
 mod config;
 mod daemon;
 mod hotkeys;
+#[cfg(unix)]
+mod ipc;
 mod logging;
 #[cfg(target_os = "macos")]
 mod macos;
@@ -78,8 +80,11 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     match options.subcommands {
         #[cfg(unix)]
-        Some(Subcommands::Msg(_)) => {
-            return Err("`tankTerm msg` is not supported by the iced front end yet".into());
+        Some(Subcommands::Msg(options)) => {
+            if let Err(err) = ipc::send(options) {
+                eprintln!("tankTerm msg: {err}");
+                std::process::exit(1);
+            }
         },
         Some(Subcommands::Migrate(options)) => migrate::migrate(options),
         None => tankterm(options)?,
@@ -130,6 +135,10 @@ fn tankterm(mut options: Options) -> Result<(), Box<dyn Error>> {
     // Set tty environment variables.
     tty::setup_env();
 
+    // The shells reach `tankTerm msg` through the socket, which needs to be there before them.
+    #[cfg(unix)]
+    let socket = listen(&config, &options);
+
     // Switch to home directory.
     #[cfg(target_os = "macos")]
     env::set_current_dir(home::home_dir().unwrap()).unwrap();
@@ -150,6 +159,11 @@ fn tankterm(mut options: Options) -> Result<(), Box<dyn Error>> {
     let window_size = term_settings::window_size(&config, cell, app_options.layout.padding);
     let window = window_settings(&config, &options, window_size);
     let mut app = App::new(app_options, first, settings)?;
+    // The socket is removed once both the application and this clone are gone.
+    #[cfg(unix)]
+    if let Some(socket) = socket.clone() {
+        app.listen(socket);
+    }
 
     // The command line options are needed again whenever the configuration is.
     if let Some(source) = ConfigSource::new(&config, options) {
@@ -183,12 +197,29 @@ fn tankterm(mut options: Options) -> Result<(), Box<dyn Error>> {
 
 /// Return the first CLI option the iced front end can't honor.
 fn unsupported_options(options: &Options) -> Result<(), &'static str> {
-    #[cfg(unix)]
-    if options.socket.is_some() {
-        return Err("--socket");
+    if options.daemon { Err("--daemon") } else { Ok(()) }
+}
+
+/// Create the socket for `tankTerm msg`, if the configuration asks for one, and tell the shells
+/// where it is in `$TANKTERM_SOCKET`.
+#[cfg(unix)]
+fn listen(config: &UiConfig, options: &Options) -> Option<ipc::Listener> {
+    // Shells reach this TankTerm, not one the variable was inherited from.
+    unsafe { env::remove_var(ipc::SOCKET_ENV) };
+    if !config.ipc_socket() {
+        return None;
     }
 
-    if options.daemon { Err("--daemon") } else { Ok(()) }
+    match ipc::Listener::bind(options.socket.clone()) {
+        Ok(socket) => {
+            unsafe { env::set_var(ipc::SOCKET_ENV, socket.path()) };
+            Some(socket)
+        },
+        Err(err) => {
+            log::error!("Unable to create the socket for `tankTerm msg`: {err}");
+            None
+        },
+    }
 }
 
 /// Settings for the main window.
@@ -368,7 +399,7 @@ mod tests {
         assert_eq!(unsupported_options(&options(&["--daemon"])), Err("--daemon"));
         assert_eq!(unsupported_options(&options(&["--hold"])), Ok(()));
         #[cfg(unix)]
-        assert_eq!(unsupported_options(&options(&["--socket", "/tmp/s"])), Err("--socket"));
+        assert_eq!(unsupported_options(&options(&["--socket", "/tmp/s"])), Ok(()));
     }
 
     #[cfg(all(feature = "x11", not(any(target_os = "macos", windows))))]

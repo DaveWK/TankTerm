@@ -47,6 +47,8 @@ impl App {
             pending_paste: None,
             paste_keys: Hotkeys::paste_warning(),
             config: None,
+            #[cfg(unix)]
+            socket: None,
         };
 
         let session = app.options.session_file.as_deref().and_then(Session::load);
@@ -68,6 +70,12 @@ impl App {
     /// Read the configuration from `source` again whenever one of its files changes.
     pub fn watch_config(&mut self, source: ConfigSource) {
         self.config = Some(source);
+    }
+
+    /// Answer the messages `tankTerm msg` sends to `socket`.
+    #[cfg(unix)]
+    pub fn listen(&mut self, socket: crate::ipc::Listener) {
+        self.socket = Some(socket);
     }
 
     /// Read the configuration again and take over what can change in a running window.
@@ -306,7 +314,13 @@ impl App {
         let config =
             config.map(|source| changes(source.paths.clone()).map(|()| Message::ConfigChanged));
 
-        Subscription::batch(terminals.chain([window]).chain(ticks).chain(frames).chain(config))
+        #[cfg(unix)]
+        let socket = self.socket.as_ref().map(|socket| socket.requests().map(Message::Ipc));
+        #[cfg(not(unix))]
+        let socket: Option<Subscription<Message>> = None;
+
+        let subscriptions = terminals.chain([window]).chain(ticks).chain(frames).chain(config);
+        Subscription::batch(subscriptions.chain(socket))
     }
 
     /// Whether the visual bell flashes for a terminal.
@@ -426,6 +440,12 @@ impl App {
                 if focused { self.focus() } else { Task::none() }
             },
             Message::Action(action) => self.perform(action),
+            #[cfg(unix)]
+            Message::Ipc(request) => {
+                let (reply, task) = self.answer(request.message.clone());
+                request.reply(reply);
+                task
+            },
             Message::CloseTab(index) => self.close_tab(index),
             Message::PaneClicked(pane) => {
                 if let Some(tab) = self.tabs.get_mut(self.active) {

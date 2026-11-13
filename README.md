@@ -45,11 +45,13 @@ is still the `tankterm_terminal` crate. The font, colors, shell, environment,
 working directory, the window's title, class, size, position, startup mode,
 decorations, level and opacity, the `[scrolling]`, `[cursor]` and `[bell]`
 options and the key bindings, apart from those listed below, are read from your
-configuration.
+configuration. `tankTerm msg` lists, opens, splits, focuses, zooms and closes
+tabs and panes and sends and reads their text, like `wezterm cli`; see
+`man tankTerm-msg`.
 
 This front end is new and doesn't support everything the OpenGL one did yet:
 
-- IPC (`tankTerm msg`, `--socket`) and `--daemon`
+- `--daemon`, and the `create-window`, `config` and `get-config` messages of `tankTerm msg`
 - Hints, vi mode and search, with the key binding actions that need them
 - Key bindings to `SpawnNewInstance`, `CreateNewWindow` and `HideOtherApplications`; mouse
   bindings other than pasting and expanding the selection with the middle and right buttons

@@ -361,6 +361,11 @@ impl Backend {
         self.size.num_lines as usize
     }
 
+    /// Number of columns of the terminal.
+    pub fn columns(&self) -> usize {
+        self.size.num_cols as usize
+    }
+
     /// ID of the process started in the terminal, where there is one to ask.
     pub fn child_pid(&self) -> Option<u32> {
         #[cfg(unix)]
@@ -749,6 +754,27 @@ impl Backend {
         // size and the newest is the bottommost line.
         let start = Point::new(Line(-(term.history_size() as i32)), Column(0));
         let end = Point::new(term.bottommost_line(), term.last_column());
+        term.bounds_to_string(start, end)
+            .lines()
+            .map(str::to_owned)
+            .collect()
+    }
+
+    /// The rows from `start` to `end` as text, both included.
+    ///
+    /// Row 0 is the top of the screen when it isn't scrolled, negative rows
+    /// are scrollback, and rows outside the buffer are left out. Like
+    /// [`Self::text`], rows a line wrapped across come back joined.
+    pub fn lines(&self, start: i32, end: i32) -> Vec<String> {
+        let term = self.term.lock();
+        let start = start.max(-(term.history_size() as i32));
+        let end = end.min(term.bottommost_line().0);
+        if start > end {
+            return Vec::new();
+        }
+
+        let start = Point::new(Line(start), Column(0));
+        let end = Point::new(Line(end), term.last_column());
         term.bounds_to_string(start, end)
             .lines()
             .map(str::to_owned)
@@ -1293,6 +1319,28 @@ mod tests {
         eventually("the output was lost", || {
             backend.text().concat().contains("held")
         });
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn lines_count_from_the_top_of_the_screen() {
+        // 250 lines and the cursor's line fill the 50 rows of the screen
+        // from "202" on, with 201 lines of history above them.
+        let backend = backend_with_scrollback("seq 1 250; exec cat", 10_000);
+        eventually("the output never ended", || {
+            backend.text().iter().any(|line| line == "250")
+        });
+
+        assert_eq!(backend.lines(0, 1), ["202", "203"]);
+        assert_eq!(backend.lines(-1, -1), ["201"]);
+        assert_eq!(backend.lines(47, 48), ["249", "250"]);
+        // Rows outside the buffer are left out.
+        assert_eq!(backend.lines(-1000, -200), ["1", "2"]);
+        assert_eq!(
+            backend.lines(48, 1000).first().map(String::as_str),
+            Some("250")
+        );
+        assert!(backend.lines(1000, 2000).is_empty());
     }
 
     #[cfg(unix)]

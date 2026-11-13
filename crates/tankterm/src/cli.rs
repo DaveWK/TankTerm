@@ -229,14 +229,230 @@ pub struct MessageOptions {
 #[cfg(unix)]
 #[derive(Subcommand, Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum SocketMessage {
-    /// Create a new window in the same TankTerm process.
+    /// List the tabs and their panes.
+    List(ListOptions),
+
+    /// Open a new tab and print the ID of its pane.
+    Spawn(SpawnOptions),
+
+    /// Split a pane and print the ID of the new pane.
+    SplitPane(SplitOptions),
+
+    /// Send text to a pane, as if it was pasted.
+    SendText(SendTextOptions),
+
+    /// Print the text of a pane.
+    GetText(GetTextOptions),
+
+    /// Focus a pane and show its tab.
+    ActivatePane(PaneOptions),
+
+    /// Show a tab.
+    ActivateTab(ActivateTabOptions),
+
+    /// Close a pane.
+    KillPane(PaneOptions),
+
+    /// Zoom a pane, so that it fills its tab, or unzoom it.
+    ZoomPane(ZoomOptions),
+
+    /// Name a tab, in place of the title of its focused pane.
+    SetTabTitle(SetTabTitleOptions),
+
+    /// Create a new window in the same TankTerm process (not supported yet).
     CreateWindow(WindowOptions),
 
-    /// Update the TankTerm configuration.
+    /// Update the TankTerm configuration (not supported yet).
     Config(IpcConfig),
 
-    /// Read runtime TankTerm configuration.
+    /// Read runtime TankTerm configuration (not supported yet).
     GetConfig(IpcGetConfig),
+}
+
+/// Parameters to the `list` IPC subcommand.
+#[cfg(unix)]
+#[derive(Args, Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+pub struct ListOptions {
+    /// How to print the panes.
+    #[clap(long, value_enum, default_value_t)]
+    pub format: OutputFormat,
+}
+
+/// How `tankTerm msg list` prints.
+#[cfg(unix)]
+#[derive(clap::ValueEnum, Serialize, Deserialize, Default, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OutputFormat {
+    /// A table, one pane per line.
+    #[default]
+    Table,
+    Json,
+}
+
+/// What a new tab or pane runs, and where.
+#[cfg(unix)]
+#[derive(Args, Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+pub struct ProgramOptions {
+    /// Start the program in this directory [default: as for a new tab or pane].
+    #[clap(long, value_hint = ValueHint::DirPath)]
+    pub cwd: Option<PathBuf>,
+
+    /// Program and arguments to run [default: the shell].
+    #[clap(trailing_var_arg = true, allow_hyphen_values = true, value_name = "PROGRAM")]
+    pub command: Vec<String>,
+}
+
+/// Parameters to the `spawn` IPC subcommand.
+#[cfg(unix)]
+#[derive(Args, Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+pub struct SpawnOptions {
+    /// Open the tab from this profile.
+    #[clap(long, conflicts_with = "command")]
+    pub profile: Option<String>,
+
+    #[clap(flatten)]
+    pub program: ProgramOptions,
+}
+
+/// Parameters to the `split-pane` IPC subcommand.
+#[cfg(unix)]
+#[derive(Args, Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+pub struct SplitOptions {
+    /// Pane to split [default: $TANKTERM_PANE_ID, or the focused pane].
+    #[clap(long, env = "TANKTERM_PANE_ID")]
+    pub pane_id: Option<u64>,
+
+    /// The same as `--right`.
+    #[clap(long, conflicts_with_all = ["left", "right", "top", "bottom"])]
+    pub horizontal: bool,
+
+    /// Put the new pane left of the pane.
+    #[clap(long, conflicts_with_all = ["right", "top", "bottom"])]
+    pub left: bool,
+
+    /// Put the new pane right of the pane.
+    #[clap(long, conflicts_with_all = ["top", "bottom"])]
+    pub right: bool,
+
+    /// Put the new pane above the pane.
+    #[clap(long, conflicts_with = "bottom")]
+    pub top: bool,
+
+    /// Put the new pane below the pane (the default).
+    #[clap(long)]
+    pub bottom: bool,
+
+    /// Share of the space the new pane gets, in percent [default: 50].
+    #[clap(long, value_parser = clap::value_parser!(u8).range(1..100))]
+    pub percent: Option<u8>,
+
+    #[clap(flatten)]
+    pub program: ProgramOptions,
+}
+
+/// Parameters to the `send-text` IPC subcommand.
+#[cfg(unix)]
+#[derive(Args, Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+pub struct SendTextOptions {
+    /// Pane to send the text to [default: $TANKTERM_PANE_ID, or the focused pane].
+    #[clap(long, env = "TANKTERM_PANE_ID")]
+    pub pane_id: Option<u64>,
+
+    /// Send the text as it is, instead of pasting it.
+    #[clap(long)]
+    pub no_paste: bool,
+
+    /// Text to send [default: read from standard input].
+    pub text: Option<String>,
+}
+
+/// Parameters to the `get-text` IPC subcommand.
+#[cfg(unix)]
+#[derive(Args, Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+pub struct GetTextOptions {
+    /// Pane to read [default: $TANKTERM_PANE_ID, or the focused pane].
+    #[clap(long, env = "TANKTERM_PANE_ID")]
+    pub pane_id: Option<u64>,
+
+    /// First line to print: 0 is the top of the screen, negative lines are scrollback
+    /// [default: 0].
+    #[clap(long, allow_hyphen_values = true)]
+    pub start_line: Option<i32>,
+
+    /// Last line to print [default: the bottom of the screen].
+    #[clap(long, allow_hyphen_values = true)]
+    pub end_line: Option<i32>,
+}
+
+/// Parameters of IPC subcommands that act on a pane.
+#[cfg(unix)]
+#[derive(Args, Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+pub struct PaneOptions {
+    /// The pane [default: $TANKTERM_PANE_ID, or the focused pane].
+    #[clap(long, env = "TANKTERM_PANE_ID")]
+    pub pane_id: Option<u64>,
+}
+
+/// Parameters to the `activate-tab` IPC subcommand.
+#[cfg(unix)]
+#[derive(Args, Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+#[clap(group(
+    clap::ArgGroup::new("tab").required(true).args(["tab_id", "tab_index", "tab_relative"])
+))]
+pub struct ActivateTabOptions {
+    /// The tab with this ID.
+    #[clap(long, conflicts_with_all = ["tab_index", "tab_relative"])]
+    pub tab_id: Option<u64>,
+
+    /// The tab at this position, counting from 0; negative positions count from the last tab,
+    /// which is -1.
+    #[clap(long, allow_hyphen_values = true, conflicts_with = "tab_relative")]
+    pub tab_index: Option<isize>,
+
+    /// The tab this many tabs right of the shown one, or left of it for negative numbers,
+    /// wrapping around at the ends.
+    #[clap(long, allow_hyphen_values = true)]
+    pub tab_relative: Option<isize>,
+
+    /// Stop at the first or last tab instead of wrapping around.
+    #[clap(long, conflicts_with_all = ["tab_id", "tab_index"])]
+    pub no_wrap: bool,
+}
+
+/// Parameters to the `zoom-pane` IPC subcommand.
+#[cfg(unix)]
+#[derive(Args, Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+pub struct ZoomOptions {
+    /// The pane [default: $TANKTERM_PANE_ID, or the focused pane].
+    #[clap(long, env = "TANKTERM_PANE_ID")]
+    pub pane_id: Option<u64>,
+
+    /// Zoom the pane (the default).
+    #[clap(long, conflicts_with_all = ["unzoom", "toggle"])]
+    pub zoom: bool,
+
+    /// Unzoom the pane's tab.
+    #[clap(long, conflicts_with = "toggle")]
+    pub unzoom: bool,
+
+    /// Zoom the pane, or unzoom its tab if it is zoomed.
+    #[clap(long)]
+    pub toggle: bool,
+}
+
+/// Parameters to the `set-tab-title` IPC subcommand.
+#[cfg(unix)]
+#[derive(Args, Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+pub struct SetTabTitleOptions {
+    /// A pane of the tab [default: $TANKTERM_PANE_ID, or the focused pane].
+    #[clap(long, env = "TANKTERM_PANE_ID")]
+    pub pane_id: Option<u64>,
+
+    /// The tab with this ID, in place of a pane's tab.
+    #[clap(long)]
+    pub tab_id: Option<u64>,
+
+    /// The new title; an empty title goes back to the title of the tab's focused pane.
+    pub title: String,
 }
 
 /// Migrate the configuration file.

@@ -190,6 +190,22 @@ theme = "dracula"
 <kbd>Shift</kbd> <kbd>E</kbd> on macOS) opens the profile selector, which works
 like the command palette and opens the chosen profile in a new tab.
 
+## Scripting
+
+`tankTerm msg` controls a running TankTerm from scripts and other programs,
+with the commands and options of `wezterm cli`: `list` the panes, `spawn` a
+tab, `split-pane`, `send-text` to a pane or `get-text` from it, `activate-pane`,
+`activate-tab`, `kill-pane`, `zoom-pane` and `set-tab-title`. Shells find the
+ID of their pane in `$TANKTERM_PANE_ID`, which the commands use by default:
+
+```sh
+# Run the tests in a pane below this one and read what they printed.
+pane=$(tankTerm msg split-pane --percent 30 -- sh -c 'cargo test; exec cat')
+tankTerm msg get-text --pane-id "$pane"
+```
+
+See `man tankTerm-msg` for all options.
+
 ## Multi-Window
 
 TankTerm supports running multiple terminal emulators from the same TankTerm

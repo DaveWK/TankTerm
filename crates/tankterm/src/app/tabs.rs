@@ -11,7 +11,8 @@ use log::error;
 
 use super::actions::{FONT_SIZE_STEP, hide, minimize, toggle_fullscreen, toggle_maximized, zoomed};
 use super::{
-    App, Message, PendingPaste, RESIZE_LIMITS, RESIZE_STEP, Shell, Tab, working_directory,
+    App, Message, PANE_ID_ENV, PendingPaste, RESIZE_LIMITS, RESIZE_STEP, Shell, Tab,
+    working_directory,
 };
 use crate::hotkeys::AppAction;
 use crate::palette::Palette;
@@ -21,14 +22,20 @@ impl App {
     /// Settings for the terminal of a new tab or pane: the shell starts in the directory of the
     /// focused pane's shell, if the configuration asks for that and the directory can be told.
     fn new_settings(&self) -> Settings {
+        self.new_settings_from(self.focused_terminal())
+    }
+
+    /// Settings for the terminal of a new tab or pane opened from `terminal`: the shell starts
+    /// in the directory of `terminal`'s shell, if the configuration asks for that and the
+    /// directory can be told.
+    pub(super) fn new_settings_from(&self, terminal: Option<u64>) -> Settings {
         let mut settings = self.settings.clone();
         if !self.options.tabs.inherit_working_directory {
             return settings;
         }
 
-        let focused = self.tabs.get(self.active).and_then(|tab| tab.panes.get(tab.focus));
-        let pid = focused
-            .and_then(|id| self.terminals.get(id))
+        let pid = terminal
+            .and_then(|id| self.terminals.get(&id))
             .and_then(|shell| shell.terminal.child_pid());
         if let Some(directory) = pid.and_then(working_directory) {
             settings.backend.working_directory = Some(directory);
@@ -68,17 +75,9 @@ impl App {
             },
             AppAction::MoveTabLeft | AppAction::MoveTabRight => return Task::none(),
             AppAction::Split(axis) => {
-                match self.spawn(self.new_settings(), self.options.layout.background) {
-                    Ok(terminal) => {
-                        let tab = &mut self.tabs[self.active];
-                        tab.panes.restore();
-
-                        match tab.panes.split(axis, tab.focus, terminal) {
-                            Some((pane, _)) => tab.focus = pane,
-                            None => drop(self.terminals.remove(&terminal)),
-                        }
-                    },
-                    Err(err) => error!("Unable to split the pane: {err}"),
+                let (index, pane) = (self.active, self.tabs[self.active].focus);
+                if let Err(err) = self.split(index, pane, axis, self.new_settings()) {
+                    error!("Unable to split the pane: {err}");
                 }
             },
             AppAction::ClosePane => {
@@ -199,9 +198,37 @@ impl App {
         self.focus()
     }
 
+    /// Split `pane` of the tab at `index` with a new terminal and focus it in that tab,
+    /// returning the new terminal's ID.
+    pub(super) fn split(
+        &mut self,
+        index: usize,
+        pane: pane_grid::Pane,
+        axis: pane_grid::Axis,
+        settings: Settings,
+    ) -> io::Result<u64> {
+        let terminal = self.spawn(settings, self.options.layout.background)?;
+        let tab = &mut self.tabs[index];
+        tab.panes.restore();
+
+        match tab.panes.split(axis, pane, terminal) {
+            Some((pane, _)) => {
+                tab.focus = pane;
+                Ok(terminal)
+            },
+            None => {
+                self.terminals.remove(&terminal);
+                Err(io::Error::other("the pane is gone"))
+            },
+        }
+    }
+
     /// Create a terminal and spawn its shell, returning the terminal's ID.
+    ///
+    /// The shell finds the ID in `$TANKTERM_PANE_ID`.
     pub(super) fn spawn(&mut self, mut settings: Settings, background: Color) -> io::Result<u64> {
         let id = self.next_terminal;
+        settings.backend.env.insert(PANE_ID_ENV.into(), id.to_string());
         let working_directory = settings.backend.working_directory.clone();
         let hold = settings.backend.hold;
         settings.font = zoomed(settings.font, self.font_zoom);
@@ -243,17 +270,20 @@ impl App {
     pub(super) fn add_tab(&mut self, panes: pane_grid::State<u64>, focus: pane_grid::Pane) {
         let id = self.next_tab;
         self.next_tab += 1;
-        self.tabs.push(Tab { id, panes, focus, seen: false, activity: false });
+        self.tabs.push(Tab { id, panes, focus, seen: false, activity: false, title: None });
+    }
+
+    /// The position of the tab holding terminal `id`, and its pane.
+    pub(super) fn locate(&self, id: u64) -> Option<(usize, pane_grid::Pane)> {
+        self.tabs.iter().enumerate().find_map(|(index, tab)| {
+            let pane = tab.panes.iter().find(|(_, terminal)| **terminal == id)?;
+            Some((index, *pane.0))
+        })
     }
 
     /// Close the pane of a terminal whose shell exited.
     pub(super) fn close_terminal(&mut self, id: u64) -> Task<Message> {
-        let location = self.tabs.iter().enumerate().find_map(|(index, tab)| {
-            let pane = tab.panes.iter().find(|(_, terminal)| **terminal == id)?;
-            Some((index, *pane.0))
-        });
-
-        match location {
+        match self.locate(id) {
             Some((index, pane)) => self.close_pane(index, pane),
             None => {
                 self.terminals.remove(&id);
@@ -263,7 +293,7 @@ impl App {
     }
 
     /// Close a pane, and its tab if it was the tab's last pane.
-    fn close_pane(&mut self, index: usize, pane: pane_grid::Pane) -> Task<Message> {
+    pub(super) fn close_pane(&mut self, index: usize, pane: pane_grid::Pane) -> Task<Message> {
         let tab = &mut self.tabs[index];
 
         match tab.panes.close(pane) {
@@ -301,8 +331,13 @@ impl App {
         self.focus()
     }
 
-    /// Title of a tab: the one its focused terminal set, or the window title.
-    pub(super) fn tab_title(&self, tab: &Tab) -> &str {
+    /// Title of a tab: the one it was given, the one its focused terminal set, or the window
+    /// title.
+    pub(super) fn tab_title<'a>(&'a self, tab: &'a Tab) -> &'a str {
+        if let Some(title) = &tab.title {
+            return title;
+        }
+
         let title = tab
             .panes
             .get(tab.focus)
@@ -314,7 +349,7 @@ impl App {
 }
 
 /// The innermost split around `pane` whose divider runs along `axis`, with its ratio.
-fn nearest_split(
+pub(super) fn nearest_split(
     node: &Node,
     pane: pane_grid::Pane,
     axis: pane_grid::Axis,

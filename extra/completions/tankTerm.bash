@@ -34,6 +34,12 @@ _tankTerm() {
             tankTerm__subcmd__help,msg)
                 cmd="tankTerm__subcmd__help__subcmd__msg"
                 ;;
+            tankTerm__subcmd__help__subcmd__msg,activate-pane)
+                cmd="tankTerm__subcmd__help__subcmd__msg__subcmd__activate__subcmd__pane"
+                ;;
+            tankTerm__subcmd__help__subcmd__msg,activate-tab)
+                cmd="tankTerm__subcmd__help__subcmd__msg__subcmd__activate__subcmd__tab"
+                ;;
             tankTerm__subcmd__help__subcmd__msg,config)
                 cmd="tankTerm__subcmd__help__subcmd__msg__subcmd__config"
                 ;;
@@ -42,6 +48,36 @@ _tankTerm() {
                 ;;
             tankTerm__subcmd__help__subcmd__msg,get-config)
                 cmd="tankTerm__subcmd__help__subcmd__msg__subcmd__get__subcmd__config"
+                ;;
+            tankTerm__subcmd__help__subcmd__msg,get-text)
+                cmd="tankTerm__subcmd__help__subcmd__msg__subcmd__get__subcmd__text"
+                ;;
+            tankTerm__subcmd__help__subcmd__msg,kill-pane)
+                cmd="tankTerm__subcmd__help__subcmd__msg__subcmd__kill__subcmd__pane"
+                ;;
+            tankTerm__subcmd__help__subcmd__msg,list)
+                cmd="tankTerm__subcmd__help__subcmd__msg__subcmd__list"
+                ;;
+            tankTerm__subcmd__help__subcmd__msg,send-text)
+                cmd="tankTerm__subcmd__help__subcmd__msg__subcmd__send__subcmd__text"
+                ;;
+            tankTerm__subcmd__help__subcmd__msg,set-tab-title)
+                cmd="tankTerm__subcmd__help__subcmd__msg__subcmd__set__subcmd__tab__subcmd__title"
+                ;;
+            tankTerm__subcmd__help__subcmd__msg,spawn)
+                cmd="tankTerm__subcmd__help__subcmd__msg__subcmd__spawn"
+                ;;
+            tankTerm__subcmd__help__subcmd__msg,split-pane)
+                cmd="tankTerm__subcmd__help__subcmd__msg__subcmd__split__subcmd__pane"
+                ;;
+            tankTerm__subcmd__help__subcmd__msg,zoom-pane)
+                cmd="tankTerm__subcmd__help__subcmd__msg__subcmd__zoom__subcmd__pane"
+                ;;
+            tankTerm__subcmd__msg,activate-pane)
+                cmd="tankTerm__subcmd__msg__subcmd__activate__subcmd__pane"
+                ;;
+            tankTerm__subcmd__msg,activate-tab)
+                cmd="tankTerm__subcmd__msg__subcmd__activate__subcmd__tab"
                 ;;
             tankTerm__subcmd__msg,config)
                 cmd="tankTerm__subcmd__msg__subcmd__config"
@@ -52,8 +88,38 @@ _tankTerm() {
             tankTerm__subcmd__msg,get-config)
                 cmd="tankTerm__subcmd__msg__subcmd__get__subcmd__config"
                 ;;
+            tankTerm__subcmd__msg,get-text)
+                cmd="tankTerm__subcmd__msg__subcmd__get__subcmd__text"
+                ;;
             tankTerm__subcmd__msg,help)
                 cmd="tankTerm__subcmd__msg__subcmd__help"
+                ;;
+            tankTerm__subcmd__msg,kill-pane)
+                cmd="tankTerm__subcmd__msg__subcmd__kill__subcmd__pane"
+                ;;
+            tankTerm__subcmd__msg,list)
+                cmd="tankTerm__subcmd__msg__subcmd__list"
+                ;;
+            tankTerm__subcmd__msg,send-text)
+                cmd="tankTerm__subcmd__msg__subcmd__send__subcmd__text"
+                ;;
+            tankTerm__subcmd__msg,set-tab-title)
+                cmd="tankTerm__subcmd__msg__subcmd__set__subcmd__tab__subcmd__title"
+                ;;
+            tankTerm__subcmd__msg,spawn)
+                cmd="tankTerm__subcmd__msg__subcmd__spawn"
+                ;;
+            tankTerm__subcmd__msg,split-pane)
+                cmd="tankTerm__subcmd__msg__subcmd__split__subcmd__pane"
+                ;;
+            tankTerm__subcmd__msg,zoom-pane)
+                cmd="tankTerm__subcmd__msg__subcmd__zoom__subcmd__pane"
+                ;;
+            tankTerm__subcmd__msg__subcmd__help,activate-pane)
+                cmd="tankTerm__subcmd__msg__subcmd__help__subcmd__activate__subcmd__pane"
+                ;;
+            tankTerm__subcmd__msg__subcmd__help,activate-tab)
+                cmd="tankTerm__subcmd__msg__subcmd__help__subcmd__activate__subcmd__tab"
                 ;;
             tankTerm__subcmd__msg__subcmd__help,config)
                 cmd="tankTerm__subcmd__msg__subcmd__help__subcmd__config"
@@ -64,8 +130,32 @@ _tankTerm() {
             tankTerm__subcmd__msg__subcmd__help,get-config)
                 cmd="tankTerm__subcmd__msg__subcmd__help__subcmd__get__subcmd__config"
                 ;;
+            tankTerm__subcmd__msg__subcmd__help,get-text)
+                cmd="tankTerm__subcmd__msg__subcmd__help__subcmd__get__subcmd__text"
+                ;;
             tankTerm__subcmd__msg__subcmd__help,help)
                 cmd="tankTerm__subcmd__msg__subcmd__help__subcmd__help"
+                ;;
+            tankTerm__subcmd__msg__subcmd__help,kill-pane)
+                cmd="tankTerm__subcmd__msg__subcmd__help__subcmd__kill__subcmd__pane"
+                ;;
+            tankTerm__subcmd__msg__subcmd__help,list)
+                cmd="tankTerm__subcmd__msg__subcmd__help__subcmd__list"
+                ;;
+            tankTerm__subcmd__msg__subcmd__help,send-text)
+                cmd="tankTerm__subcmd__msg__subcmd__help__subcmd__send__subcmd__text"
+                ;;
+            tankTerm__subcmd__msg__subcmd__help,set-tab-title)
+                cmd="tankTerm__subcmd__msg__subcmd__help__subcmd__set__subcmd__tab__subcmd__title"
+                ;;
+            tankTerm__subcmd__msg__subcmd__help,spawn)
+                cmd="tankTerm__subcmd__msg__subcmd__help__subcmd__spawn"
+                ;;
+            tankTerm__subcmd__msg__subcmd__help,split-pane)
+                cmd="tankTerm__subcmd__msg__subcmd__help__subcmd__split__subcmd__pane"
+                ;;
+            tankTerm__subcmd__msg__subcmd__help,zoom-pane)
+                cmd="tankTerm__subcmd__msg__subcmd__help__subcmd__zoom__subcmd__pane"
                 ;;
             *)
                 ;;
@@ -207,8 +297,36 @@ _tankTerm() {
             return 0
             ;;
         tankTerm__subcmd__help__subcmd__msg)
-            opts="create-window config get-config"
+            opts="list spawn split-pane send-text get-text activate-pane activate-tab kill-pane zoom-pane set-tab-title create-window config get-config"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        tankTerm__subcmd__help__subcmd__msg__subcmd__activate__subcmd__pane)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        tankTerm__subcmd__help__subcmd__msg__subcmd__activate__subcmd__tab)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
@@ -249,6 +367,118 @@ _tankTerm() {
             return 0
             ;;
         tankTerm__subcmd__help__subcmd__msg__subcmd__get__subcmd__config)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        tankTerm__subcmd__help__subcmd__msg__subcmd__get__subcmd__text)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        tankTerm__subcmd__help__subcmd__msg__subcmd__kill__subcmd__pane)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        tankTerm__subcmd__help__subcmd__msg__subcmd__list)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        tankTerm__subcmd__help__subcmd__msg__subcmd__send__subcmd__text)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        tankTerm__subcmd__help__subcmd__msg__subcmd__set__subcmd__tab__subcmd__title)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        tankTerm__subcmd__help__subcmd__msg__subcmd__spawn)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        tankTerm__subcmd__help__subcmd__msg__subcmd__split__subcmd__pane)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        tankTerm__subcmd__help__subcmd__msg__subcmd__zoom__subcmd__pane)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
@@ -307,7 +537,7 @@ _tankTerm() {
             return 0
             ;;
         tankTerm__subcmd__msg)
-            opts="-s -h --socket --help create-window config get-config help"
+            opts="-s -h --socket --help list spawn split-pane send-text get-text activate-pane activate-tab kill-pane zoom-pane set-tab-title create-window config get-config help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -341,6 +571,50 @@ _tankTerm() {
                     if [[ "${BASH_VERSINFO[0]}" -ge 4 ]]; then
                         compopt -o filenames
                     fi
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        tankTerm__subcmd__msg__subcmd__activate__subcmd__pane)
+            opts="-h --pane-id --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --pane-id)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        tankTerm__subcmd__msg__subcmd__activate__subcmd__tab)
+            opts="-h --tab-id --tab-index --tab-relative --no-wrap --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --tab-id)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --tab-index)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --tab-relative)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 *)
@@ -451,9 +725,63 @@ _tankTerm() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
-        tankTerm__subcmd__msg__subcmd__help)
-            opts="create-window config get-config help"
+        tankTerm__subcmd__msg__subcmd__get__subcmd__text)
+            opts="-h --pane-id --start-line --end-line --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --pane-id)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --start-line)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --end-line)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        tankTerm__subcmd__msg__subcmd__help)
+            opts="list spawn split-pane send-text get-text activate-pane activate-tab kill-pane zoom-pane set-tab-title create-window config get-config help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        tankTerm__subcmd__msg__subcmd__help__subcmd__activate__subcmd__pane)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        tankTerm__subcmd__msg__subcmd__help__subcmd__activate__subcmd__tab)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
@@ -507,6 +835,20 @@ _tankTerm() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
+        tankTerm__subcmd__msg__subcmd__help__subcmd__get__subcmd__text)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
         tankTerm__subcmd__msg__subcmd__help__subcmd__help)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
@@ -514,6 +856,252 @@ _tankTerm() {
                 return 0
             fi
             case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        tankTerm__subcmd__msg__subcmd__help__subcmd__kill__subcmd__pane)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        tankTerm__subcmd__msg__subcmd__help__subcmd__list)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        tankTerm__subcmd__msg__subcmd__help__subcmd__send__subcmd__text)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        tankTerm__subcmd__msg__subcmd__help__subcmd__set__subcmd__tab__subcmd__title)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        tankTerm__subcmd__msg__subcmd__help__subcmd__spawn)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        tankTerm__subcmd__msg__subcmd__help__subcmd__split__subcmd__pane)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        tankTerm__subcmd__msg__subcmd__help__subcmd__zoom__subcmd__pane)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        tankTerm__subcmd__msg__subcmd__kill__subcmd__pane)
+            opts="-h --pane-id --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --pane-id)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        tankTerm__subcmd__msg__subcmd__list)
+            opts="-h --format --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --format)
+                    COMPREPLY=($(compgen -W "table json" -- "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        tankTerm__subcmd__msg__subcmd__send__subcmd__text)
+            opts="-h --pane-id --no-paste --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --pane-id)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        tankTerm__subcmd__msg__subcmd__set__subcmd__tab__subcmd__title)
+            opts="-h --pane-id --tab-id --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --pane-id)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --tab-id)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        tankTerm__subcmd__msg__subcmd__spawn)
+            opts="-h --profile --cwd --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --profile)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cwd)
+                    COMPREPLY=()
+                    if [[ "${BASH_VERSINFO[0]}" -ge 4 ]]; then
+                        compopt -o plusdirs
+                    fi
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        tankTerm__subcmd__msg__subcmd__split__subcmd__pane)
+            opts="-h --pane-id --horizontal --left --right --top --bottom --percent --cwd --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --pane-id)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --percent)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cwd)
+                    COMPREPLY=()
+                    if [[ "${BASH_VERSINFO[0]}" -ge 4 ]]; then
+                        compopt -o plusdirs
+                    fi
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        tankTerm__subcmd__msg__subcmd__zoom__subcmd__pane)
+            opts="-h --pane-id --zoom --unzoom --toggle --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --pane-id)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
                 *)
                     COMPREPLY=()
                     ;;
