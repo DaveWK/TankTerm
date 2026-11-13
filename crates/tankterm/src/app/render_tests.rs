@@ -125,6 +125,50 @@ fn selection_and_strikethrough() {
     snapshot(&app, window, &dir, "selection-reversed");
 }
 
+#[test]
+#[ignore = "writes screenshots for manual inspection"]
+fn box_drawing() {
+    let Some(dir) = env::var_os("TANKTERM_SNAPSHOT_DIR").map(PathBuf::from) else { return };
+    let window = Size::new(1100., 560.);
+
+    // Frames of light, heavy, double and rounded lines with their junctions, diagonals, blocks,
+    // eighths, shades and quadrants, then dashes and half lines, all the sextants, powerline
+    // segments, lines on a background, dim and reversed, and the cursor on a junction.
+    let sextants: String = ('\u{1fb00}'..='\u{1fb3b}').collect();
+    let [right, right_thin, left, left_thin] = ['\u{e0b0}', '\u{e0b1}', '\u{e0b2}', '\u{e0b3}'];
+    let config = format!(
+        r#"
+        [font]
+        size = 18
+        [terminal.shell]
+        program = "sh"
+        args = ["-c", '''
+        printf "┌──┬──┐ ┏━━┳━━┓ ╔══╦══╗ ╭──┬──╮ ┍━┯━┑ ╓─╥─╖ ╱╲╱╲ ▁▂▃▄▅▆▇█ ░▒▓█ ██\n"
+        printf "│  │  │ ┃  ┃  ┃ ║  ║  ║ │  │  │ │ │ │ ║ ║ ║ ╲╱╲╱ █▇▆▅▄▃▂▁ ▀▄▌▐ ██\n"
+        printf "├──┼──┤ ┣━━╋━━┫ ╠══╬══╣ ├──┼──┤ ┝━┿━┥ ╟─╫─╢ ╱╲╱╲ ▏▎▍▌▋▊▉█ ▔▕▖▗ ██\n"
+        printf "│  │  │ ┃  ┃  ┃ ║  ║  ║ │  │  │ │ │ │ ║ ║ ║ ╲╱╲╱ 🮂🮃🮄🮅🮆🮇🮈🮉 ▘▝▙▚ ██\n"
+        printf "└──┴──┘ ┗━━┻━━┛ ╚══╩══╝ ╰──┴──╯ ┕━┷━┙ ╙─╨─╜ ╳╳╳╳ 🮊🮋▛▜▞▟░▒ ▓▓▓▓ ██\n"
+        printf "┄┄┄┅┅┅ ┈┈┈┉┉┉ ╌╌╌╍╍╍ ┆┇┊┋╎╏ ╴╶╵╷╸╹╺╻ ╼╽╾╿ ┞┟┠┡┢ ┭┮┯┰┱┲ ╭╮╭╮\n"
+        printf "┆┇┊┋╎╏ ┆┇┊┋╎╏ ┆┇┊┋╎╏ ┆┇┊┋╎╏ ╴╶╵╷╸╹╺╻ ╼╽╾╿ ┦┧┨┩┪ ┵┶┷┸┹┺ ╰╯╰╯\n"
+        printf "{sextants}\n"
+        printf "\033[30;44m main \033[34;42m{right}\033[30m ~/src \033[32;49m{right}\033[0m {right_thin} {left_thin} \033[32m{left}\033[30;42m 12:00 \033[34;42m{left}\033[30;44m ok \033[0m\n"
+        printf "\033[41m─┼─╋━╬═█▒\033[0m \033[2m─┼─╋━╬═█▒ dim\033[0m \033[7m┌─┐╔═╗▄▀\033[0m\n"
+        printf "cursor ┌┼┐\033[2D"
+        exec cat
+        ''']
+        "#
+    );
+    let mut app = super::tab_tests::app_with(&config, Hotkeys::default());
+    settle(&mut app, window);
+    snapshot(&app, window, &dir, "box-drawing");
+
+    // The same characters from the font.
+    let config = config.replace("size = 18", "size = 18\nbuiltin_box_drawing = false");
+    let mut app = super::tab_tests::app_with(&config, Hotkeys::default());
+    settle(&mut app, window);
+    snapshot(&app, window, &dir, "box-drawing-font");
+}
+
 /// Lay the terminals out so they get their size, then let them show what their shells printed.
 fn settle(app: &mut App, window: Size) {
     let resizes: Vec<_> = {

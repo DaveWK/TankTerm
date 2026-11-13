@@ -157,6 +157,10 @@ pub struct FontSettings {
     /// How far glyphs are moved from the middle of their cell, in logical
     /// pixels.
     pub glyph_offset: Vector,
+    /// Draw box drawing characters, block elements, sextants and powerline
+    /// symbols as shapes that fill their cell, instead of with the font.
+    /// They ignore `glyph_offset`.
+    pub builtin_box_drawing: bool,
 }
 
 impl Default for FontSettings {
@@ -170,6 +174,7 @@ impl Default for FontSettings {
             bold_italic: None,
             offset: Vector::ZERO,
             glyph_offset: Vector::ZERO,
+            builtin_box_drawing: true,
         }
     }
 }

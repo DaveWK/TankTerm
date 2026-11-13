@@ -19,6 +19,8 @@ pub struct TermFont {
     pub(crate) italic: Font,
     pub(crate) bold_italic: Font,
     pub(crate) glyph_offset: Vector,
+    /// Draw the characters [`crate::box_drawing`] has shapes for with those.
+    pub(crate) builtin_box_drawing: bool,
     pub(crate) scale_factor: f32,
     pub(crate) measure: Size<f32>,
 }
@@ -43,6 +45,7 @@ impl TermFont {
                 .bold_italic
                 .unwrap_or(with(Weight::Bold, Style::Italic)),
             glyph_offset: settings.glyph_offset,
+            builtin_box_drawing: settings.builtin_box_drawing,
             scale_factor: settings.scale_factor,
             measure: settings.cell_size(),
         }
@@ -156,5 +159,16 @@ mod tests {
         });
         assert_eq!(font.face(true, false), heavy);
         assert_eq!(font.face(false, false), regular);
+    }
+
+    #[test]
+    fn builtin_box_drawing_follows_the_settings() {
+        assert!(TermFont::new(FontSettings::default()).builtin_box_drawing);
+
+        let font = TermFont::new(FontSettings {
+            builtin_box_drawing: false,
+            ..FontSettings::default()
+        });
+        assert!(!font.builtin_box_drawing);
     }
 }

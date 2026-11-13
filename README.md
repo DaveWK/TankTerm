@@ -53,7 +53,7 @@ This front end is new and doesn't support everything the OpenGL one did yet:
 - Hints, vi mode and search, with the key binding actions that need them
 - Key bindings to `SpawnNewInstance`, `CreateNewWindow` and `HideOtherApplications`; mouse
   bindings other than pasting and expanding the selection with the middle and right buttons
-- `colors.transparent_background_colors` and `font.builtin_box_drawing`
+- `colors.transparent_background_colors`
 - `[style.blurred]`
 
 Command line options that aren't supported yet fail with an error; config

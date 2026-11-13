@@ -499,10 +499,13 @@ This section documents the *[font]* table of the configuration file.
 
 	When _true_, TankTerm will use a custom built-in font for box drawing
 	characters (Unicode points _U+2500_ - _U+259F_), legacy computing symbols
-	(_U+1FB00_ - _U+1FB3B_), and powerline symbols (_U+E0B0_ - _U+E0B3_).
+	(_U+1FB00_ - _U+1FB3B_ and _U+1FB82_ - _U+1FB8B_), and powerline symbols
+	(_U+E0B0_ - _U+E0B3_).
 
-	The iced front end doesn't have this built-in font yet and draws these
-	characters with the configured font.
+	The built-in font draws every character in these ranges as shapes that fill
+	the whole cell, with the space _offset_ adds, so lines meet across cells
+	without gaps and blocks cover their cells exactly; _glyph\_offset_ doesn't
+	move them. Other legacy computing symbols come from the configured font.
 
 	Default: _true_
 

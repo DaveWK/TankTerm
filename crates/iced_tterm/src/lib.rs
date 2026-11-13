@@ -3,6 +3,7 @@ pub mod bindings;
 pub mod settings;
 
 mod backend;
+mod box_drawing;
 mod cursor;
 mod font;
 mod keyboard;

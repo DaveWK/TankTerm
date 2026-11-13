@@ -2,6 +2,7 @@ use crate::backend::{
     Backend, Command, LinkAction, MouseButton, RenderableContent,
 };
 use crate::bindings::{BindingAction, BindingsLayout, InputKind};
+use crate::box_drawing;
 use crate::cursor::cursor_rectangles;
 use crate::keyboard::{self, KeyInput, KeyState, KittyOutput};
 use crate::terminal::{Event, Terminal};
@@ -712,6 +713,9 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
             // are only filled once a run of them ends and would cover them.
             let mut lines: Vec<(Path, f32, Color)> = Vec::new();
             let mut cursor_rects: Vec<(Point, Size, Color)> = Vec::new();
+            // Built-in characters' shapes go over the backgrounds and the
+            // cursor, where text goes too.
+            let mut builtin_glyphs: Vec<(Path, Color)> = Vec::new();
 
             for indexed in content.grid.display_iter() {
                 // Compute per-cell geometry cheaply
@@ -904,6 +908,22 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                             .foreground
                             .on(cell_fg, cell_bg);
                     }
+                    if self.term.font.builtin_box_drawing
+                        && box_drawing::is_builtin(indexed.c)
+                    {
+                        // On whole pixels, so the shapes of neighbouring
+                        // cells meet without a seam.
+                        let origin = Point::new(x.round(), y.round());
+                        let mut opacity = 0.;
+                        let glyph = Path::new(|path| {
+                            opacity = box_drawing::draw(
+                                indexed.c, cell_size, origin, path,
+                            )
+                            .unwrap_or(0.);
+                        });
+                        builtin_glyphs.push((glyph, fg.scale_alpha(opacity)));
+                        continue;
+                    }
                     let font = self.term.font.face(
                         flags.intersects(
                             cell::Flags::BOLD | cell::Flags::DIM_BOLD,
@@ -947,6 +967,9 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
             }
             for (position, size, color) in cursor_rects {
                 frame.fill_rectangle(position, size, color);
+            }
+            for (glyph, color) in &builtin_glyphs {
+                frame.fill(glyph, *color);
             }
         });
 

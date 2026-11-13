@@ -8,10 +8,7 @@ Approved and waiting their turn, in this order.
 2. Config options the iced front end ignores:
    - Port next: `[style.blurred]`, which needs the widget to know whether the window has focus,
      not only the pane.
-   - Port later, low priority: `window.resize_increments`, `window.option_as_alt`, and
-     `font.builtin_box_drawing` (the
-     built-in font for box drawing, block and powerline characters, which needs drawing of its
-     own in `iced_tterm`).
+   - Port later, low priority: `window.resize_increments` and `window.option_as_alt`.
 3. `tankTerm msg` in the iced front end: spawn, split, send-text, get-text, list, activate.
 4. Key tables and user-defined leader bindings in `[keyboard] bindings` (the leader key itself
    comes with the key preset option), with pane select, rotate panes, tab navigator and rename

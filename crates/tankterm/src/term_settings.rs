@@ -129,6 +129,7 @@ fn font_settings(config: &UiConfig) -> FontSettings {
         offset: delta(font.offset),
         // The configuration moves glyphs up for a positive `y`; iced's `y` grows downwards.
         glyph_offset: Vector::new(font.glyph_offset.x.into(), (-font.glyph_offset.y).into()),
+        builtin_box_drawing: font.builtin_box_drawing,
         ..FontSettings::default()
     }
 }
@@ -945,6 +946,14 @@ mod tests {
         let plain = cell_size(&defaults);
         let spaced = cell_size(&FontSettings { font_type: defaults.font_type, ..settings });
         assert_eq!(spaced, Size::new(plain.width + 1., plain.height - 2.));
+    }
+
+    #[test]
+    fn builtin_box_drawing_can_be_turned_off() {
+        assert!(font_settings(&UiConfig::default()).builtin_box_drawing);
+
+        let settings = font_settings(&config("[font]\nbuiltin_box_drawing = false\n"));
+        assert!(!settings.builtin_box_drawing);
     }
 
     #[test]
