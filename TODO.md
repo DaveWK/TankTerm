@@ -7,14 +7,11 @@ Approved and waiting their turn, in this order.
 1. Delete the `xitely/iced_term` repository on Forgejo (web UI; `forgejo-repos` can't).
 2. Config options the iced front end ignores:
    - Port later, low priority: `window.resize_increments` and `window.option_as_alt`.
-3. Key tables and user-defined leader bindings in `[keyboard] bindings` (the leader key itself
-   comes with the key preset option), with pane select, rotate panes, tab navigator and rename
-   tab.
-4. Vi mode, scrollback search and hints in the iced front end.
-5. Shell integration: OSC 7 working directory and OSC 133 prompt zones.
-6. Tab bar: `[style.tab_*]` blocks, tab title templates, status segments, and window buttons in
+3. Vi mode, scrollback search and hints in the iced front end.
+4. Shell integration: OSC 7 working directory and OSC 133 prompt zones.
+5. Tab bar: `[style.tab_*]` blocks, tab title templates, status segments, and window buttons in
    the tab bar in place of the OS title bar.
-7. `tankTerm ssh` with terminfo negotiation; design and decisions are in the section below
+6. `tankTerm ssh` with terminfo negotiation; design and decisions are in the section below
    the deferred list.
 
 ## Deferred
@@ -25,8 +22,13 @@ Nothing below is started; each item lists what has to be decided or built first.
 
 `get-text --escapes`, `split-pane --cells`, `--top-level` and `--move-pane-id`,
 `activate-pane-direction`, `get-pane-direction`, `adjust-pane-size` and `move-pane-to-new-tab`;
-`create-window`, `config` and `get-config` once there is more than one window. Tab titles set
-with `set-tab-title` aren't remembered in the session file yet.
+`create-window`, `config` and `get-config` once there is more than one window.
+
+### Rest of WezTerm's key tables and pane select
+
+Options given where a table is activated (`replace_current`, and `one_shot` and `timeout` per
+binding instead of per table), `PaneSelect` modes that move the chosen pane to a new tab or
+window, and a configurable label alphabet.
 
 ### Event API (planned, deferred)
 

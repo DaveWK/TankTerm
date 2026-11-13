@@ -66,6 +66,13 @@ Notable changes to the `tankterm_terminal` crate are documented in its
     `split-pane`, `send-text`, `get-text`, `activate-pane`, `activate-tab`, `kill-pane`,
     `zoom-pane` and `set-tab-title`. Shells find their pane in `TANKTERM_PANE_ID`, and errors
     are reported with exit status 1
+- Key tables like WezTerm's in `[keyboard.tables]`, activated by a binding's `table` and left with
+    `PopKeyTable`, `ClearKeyTableStack`, `one_shot`, `timeout` or `until_unknown`; the active table
+    is shown in the tab bar
+- `PaneSelect` and `PaneSelectSwap` label the panes to focus or swap one by typing its label,
+    `RotatePanesClockwise` and `RotatePanesCounterClockwise` move every pane to the next place,
+    `ShowTabNavigator` lists the tabs and `RenameTab` gives a tab a title, which the session file
+    remembers. The `Leader` preset binds them to `Q`, `W` and `Control+O` like tmux
 
 ### Changed
 

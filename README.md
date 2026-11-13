@@ -1,6 +1,8 @@
 <p align="center">
-    <img width="200" alt="TankTerm Logo" src="./extra/logo/compat/tankterm.png">
+    <img width="200" alt="Frank, the TankTerm tank" src="./extra/logo/compat/tankterm.png">
 </p>
+
+<p align="center"><b>Frank</b></p>
 
 <h1 align="center">TankTerm - A slopped together frankenterminal shamelessly forked by a clanker</h1>
 

@@ -120,6 +120,10 @@ pub enum Action {
     #[config(skip)]
     Mouse(MouseAction),
 
+    /// Activate the key table with this name (`table`).
+    #[config(skip)]
+    ActivateKeyTable(String),
+
     /// Paste contents of system clipboard.
     Paste,
 
@@ -279,6 +283,30 @@ pub enum Action {
     /// Show the profile selector, to open a profile in a new tab.
     ShowProfiles,
 
+    /// Label the panes of the tab and focus the one whose label is typed.
+    PaneSelect,
+
+    /// Label the panes of the tab and swap the current pane with the one whose label is typed.
+    PaneSelectSwap,
+
+    /// Move every pane of the tab to the place of the next one.
+    RotatePanesClockwise,
+
+    /// Move every pane of the tab to the place of the previous one.
+    RotatePanesCounterClockwise,
+
+    /// Show the tab navigator, a filterable list of the tabs.
+    ShowTabNavigator,
+
+    /// Ask for a new title for the current tab.
+    RenameTab,
+
+    /// Leave the key table that was activated last.
+    PopKeyTable,
+
+    /// Leave every active key table.
+    ClearKeyTableStack,
+
     /// Create a new TankTerm window.
     CreateNewWindow,
 
@@ -353,6 +381,7 @@ impl Display for Action {
             Action::ViMotion(motion) => motion.fmt(f),
             Action::Vi(action) => action.fmt(f),
             Action::Mouse(action) => action.fmt(f),
+            Action::ActivateKeyTable(name) => write!(f, "table {name:?}"),
             _ => write!(f, "{self:?}"),
         }
     }
@@ -822,6 +851,9 @@ pub fn preset_key_bindings(preset: KeyPreset, macos: bool) -> Vec<KeyBinding> {
             ArrowDown,  ModifiersState::CONTROL, +BindingMode::LEADER; Action::ResizePaneDown;
             Space,      +BindingMode::LEADER; Action::ShowCommandPalette;
             "e",        +BindingMode::LEADER; Action::ShowProfiles;
+            "q",        +BindingMode::LEADER; Action::PaneSelect;
+            "w",        +BindingMode::LEADER; Action::ShowTabNavigator;
+            "o",        ModifiersState::CONTROL, +BindingMode::LEADER; Action::RotatePanesClockwise;
         ));
 
         return bindings;
@@ -1230,7 +1262,7 @@ impl<'a> Deserialize<'a> for RawBinding {
         D: Deserializer<'a>,
     {
         const FIELDS: &[&str] =
-            &["key", "mods", "mode", "action", "chars", "mouse", "command", "help"];
+            &["key", "mods", "mode", "action", "chars", "mouse", "command", "table", "help"];
 
         enum Field {
             Key,
@@ -1240,6 +1272,7 @@ impl<'a> Deserialize<'a> for RawBinding {
             Chars,
             Mouse,
             Command,
+            Table,
             Help,
         }
 
@@ -1269,6 +1302,7 @@ impl<'a> Deserialize<'a> for RawBinding {
                             "chars" => Ok(Field::Chars),
                             "mouse" => Ok(Field::Mouse),
                             "command" => Ok(Field::Command),
+                            "table" => Ok(Field::Table),
                             "help" => Ok(Field::Help),
                             _ => Err(E::unknown_field(value, FIELDS)),
                         }
@@ -1299,6 +1333,7 @@ impl<'a> Deserialize<'a> for RawBinding {
                 let mut not_mode: Option<BindingMode> = None;
                 let mut mouse: Option<MouseEvent> = None;
                 let mut command: Option<Program> = None;
+                let mut table: Option<String> = None;
                 let mut help: Option<String> = None;
 
                 use de::Error;
@@ -1402,6 +1437,13 @@ impl<'a> Deserialize<'a> for RawBinding {
 
                             command = Some(map.next_value::<Program>()?);
                         },
+                        Field::Table => {
+                            if table.is_some() {
+                                return Err(<V::Error as Error>::duplicate_field("table"));
+                            }
+
+                            table = Some(map.next_value::<String>()?);
+                        },
                         Field::Help => {
                             if help.is_some() {
                                 return Err(<V::Error as Error>::duplicate_field("help"));
@@ -1416,11 +1458,11 @@ impl<'a> Deserialize<'a> for RawBinding {
                 let not_mode = not_mode.unwrap_or_else(BindingMode::empty);
                 let mods = mods.unwrap_or_default();
 
-                let action = match (action, chars, command) {
-                    (Some(action @ Action::ViMotion(_)), None, None)
-                    | (Some(action @ Action::Vi(_)), None, None) => action,
-                    (Some(action @ Action::Search(_)), None, None) => action,
-                    (Some(action @ Action::Mouse(_)), None, None) => {
+                let action = match (action, chars, command, table) {
+                    (Some(action @ Action::ViMotion(_)), None, None, None)
+                    | (Some(action @ Action::Vi(_)), None, None, None) => action,
+                    (Some(action @ Action::Search(_)), None, None, None) => action,
+                    (Some(action @ Action::Mouse(_)), None, None, None) => {
                         if mouse.is_none() {
                             return Err(V::Error::custom(format!(
                                 "action `{action}` is only available for mouse bindings",
@@ -1428,12 +1470,13 @@ impl<'a> Deserialize<'a> for RawBinding {
                         }
                         action
                     },
-                    (Some(action), None, None) => action,
-                    (None, Some(chars), None) => Action::Esc(chars),
-                    (None, None, Some(cmd)) => Action::Command(cmd),
+                    (Some(action), None, None, None) => action,
+                    (None, Some(chars), None, None) => Action::Esc(chars),
+                    (None, None, Some(cmd), None) => Action::Command(cmd),
+                    (None, None, None, Some(table)) => Action::ActivateKeyTable(table),
                     _ => {
                         return Err(V::Error::custom(
-                            "must specify exactly one of chars, action or command",
+                            "must specify exactly one of chars, action, command or table",
                         ));
                     },
                 };

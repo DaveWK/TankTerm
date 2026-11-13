@@ -46,6 +46,9 @@ impl App {
             palette_keys: Hotkeys::palette(),
             pending_paste: None,
             paste_keys: Hotkeys::paste_warning(),
+            key_tables: Vec::new(),
+            pane_select: None,
+            pane_keys: Hotkeys::pane_select(),
             config: None,
             #[cfg(unix)]
             socket: None,
@@ -138,6 +141,10 @@ impl App {
             }
         }
 
+        // Key tables that are gone from the configuration are left.
+        let hotkeys = &self.options.hotkeys;
+        self.key_tables.retain(|table| hotkeys.has_table(&table.name));
+
         // The visual bell may have been turned off while it flashes.
         if !self.options.bell.flash.is_enabled() {
             for shell in self.terminals.values_mut() {
@@ -170,6 +177,9 @@ impl App {
             let order = ordered_panes(panes.layout());
             let focus = order[saved.focus.min(order.len() - 1)];
             self.add_tab(panes, focus);
+            if let Some(tab) = self.tabs.last_mut() {
+                tab.title.clone_from(&saved.title);
+            }
         }
 
         // Shells started for a tab that couldn't be completed aren't shown anywhere.
@@ -190,6 +200,7 @@ impl App {
                     shell.and_then(|shell| shell.working_directory.clone())
                 }),
                 focus: order.iter().position(|pane| *pane == tab.focus).unwrap_or(0),
+                title: tab.title.clone(),
             }
         });
 
@@ -253,7 +264,10 @@ impl App {
     ///
     /// The others draw their cursor hollow and don't blink it.
     fn sync_focus(&mut self) {
-        let typing = self.window_focused && self.palette.is_none() && self.pending_paste.is_none();
+        let typing = self.window_focused
+            && self.palette.is_none()
+            && self.pending_paste.is_none()
+            && self.pane_select.is_none();
         let focused = self.focused_terminal().filter(|_| typing);
 
         for (id, shell) in &mut self.terminals {
@@ -303,8 +317,10 @@ impl App {
         });
 
         // Finished commands and working directories are only known on Unix. Elsewhere ticks are
-        // only needed while the session file waits to be written again.
-        let ticking = cfg!(unix) || self.session_error.is_some();
+        // only needed while the session file waits to be written again, or a key table times
+        // out.
+        let timing = self.key_tables.iter().any(|table| table.deadline.is_some());
+        let ticking = cfg!(unix) || self.session_error.is_some() || timing;
         let ticks = ticking.then(|| Subscription::run(ticks));
 
         // A flashing visual bell is drawn anew with every frame, until it has faded out.
@@ -350,6 +366,19 @@ impl App {
     pub fn update(&mut self, message: Message) -> Task<Message> {
         let tick = matches!(message, Message::Tick);
         let task = self.handle(message);
+
+        // Key tables that timed out were left; the tick takes them out of the tab bar.
+        let now = Instant::now();
+        self.key_tables.retain(|table| !table.is_over(now));
+
+        // Choosing a pane ends when its tab isn't shown any more, from a click on the tab bar,
+        // or has a single pane left.
+        let shown = self.tabs.get(self.active);
+        if let Some(select) = &self.pane_select
+            && shown.is_none_or(|tab| tab.id != select.tab || tab.panes.len() < 2)
+        {
+            self.pane_select = None;
+        }
 
         self.shown();
         self.sync_focus();
@@ -505,6 +534,13 @@ impl App {
 
         match command {
             Some(palette::Command::Action(action)) => self.perform(action),
+            Some(palette::Command::RenameTab(title)) => {
+                if let Some(tab) = self.tabs.get_mut(self.active) {
+                    tab.title = (!title.is_empty()).then_some(title);
+                }
+
+                self.focus()
+            },
             Some(palette::Command::Profile(index)) => {
                 let profile = self.options.profiles.get(index);
                 let spawned = profile.map(|profile| (profile.settings.clone(), profile.background));

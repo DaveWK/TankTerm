@@ -15,7 +15,7 @@ use iced_tterm::settings::Settings;
 
 use crate::bell::Bell;
 use crate::config::tabs::Tabs;
-use crate::hotkeys::{AppAction, Hotkeys};
+use crate::hotkeys::{ActiveTable, AppAction, Hotkeys, PaneSelectMode};
 use crate::palette::Palette;
 use crate::session::Session;
 use crate::setup::ConfigSource;
@@ -25,6 +25,8 @@ mod actions;
 mod ipc;
 #[cfg(all(test, unix))]
 mod ipc_tests;
+#[cfg(all(test, unix))]
+mod key_table_tests;
 #[cfg(all(test, unix))]
 mod layout_tests;
 #[cfg(all(test, unix))]
@@ -147,6 +149,12 @@ pub struct App {
     pending_paste: Option<PendingPaste>,
     /// Keys that answer the paste warning.
     paste_keys: Hotkeys,
+    /// The key tables that were activated and not left yet, the last one activated at the end.
+    key_tables: Vec<ActiveTable>,
+    /// The panes of the shown tab are labeled, while one is chosen by typing its label.
+    pane_select: Option<PaneSelect>,
+    /// The keys of the pane labels, and `Escape`.
+    pane_keys: Hotkeys,
     /// Where the configuration comes from, while its files are watched for changes.
     config: Option<ConfigSource>,
     /// Whether the window was opened transparent, which it is for the rest of its life.
@@ -154,6 +162,13 @@ pub struct App {
     /// The socket `tankTerm msg` talks to, while there is one.
     #[cfg(unix)]
     socket: Option<crate::ipc::Listener>,
+}
+
+/// Choosing a pane of a tab by typing its label.
+struct PaneSelect {
+    mode: PaneSelectMode,
+    /// ID of the tab whose panes are labeled; choosing ends when another tab is shown.
+    tab: u64,
 }
 
 /// Text that was pasted into a terminal but not sent to it yet.

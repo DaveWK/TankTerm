@@ -1,20 +1,21 @@
 //! Tab and pane operations: opening, closing, moving between and resizing them.
 
 use std::io;
+use std::time::Instant;
 
 use iced::widget::pane_grid::{self, Direction, Node};
 use iced::{Color, Task, window};
 use iced_core::clipboard::Kind;
 use iced_tterm::BackendCommand;
 use iced_tterm::settings::Settings;
-use log::error;
+use log::{error, warn};
 
 use super::actions::{FONT_SIZE_STEP, hide, minimize, toggle_fullscreen, toggle_maximized, zoomed};
 use super::{
-    App, Message, PANE_ID_ENV, PendingPaste, RESIZE_LIMITS, RESIZE_STEP, Shell, Tab,
+    App, Message, PANE_ID_ENV, PaneSelect, PendingPaste, RESIZE_LIMITS, RESIZE_STEP, Shell, Tab,
     working_directory,
 };
-use crate::hotkeys::AppAction;
+use crate::hotkeys::{ActiveTable, AppAction, PaneSelectMode};
 use crate::palette::Palette;
 use crate::session::ordered_panes;
 
@@ -134,6 +135,72 @@ impl App {
                 self.palette = Some(Palette::profiles(
                     profiles.map(|profile| (profile.name.clone(), profile.detail.clone())),
                 ));
+            },
+            AppAction::ShowTabNavigator => {
+                let titles = self.tabs.iter().map(|tab| self.tab_title(tab).to_owned());
+                self.palette = Some(Palette::tabs(titles.collect::<Vec<_>>(), self.active));
+            },
+            AppAction::RenameTab => {
+                let tab = &self.tabs[self.active];
+                let shown = self.pane_title(tab).to_owned();
+                self.palette = Some(Palette::rename(tab.title.as_deref(), &shown));
+            },
+            AppAction::PaneSelect(mode) => {
+                let tab = &mut self.tabs[self.active];
+                if tab.panes.len() < 2 {
+                    return Task::none();
+                }
+
+                // Every pane is shown, to be labeled.
+                tab.panes.restore();
+                self.pane_select = Some(PaneSelect { mode, tab: tab.id });
+            },
+            AppAction::PaneSelectChoose(position) => {
+                let tab = &mut self.tabs[self.active];
+                // A letter that labels no pane is ignored.
+                let Some(&chosen) = ordered_panes(tab.panes.layout()).get(position) else {
+                    return Task::none();
+                };
+                let Some(PaneSelect { mode, .. }) = self.pane_select.take() else {
+                    return Task::none();
+                };
+
+                match mode {
+                    PaneSelectMode::Focus => tab.focus = chosen,
+                    // The focused pane moves to the chosen one's place and keeps the focus.
+                    PaneSelectMode::Swap if chosen != tab.focus => {
+                        tab.panes.swap(tab.focus, chosen)
+                    },
+                    PaneSelectMode::Swap => (),
+                }
+            },
+            AppAction::PaneSelectCancel => self.pane_select = None,
+            AppAction::RotatePanes(clockwise) => {
+                let tab = &mut self.tabs[self.active];
+                rotate(&mut tab.panes, clockwise);
+            },
+            AppAction::ActivateKeyTable(name) => {
+                let Some(timeout) = self
+                    .options
+                    .hotkeys
+                    .has_table(&name)
+                    .then(|| self.options.hotkeys.table_timeout(&name))
+                else {
+                    warn!("There is no key table named {name:?}");
+                    return Task::none();
+                };
+
+                let deadline = timeout.map(|timeout| Instant::now() + timeout);
+                self.key_tables.push(ActiveTable { name, deadline });
+                return Task::none();
+            },
+            AppAction::PopKeyTable => {
+                self.key_tables.pop();
+                return Task::none();
+            },
+            AppAction::ClearKeyTables => {
+                self.key_tables.clear();
+                return Task::none();
             },
             AppAction::PaletteNext | AppAction::PalettePrevious => {
                 if let Some(palette) = &mut self.palette {
@@ -334,10 +401,14 @@ impl App {
     /// Title of a tab: the one it was given, the one its focused terminal set, or the window
     /// title.
     pub(super) fn tab_title<'a>(&'a self, tab: &'a Tab) -> &'a str {
-        if let Some(title) = &tab.title {
-            return title;
+        match &tab.title {
+            Some(title) => title,
+            None => self.pane_title(tab),
         }
+    }
 
+    /// The title of a tab without one given to it: that of its focused pane.
+    pub(super) fn pane_title<'a>(&'a self, tab: &'a Tab) -> &'a str {
         let title = tab
             .panes
             .get(tab.focus)
@@ -345,6 +416,26 @@ impl App {
             .and_then(|shell| shell.title.as_deref());
 
         title.filter(|_| self.options.dynamic_title).unwrap_or(&self.options.title)
+    }
+}
+
+/// Move every pane to the place of the next one, counting from left to right and top to bottom,
+/// and the last one to the place of the first; or the other way around.
+///
+/// Panes keep their identity as they move, so the focus moves along with the focused pane.
+pub(super) fn rotate(panes: &mut pane_grid::State<u64>, clockwise: bool) {
+    let order = ordered_panes(panes.layout());
+    let Some((&first, &last)) = order.first().zip(order.last()) else { return };
+
+    if clockwise {
+        // The last pane is swapped into each place in turn, from the back.
+        for &pane in order.iter().rev().skip(1) {
+            panes.swap(pane, last);
+        }
+    } else {
+        for &pane in order.iter().skip(1) {
+            panes.swap(first, pane);
+        }
     }
 }
 

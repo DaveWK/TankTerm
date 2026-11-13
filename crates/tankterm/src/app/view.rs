@@ -9,8 +9,9 @@ use iced_tterm::TerminalView;
 use super::{App, Layout, MAX_TAB_WIDTH, Message, Shell};
 use crate::config::BindingMode;
 use crate::config::tabs::{ShowTabs, TabsPosition};
-use crate::hotkeys::{AppAction, KeyFilter};
+use crate::hotkeys::{AppAction, KeyFilter, PANE_LABELS};
 use crate::palette::{self, blend, paste_warning};
+use crate::session::ordered_panes;
 
 impl App {
     pub fn view(&self) -> Element<'_, Message> {
@@ -21,8 +22,15 @@ impl App {
 
         // Frame the panes of a split tab, to show which one has focus.
         let framed = tab.panes.len() > 1 && tab.panes.maximized().is_none();
+        // While a pane is chosen by its label, every pane shows its label.
+        let order = self.pane_select.as_ref().map(|_| ordered_panes(tab.panes.layout()));
+        let label = |pane: pane_grid::Pane| {
+            let position = order.as_ref()?.iter().position(|ordered| *ordered == pane)?;
+            PANE_LABELS.chars().nth(position)
+        };
         let panes = PaneGrid::new(&tab.panes, |pane, terminal, _| {
-            pane_grid::Content::new(self.pane(*terminal, framed, pane == tab.focus))
+            let content = self.pane(*terminal, framed, pane == tab.focus, label(pane));
+            pane_grid::Content::new(content)
         })
         .on_click(Message::PaneClicked)
         .on_resize(6, Message::PaneResized);
@@ -54,24 +62,35 @@ impl App {
             .push(self.palette.as_ref().map(|palette| palette.view(appearance)))
             .push(self.pending_paste.as_ref().map(|paste| paste_warning(&paste.text, appearance)));
 
-        // The paste warning is answered with a key; nothing typed meanwhile reaches a terminal.
-        let hotkeys = match (&self.pending_paste, &self.palette) {
-            (Some(_), _) => &self.paste_keys,
-            (None, Some(_)) => &self.palette_keys,
-            (None, None) => &self.options.hotkeys,
-        };
+        // The paste warning and the pane labels are answered with a key; nothing typed meanwhile
+        // reaches a terminal. Key tables only apply to the regular bindings.
+        let (hotkeys, tables): (_, &[_]) =
+            match (&self.pending_paste, &self.palette, &self.pane_select) {
+                (Some(_), ..) => (&self.paste_keys, &[]),
+                (None, Some(_), _) => (&self.palette_keys, &[]),
+                (None, None, Some(_)) => (&self.pane_keys, &[]),
+                (None, None, None) => (&self.options.hotkeys, &self.key_tables),
+            };
 
         // Bindings can be limited to modes of the terminal the keys are typed into.
         let mode = self.focused_shell().map(|shell| shell.terminal.mode()).unwrap_or_default();
 
         KeyFilter::new(layers, hotkeys, Message::Action)
-            .exclusive(self.pending_paste.is_some())
+            .exclusive(self.pending_paste.is_some() || self.pane_select.is_some())
             .mode(BindingMode::new(&mode, false))
+            .tables(tables)
             .into()
     }
 
     /// A terminal with its padding and, in a split tab, a frame showing whether it has focus.
-    fn pane(&self, terminal: u64, framed: bool, focused: bool) -> Element<'_, Message> {
+    /// `label` is shown over it while a pane is chosen by its label.
+    fn pane(
+        &self,
+        terminal: u64,
+        framed: bool,
+        focused: bool,
+        label: Option<char>,
+    ) -> Element<'_, Message> {
         let Layout { padding, foreground, .. } = self.options.layout;
         let Some(shell) = self.terminals.get(&terminal) else { return container("").into() };
         let background = self.pane_background(shell);
@@ -93,7 +112,24 @@ impl App {
                 container::Style { background: Some(color.into()), ..Default::default() }
             })
         });
-        let terminal = stack![terminal].push(flash);
+        let label = label.map(|label| {
+            let Layout { background, foreground, .. } = self.options.layout;
+            let size = self.settings.font.size * 3.;
+            let badge = container(
+                text(label.to_uppercase().to_string())
+                    .font(self.settings.font.font_type)
+                    .size(size),
+            )
+            .padding([4., size / 2.])
+            .style(move |_| container::Style {
+                background: Some(blend(background, foreground, 0.15).into()),
+                text_color: Some(foreground),
+                border: Border { color: foreground, width: 1., ..Border::default() },
+                ..Default::default()
+            });
+            container(badge).center(Length::Fill)
+        });
+        let terminal = stack![terminal].push(flash).push(label);
 
         // A pane that wants to be looked at stands out from the focused one.
         let frame = match (shell.attention, focused) {
@@ -165,6 +201,11 @@ impl App {
             container(tab).width(Length::FillPortion(1)).max_width(MAX_TAB_WIDTH).into()
         });
 
+        // The key table that was activated last, while one is active.
+        let table = self.key_tables.last().map(|table| {
+            container(label(table.name.to_string()).color(foreground)).padding([3, 8])
+        });
+
         let new_tab = button(label("+".into()))
             .padding([3, 8])
             .style(move |_, status| button::Style {
@@ -177,7 +218,7 @@ impl App {
             })
             .on_press(Message::Action(AppAction::NewTab));
 
-        container(row(tabs).push(new_tab).spacing(1))
+        container(row(tabs).push(new_tab).push(table).spacing(1))
             .width(Length::Fill)
             .style(move |_| container::Style { background: Some(bar.into()), ..Default::default() })
             .into()

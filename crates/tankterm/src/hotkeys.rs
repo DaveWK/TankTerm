@@ -5,6 +5,7 @@
 //! the widget tree and takes the keys bound to these actions out of the event stream, so they
 //! never reach the shell.
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -17,7 +18,7 @@ use iced_core::{Clipboard, Layout, Shell, Widget, layout, mouse, overlay, render
 use iced_tterm::TermMode;
 use iced_tterm::bindings::{Binding as WidgetBinding, BindingAction, InputKind};
 
-use crate::config::ui_config::Program;
+use crate::config::ui_config::{KeyTable, Program};
 use crate::config::{
     Action, BindingKey, BindingMode, KeyBinding, KeyLocation, LeaderKey, MouseAction, MouseBinding,
     MouseEvent, UiConfig,
@@ -34,6 +35,15 @@ pub enum ScrollTo {
     LineDown,
     Top,
     Bottom,
+}
+
+/// What choosing a pane by its label does.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PaneSelectMode {
+    /// Focus the chosen pane.
+    Focus,
+    /// Swap the focused pane with the chosen one; the focus moves along with it.
+    Swap,
 }
 
 /// Actions of the application: for tabs and panes, the focused terminal and the window.
@@ -61,6 +71,24 @@ pub enum AppAction {
     ShowCommands,
     /// Show the profile selector.
     ShowProfiles,
+    /// Label the panes of the tab, to choose one by typing its label.
+    PaneSelect(PaneSelectMode),
+    /// Choose the pane with the label at this position.
+    PaneSelectChoose(usize),
+    /// Take the pane labels away without choosing a pane.
+    PaneSelectCancel,
+    /// Move every pane of the tab to the place of the next one (`true`) or the previous one.
+    RotatePanes(bool),
+    /// Show the tab navigator.
+    ShowTabNavigator,
+    /// Ask for a new title for the tab.
+    RenameTab,
+    /// Activate the key table with this name.
+    ActivateKeyTable(Arc<str>),
+    /// Leave the key table that was activated last.
+    PopKeyTable,
+    /// Leave every active key table.
+    ClearKeyTables,
     /// Select the next item of the command palette or profile selector.
     PaletteNext,
     /// Select the previous item of the command palette or profile selector.
@@ -140,6 +168,15 @@ impl AppAction {
             Action::ResizePaneDown => Self::ResizePane(Direction::Down),
             Action::ShowCommandPalette => Self::ShowCommands,
             Action::ShowProfiles => Self::ShowProfiles,
+            Action::PaneSelect => Self::PaneSelect(PaneSelectMode::Focus),
+            Action::PaneSelectSwap => Self::PaneSelect(PaneSelectMode::Swap),
+            Action::RotatePanesClockwise => Self::RotatePanes(true),
+            Action::RotatePanesCounterClockwise => Self::RotatePanes(false),
+            Action::ShowTabNavigator => Self::ShowTabNavigator,
+            Action::RenameTab => Self::RenameTab,
+            Action::ActivateKeyTable(name) => Self::ActivateKeyTable(name.as_str().into()),
+            Action::PopKeyTable => Self::PopKeyTable,
+            Action::ClearKeyTableStack => Self::ClearKeyTables,
             Action::Copy => Self::Copy,
             Action::Paste => Self::Paste,
             Action::PasteSelection => Self::PasteSelection,
@@ -283,6 +320,46 @@ pub struct Hotkeys {
     /// Keys that run their action when they are pressed after the leader key.
     sequences: Vec<Bound>,
     leader: Option<Leader>,
+    /// Key tables, by name.
+    tables: BTreeMap<String, Table>,
+}
+
+/// The keys of a key table, and when it is left.
+#[derive(Debug, Clone, PartialEq)]
+struct Table {
+    bindings: Vec<Bound>,
+    one_shot: bool,
+    /// How long the table stays active, if not for good.
+    timeout: Option<Duration>,
+    until_unknown: bool,
+    prevent_fallback: bool,
+}
+
+/// A key table that was activated and not left yet.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ActiveTable {
+    pub name: Arc<str>,
+    /// When the table is left by itself, if it is.
+    pub deadline: Option<Instant>,
+}
+
+impl ActiveTable {
+    /// Whether the table was left by itself at `now`.
+    pub fn is_over(&self, now: Instant) -> bool {
+        self.deadline.is_some_and(|deadline| deadline <= now)
+    }
+}
+
+/// What a key press does while key tables are active.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TablePress {
+    /// The actions to run: those bound in a table, after the tables to leave.
+    pub actions: Vec<AppAction>,
+    /// Whether a table decided what the key does. Otherwise the key goes on to the leader key
+    /// and the regular bindings.
+    pub decided: bool,
+    /// Whether the key is kept from the terminal, when a table decided what it does.
+    pub captured: bool,
 }
 
 /// The key that starts a two key sequence, like tmux's prefix key.
@@ -298,7 +375,13 @@ impl Hotkeys {
     /// Collect the bindings of the configuration the application handles: the default ones,
     /// those of the selected preset and the user's.
     pub fn from_config(config: &UiConfig) -> Self {
-        Self::from_bindings(&config.app_bindings(), Leader::from_config(config.leader()))
+        let mut hotkeys =
+            Self::from_bindings(&config.app_bindings(), Leader::from_config(config.leader()));
+        for (name, table) in config.key_tables() {
+            hotkeys.tables.insert(name.clone(), Table::from_config(table));
+        }
+
+        hotkeys
     }
 
     /// Collect the bindings the application handles from key bindings.
@@ -341,6 +424,13 @@ impl Hotkeys {
         hotkeys
     }
 
+    /// Add a key table with these bindings.
+    #[cfg(test)]
+    pub fn with_table(mut self, name: &str, table: &KeyTable) -> Self {
+        self.tables.insert(name.into(), Table::from_config(table));
+        self
+    }
+
     /// Use this leader key.
     #[cfg(test)]
     pub fn with_leader(mut self, key: Key, modifiers: Modifiers, timeout: Duration) -> Self {
@@ -363,6 +453,19 @@ impl Hotkeys {
             .with(Key::Named(Named::Escape), Modifiers::empty(), AppAction::PaletteClose)
             .with(Key::Named(Named::ArrowDown), Modifiers::empty(), AppAction::PaletteNext)
             .with(Key::Named(Named::ArrowUp), Modifiers::empty(), AppAction::PalettePrevious)
+    }
+
+    /// The keys that choose a labeled pane, or none.
+    pub fn pane_select() -> Self {
+        use keyboard::key::Named;
+
+        let labels = PANE_LABELS.chars().enumerate();
+        let hotkeys = labels.fold(Self::default(), |hotkeys, (position, label)| {
+            let key = Key::Character(label.to_string().into());
+            hotkeys.with(key, Modifiers::empty(), AppAction::PaneSelectChoose(position))
+        });
+
+        hotkeys.with(Key::Named(Named::Escape), Modifiers::empty(), AppAction::PaneSelectCancel)
     }
 
     /// The keys that answer the paste warning.
@@ -409,6 +512,63 @@ impl Hotkeys {
         self.press_after_leader(&press, BindingMode::empty()).actions.first().cloned()
     }
 
+    /// Whether there is a key table with this name.
+    pub fn has_table(&self, name: &str) -> bool {
+        self.tables.contains_key(name)
+    }
+
+    /// How long the key table with this name stays active, if not for good.
+    pub fn table_timeout(&self, name: &str) -> Option<Duration> {
+        self.tables.get(name).and_then(|table| table.timeout)
+    }
+
+    /// What a key press does in a terminal with `mode` while the `active` key tables are, the
+    /// last one activated at the end.
+    ///
+    /// The tables are searched from the last one activated. A key bound in a table runs its
+    /// bindings there, after leaving the table if it is `one_shot`. A key that isn't leaves the
+    /// table if it is `until_unknown`, and stops the search if it is `prevent_fallback`.
+    /// Tables are left from the last one activated, like WezTerm's. Modifier keys pressed on
+    /// their own are left alone.
+    pub fn press_in_tables(
+        &self,
+        active: &[ActiveTable],
+        press: &KeyPress<'_>,
+        mode: BindingMode,
+        now: Instant,
+    ) -> TablePress {
+        let mut outcome = TablePress::default();
+        if is_modifier(press.key) {
+            return outcome;
+        }
+
+        for active in active.iter().rev().filter(|active| !active.is_over(now)) {
+            let Some(table) = self.tables.get(&*active.name) else { continue };
+
+            if table.bindings.iter().any(|bound| bound.is_triggered_by(press, mode)) {
+                if table.one_shot {
+                    outcome.actions.push(AppAction::PopKeyTable);
+                }
+                let triggered = triggered(&table.bindings, press, mode);
+                outcome.actions.extend(triggered.actions);
+                outcome.decided = true;
+                outcome.captured = triggered.captured;
+                return outcome;
+            }
+
+            if table.until_unknown {
+                outcome.actions.push(AppAction::PopKeyTable);
+            }
+            if table.prevent_fallback {
+                outcome.decided = true;
+                outcome.captured = true;
+                return outcome;
+            }
+        }
+
+        outcome
+    }
+
     /// The leader key, if any binding needs it.
     ///
     /// Without such bindings the key isn't special and is left to the shell.
@@ -416,6 +576,25 @@ impl Hotkeys {
         self.leader.as_ref().filter(|_| !self.sequences.is_empty())
     }
 }
+
+impl Table {
+    /// The keys of a configured key table. Bindings with the `Leader` mode don't belong in a
+    /// table, and are left out like those of actions and keys that aren't supported.
+    fn from_config(table: &KeyTable) -> Self {
+        let bindings = Hotkeys::from_bindings(&table.bindings, None).direct;
+
+        Self {
+            bindings,
+            one_shot: table.one_shot,
+            timeout: (table.timeout > 0).then(|| Duration::from_millis(table.timeout)),
+            until_unknown: table.until_unknown,
+            prevent_fallback: table.prevent_fallback,
+        }
+    }
+}
+
+/// Labels of the panes while one is chosen by typing its label, in the order of the panes.
+pub const PANE_LABELS: &str = "asdfqwerzxcvjklmiuopghtybn";
 
 impl Leader {
     /// The configured leader key. Leader keys given as scancodes aren't supported.
@@ -529,6 +708,8 @@ pub struct KeyFilter<'a, Message> {
     exclusive: bool,
     /// Modes of the terminal the keys are typed into, for bindings limited to some.
     mode: BindingMode,
+    /// The active key tables, the last one activated at the end.
+    tables: &'a [ActiveTable],
 }
 
 impl<'a, Message> KeyFilter<'a, Message> {
@@ -543,7 +724,14 @@ impl<'a, Message> KeyFilter<'a, Message> {
             on_action,
             exclusive: false,
             mode: BindingMode::empty(),
+            tables: &[],
         }
+    }
+
+    /// The active key tables, the last one activated at the end.
+    pub fn tables(mut self, tables: &'a [ActiveTable]) -> Self {
+        self.tables = tables;
+        self
     }
 
     /// The modes of the terminal the keys are typed into.
@@ -720,18 +908,26 @@ impl<Message> Widget<Message, Theme, Renderer> for KeyFilter<'_, Message> {
                     return;
                 }
 
-                if leader.is_some_and(|leader| leader.is(key, *modifiers)) {
-                    state.leader = Some(Instant::now());
-                    state.hold(key);
-                    shell.capture_event();
-                    return;
-                }
-
-                let triggered = self.hotkeys.press(&press, self.mode);
-                for action in triggered.actions {
+                let now = Instant::now();
+                let table = self.hotkeys.press_in_tables(self.tables, &press, self.mode, now);
+                for action in table.actions {
                     shell.publish((self.on_action)(action));
                 }
-                if triggered.captured {
+                // A key a table passes on (`ReceiveChar`) goes to the terminal as it is.
+                let captured = if table.decided {
+                    table.captured
+                } else if leader.is_some_and(|leader| leader.is(key, *modifiers)) {
+                    state.leader = Some(now);
+                    true
+                } else {
+                    let triggered = self.hotkeys.press(&press, self.mode);
+                    for action in triggered.actions {
+                        shell.publish((self.on_action)(action));
+                    }
+                    triggered.captured
+                };
+
+                if captured {
                     state.hold(key);
                     shell.capture_event();
                     return;
@@ -1043,6 +1239,9 @@ mod tests {
             (arrow_left(), Modifiers::CTRL, AppAction::ResizePane(Direction::Left)),
             (Key::Named(Named::Space), none, AppAction::ShowCommands),
             (character("e"), none, AppAction::ShowProfiles),
+            (character("q"), none, AppAction::PaneSelect(PaneSelectMode::Focus)),
+            (character("w"), none, AppAction::ShowTabNavigator),
+            (character("o"), Modifiers::CTRL, AppAction::RotatePanes(true)),
         ];
         for (key, modifiers, action) in sequences {
             assert_eq!(hotkeys.sequence(&key, modifiers), Some(action), "{key:?} {modifiers:?}");
@@ -1146,6 +1345,142 @@ mod tests {
             Some(AppAction::CloseTab)
         );
         assert_eq!(hotkeys.sequence(&character("n"), Modifiers::empty()), Some(AppAction::NextTab));
+    }
+
+    /// A key table named `resize` and one named `once`, and the keys that activate them.
+    const TABLES: &str = r#"
+        [keyboard]
+        bindings = [
+            { key = "R", mods = "Control|Shift", table = "resize" },
+            { key = "O", mods = "Control|Shift", table = "once" },
+        ]
+
+        [keyboard.tables.resize]
+        one_shot = false
+        bindings = [
+            { key = "ArrowLeft", action = "ResizePaneLeft" },
+            { key = "Escape", action = "PopKeyTable" },
+            { key = "K", action = "ReceiveChar" },
+            { key = "X", mode = "Leader", action = "ClosePane" },
+        ]
+
+        [keyboard.tables.once]
+        timeout = 500
+        bindings = [{ key = "N", action = "SelectNextTab" }]
+    "#;
+
+    fn active(name: &str, deadline: Option<Instant>) -> ActiveTable {
+        ActiveTable { name: name.into(), deadline }
+    }
+
+    fn in_tables(hotkeys: &Hotkeys, tables: &[ActiveTable], key: &Key) -> TablePress {
+        let press =
+            KeyPress { key, modifiers: Modifiers::empty(), location: keyboard::Location::Standard };
+        hotkeys.press_in_tables(tables, &press, BindingMode::empty(), Instant::now())
+    }
+
+    #[test]
+    fn key_tables_are_read_and_activated() {
+        let hotkeys = configured(TABLES);
+
+        assert_eq!(
+            hotkeys.action(&character("r"), CTRL_SHIFT),
+            Some(AppAction::ActivateKeyTable("resize".into()))
+        );
+        assert!(hotkeys.has_table("resize"));
+        assert!(!hotkeys.has_table("missing"));
+        assert_eq!(hotkeys.table_timeout("resize"), None);
+        assert_eq!(hotkeys.table_timeout("once"), Some(Duration::from_millis(500)));
+
+        // Leader bindings don't belong in a table.
+        assert_eq!(hotkeys.tables["resize"].bindings.len(), 3);
+        assert!(!hotkeys.tables["once"].until_unknown);
+        assert!(hotkeys.tables["once"].one_shot);
+
+        // A binding names one thing to do.
+        let config = r#"[keyboard]
+            bindings = [{ key = "R", table = "resize", action = "Paste" }]"#;
+        assert_eq!(configured(config).action(&character("r"), Modifiers::empty()), None);
+    }
+
+    #[test]
+    fn keys_are_looked_up_in_the_last_table_first() {
+        use keyboard::key::Named;
+
+        let hotkeys = configured(TABLES);
+        let resize = active("resize", None);
+        let arrow = arrow_left();
+
+        // A table that stays active until it is left.
+        let press = in_tables(&hotkeys, std::slice::from_ref(&resize), &arrow);
+        let resize_left = AppAction::ResizePane(Direction::Left);
+        assert_eq!(press.actions, std::slice::from_ref(&resize_left));
+        assert!(press.decided && press.captured);
+        let escape = Key::Named(Named::Escape);
+        let press = in_tables(&hotkeys, std::slice::from_ref(&resize), &escape);
+        assert_eq!(press.actions, [AppAction::PopKeyTable]);
+
+        // Keys that aren't bound go on to the regular bindings, and modifiers are left alone.
+        let press = in_tables(&hotkeys, std::slice::from_ref(&resize), &character("z"));
+        assert_eq!(press, TablePress::default());
+        let shift = Key::Named(Named::Shift);
+        assert_eq!(
+            in_tables(&hotkeys, std::slice::from_ref(&resize), &shift),
+            TablePress::default()
+        );
+
+        // `ReceiveChar` gives the key to the terminal.
+        let press = in_tables(&hotkeys, std::slice::from_ref(&resize), &character("k"));
+        assert!(press.decided && !press.captured);
+
+        // A one shot table is left with its first key, and falls back on the tables below it.
+        let tables = [resize.clone(), active("once", None)];
+        let press = in_tables(&hotkeys, &tables, &character("n"));
+        assert_eq!(press.actions, [AppAction::PopKeyTable, AppAction::NextTab]);
+        assert_eq!(in_tables(&hotkeys, &tables, &arrow).actions, [resize_left]);
+
+        // A table whose time is up is left out.
+        let over = [resize, active("once", Some(Instant::now()))];
+        assert!(!in_tables(&hotkeys, &over, &character("n")).decided);
+
+        // Tables that are gone from the configuration are skipped.
+        let gone = [active("missing", None)];
+        assert_eq!(in_tables(&hotkeys, &gone, &arrow), TablePress::default());
+    }
+
+    #[test]
+    fn tables_can_end_at_unknown_keys_and_keep_them_from_the_rest() {
+        let hotkeys = configured(
+            r#"
+            [keyboard.tables.strict]
+            one_shot = false
+            until_unknown = true
+            prevent_fallback = true
+            bindings = [{ key = "N", action = "SelectNextTab" }]
+            "#,
+        );
+        let tables = [active("strict", None)];
+
+        let press = in_tables(&hotkeys, &tables, &character("n"));
+        assert_eq!(press.actions, [AppAction::NextTab]);
+
+        let press = in_tables(&hotkeys, &tables, &character("z"));
+        assert_eq!(press.actions, [AppAction::PopKeyTable]);
+        assert!(press.decided && press.captured);
+    }
+
+    #[test]
+    fn pane_labels_are_typed_or_escaped() {
+        use keyboard::key::Named;
+
+        let hotkeys = Hotkeys::pane_select();
+        let none = Modifiers::empty();
+        assert_eq!(hotkeys.action(&character("a"), none), Some(AppAction::PaneSelectChoose(0)));
+        assert_eq!(hotkeys.action(&character("D"), none), Some(AppAction::PaneSelectChoose(2)));
+        assert_eq!(hotkeys.action(&character("n"), none), Some(AppAction::PaneSelectChoose(25)));
+        assert_eq!(hotkeys.action(&character("1"), none), None);
+        let escape = Key::Named(Named::Escape);
+        assert_eq!(hotkeys.action(&escape, none), Some(AppAction::PaneSelectCancel));
     }
 
     /// The hotkeys of a configuration on this platform, with the default bindings.

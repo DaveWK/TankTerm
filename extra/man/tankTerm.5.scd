@@ -1177,7 +1177,64 @@ This section documents the *[keyboard]* table of the configuration file.
 
 	Default: { key = _"A"_, mods = _"Control"_, timeout = _1000_ }
 
-*bindings* = [{ *<key>*, *<mods>*, *<mode>*, *<command>* | *<chars>* | *<action>* },]
+*tables* = { *<name>* = { *bindings*, *one_shot*, *timeout*, *until_unknown*, *prevent_fallback* } }
+
+	Key tables, like WezTerm's: named sets of bindings that take effect when a
+	binding with _table_ = _"<name>"_ activates them, and stop when they are
+	left. Tables that are active at the same time are searched from the one
+	activated last; a key that isn't bound in any of them goes on to the leader
+	key and the regular bindings. While a table is active, its name is shown at
+	the end of the tab bar.
+
+	*bindings* = [{ *<key>*, *<mods>*, *<mode>*, *<command>* | *<chars>* | *<action>* | *<table>* },]
+
+		Written like the entries of _keyboard.bindings_, but they replace no
+		default bindings. Bindings with the _Leader_ mode don't belong in a table
+		and are ignored.
+
+	*one_shot* = _true_ | _false_
+
+		Leave the table after the first key bound in it.
+
+		Default: _true_
+
+	*timeout* = _<integer>_
+
+		Leave the table after this many milliseconds; _0_ keeps it active until it
+		is left in another way.
+
+		Default: _0_
+
+	*until_unknown* = _true_ | _false_
+
+		Leave the table at the first key that isn't bound in it.
+
+		Default: _false_
+
+	*prevent_fallback* = _true_ | _false_
+
+		Keep keys that aren't bound in the table from the tables activated before
+		it, the regular bindings and the terminal.
+
+		Default: _false_
+
+	Example:
+		*[keyboard]*++
+bindings = [++
+	{ key = _"R"_, mode = _"Leader"_, table = _"resize"_ },++
+]
+
+		*[keyboard.tables.resize]*++
+one_shot = _false_++
+bindings = [++
+	{ key = _"ArrowLeft"_, action = _"ResizePaneLeft"_ },++
+	{ key = _"ArrowRight"_, action = _"ResizePaneRight"_ },++
+	{ key = _"Escape"_, action = _"PopKeyTable"_ },++
+]
+
+	Default: _{}_
+
+*bindings* = [{ *<key>*, *<mods>*, *<mode>*, *<command>* | *<chars>* | *<action>* | *<table>* },]
 
 	To unset a default binding, you can use the action _"ReceiveChar"_ to remove
 	it or _"None"_ to inhibit any action.
@@ -1246,6 +1303,10 @@ _https://docs.rs/winit/latest/winit/keyboard/enum.Key.html_
 	*chars* = _"<string>"_
 
 		Writes the specified string to the terminal.
+
+	*table* = _"<string>"_
+
+		Activate the key table with this name (see _keyboard.tables_).
 
 	*help* = _"<string>"_
 
@@ -1488,6 +1549,32 @@ _https://docs.rs/winit/latest/winit/keyboard/enum.Key.html_
 		*ShowProfiles*
 			Show the profile selector, which opens the regular shell or one of the
 			*[[profiles]]* in a new tab. It is used like the command palette.
+		*ShowTabNavigator*
+			Show the tab navigator, a list of the tabs with their titles. It is
+			used like the command palette and starts at the tab that is shown.
+		*RenameTab*
+			Ask for a title for the current tab, shown in place of the title of
+			its focused pane. _Enter_ gives the tab the title, an empty title
+			gives the tab its pane's title back and _Escape_ keeps the title it
+			has. Titles are remembered in the session file.
+		*PaneSelect*
+			Show a label over every pane of the tab; typing a label focuses that
+			pane and _Escape_ takes the labels away. The labels are the letters
+			_ASDFQWERZXCVJKLMIUOPGHTYBN_ in the order of the panes, from left to
+			right and top to bottom. A zoomed pane shows the others again.
+		*PaneSelectSwap*
+			Like _PaneSelect_, but the current pane trades places with the chosen
+			one and keeps the focus.
+		*RotatePanesClockwise*
+			Move every pane of the tab to the place of the next one, and the last
+			one to the place of the first. The focus stays with its pane.
+		*RotatePanesCounterClockwise*
+			Move every pane of the tab to the place of the previous one, and the
+			first one to the place of the last.
+		*PopKeyTable*
+			Leave the key table that was activated last.
+		*ClearKeyTableStack*
+			Leave every active key table.
 
 		_macOS exclusive:_
 

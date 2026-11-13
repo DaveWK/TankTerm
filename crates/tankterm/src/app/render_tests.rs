@@ -91,6 +91,15 @@ fn tabs_and_panes() {
     let mut ui = Simulator::with_size(Default::default(), window, app.view());
     let snapshot = ui.snapshot(&Theme::Dark).unwrap();
     assert!(snapshot.matches_image(dir.join("command-palette")).unwrap());
+    drop(ui);
+
+    // The labels of the panes, while one is chosen by typing its label.
+    let _ = app.update(Message::Action(AppAction::PaletteClose));
+    let _ = app.update(Message::Action(AppAction::PaneSelect(PaneSelectMode::Focus)));
+
+    let mut ui = Simulator::with_size(Default::default(), window, app.view());
+    let snapshot = ui.snapshot(&Theme::Dark).unwrap();
+    assert!(snapshot.matches_image(dir.join("pane-select")).unwrap());
 }
 
 #[test]

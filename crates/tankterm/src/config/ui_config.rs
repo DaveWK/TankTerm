@@ -1,5 +1,5 @@
 use std::cell::{OnceCell, RefCell};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::fmt::{self, Formatter};
 use std::path::PathBuf;
@@ -238,6 +238,11 @@ impl UiConfig {
         &self.keyboard.leader
     }
 
+    /// The key tables, by name.
+    pub fn key_tables(&self) -> &BTreeMap<String, KeyTable> {
+        &self.keyboard.tables.tables
+    }
+
     #[inline]
     pub fn mouse_bindings(&self) -> &[MouseBinding] {
         &self.mouse.bindings.bindings
@@ -266,6 +271,116 @@ struct Keyboard {
 
     /// The key pressed before the keys of bindings with the `Leader` mode.
     leader: LeaderKey,
+
+    /// Named sets of bindings that are active while a binding's `table` has them activated.
+    tables: KeyTables,
+}
+
+/// The key tables, as they were read and as they are written back.
+#[derive(Clone, Debug, Default, PartialEq)]
+struct KeyTables {
+    tables: BTreeMap<String, KeyTable>,
+    raw: Option<toml::Value>,
+}
+
+/// A named set of bindings, active from the time a binding with its name as `table` activates
+/// it until it is left, like WezTerm's key tables.
+#[derive(Clone, Debug, PartialEq)]
+pub struct KeyTable {
+    /// Bindings of the table; they replace no default bindings.
+    pub bindings: Vec<KeyBinding>,
+    /// Leave the table after the first key bound in it.
+    pub one_shot: bool,
+    /// Leave the table after this many milliseconds; zero waits for good.
+    pub timeout: u64,
+    /// Leave the table at the first key that isn't bound in it.
+    pub until_unknown: bool,
+    /// Keep keys that aren't bound in the table from the tables activated before it and from
+    /// the regular bindings, and from the terminal.
+    pub prevent_fallback: bool,
+}
+
+impl<'de> Deserialize<'de> for KeyTable {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Fields {
+            #[serde(default)]
+            bindings: Vec<toml::Value>,
+            #[serde(default = "one_shot")]
+            one_shot: bool,
+            #[serde(default)]
+            timeout: u64,
+            #[serde(default)]
+            until_unknown: bool,
+            #[serde(default)]
+            prevent_fallback: bool,
+        }
+
+        fn one_shot() -> bool {
+            true
+        }
+
+        let Fields { mut bindings, one_shot, timeout, until_unknown, prevent_fallback } =
+            Fields::deserialize(deserializer)?;
+
+        Ok(Self {
+            bindings: deserialize_bindings(&mut bindings, Vec::new()),
+            one_shot,
+            timeout,
+            until_unknown,
+            prevent_fallback,
+        })
+    }
+}
+
+impl<'de> Deserialize<'de> for KeyTables {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let raw = toml::Value::deserialize(deserializer)?;
+        let values =
+            BTreeMap::<String, toml::Value>::deserialize(raw.clone()).map_err(D::Error::custom)?;
+
+        // A table that can't be read is left out, so the others still work.
+        let mut tables = BTreeMap::new();
+        for (name, value) in values {
+            match KeyTable::deserialize(value) {
+                Ok(table) => {
+                    tables.insert(name, table);
+                },
+                Err(err) => {
+                    error!(target: LOG_TARGET_CONFIG, "Config error: key table {name:?}: {err}");
+                },
+            }
+        }
+
+        Ok(Self { tables, raw: Some(raw) })
+    }
+}
+
+impl SerdeReplace for KeyTables {
+    fn replace(&mut self, value: toml::Value) -> Result<(), Box<dyn Error>> {
+        *self = Self::deserialize(value)?;
+
+        Ok(())
+    }
+}
+
+impl Serialize for KeyTables {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match &self.raw {
+            Some(raw) => raw.serialize(serializer),
+            None => toml::Table::new().serialize(serializer),
+        }
+    }
 }
 
 /// Active keybindings and the user's binding entries they were created from.

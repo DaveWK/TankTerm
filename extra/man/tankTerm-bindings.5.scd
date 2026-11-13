@@ -824,6 +824,15 @@ need no _Shift_, so they don't depend on the keyboard layout.
 |  _E_
 :[
 :  _ShowProfiles_
+|  _Q_
+:[
+:  _PaneSelect_
+|  _W_
+:[
+:  _ShowTabNavigator_
+|  _O_
+:  _Control_
+:  _RotatePanesClockwise_
 
 ## Tabby and WezTerm presets on macOS
 

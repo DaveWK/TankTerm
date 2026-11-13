@@ -26,6 +26,9 @@ pub struct SavedTab {
     pub layout: SavedNode,
     /// Position of the focused pane, counting panes from left to right and top to bottom.
     pub focus: usize,
+    /// Title given to the tab, if it was given one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
 }
 
 /// A pane, or a split holding two more nodes.
@@ -159,7 +162,10 @@ mod tests {
         let layout = split(true, 0.3, pane(), split(false, 0.5, pane(), pane()));
         let session = Session {
             active: 1,
-            tabs: vec![SavedTab { layout: pane(), focus: 0 }, SavedTab { layout, focus: 2 }],
+            tabs: vec![
+                SavedTab { layout: pane(), focus: 0, title: Some("build".into()) },
+                SavedTab { layout, focus: 2, title: None },
+            ],
         };
 
         assert_eq!(Session::load(&path), None);
@@ -183,7 +189,8 @@ mod tests {
         for _ in 0..MAX_PANES {
             layout = split(true, 0.5, layout, pane());
         }
-        Session { active: 0, tabs: vec![SavedTab { layout, focus: 0 }] }.save(&path).unwrap();
+        let tabs = vec![SavedTab { layout, focus: 0, title: None }];
+        Session { active: 0, tabs }.save(&path).unwrap();
         assert_eq!(Session::load(&path), None);
     }
 

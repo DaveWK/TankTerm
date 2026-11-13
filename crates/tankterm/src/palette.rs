@@ -1,10 +1,11 @@
-//! A filterable list shown over the terminals: the command palette and the profile selector.
+//! A filterable list shown over the terminals: the command palette, the profile selector and
+//! the tab navigator, and the prompt for a tab's title.
 
 use iced::widget::{button, column, container, opaque, row, text, text_input};
 use iced::{Border, Color, Element, Font, Length, Padding, widget};
 
 use crate::app::Message;
-use crate::hotkeys::{AppAction, Hotkeys};
+use crate::hotkeys::{AppAction, Hotkeys, PaneSelectMode};
 
 /// Most items shown at once; the list scrolls with the selection.
 const VISIBLE_ITEMS: usize = 10;
@@ -37,6 +38,12 @@ const COMMANDS: &[(&str, AppAction)] = {
         ("Resize Pane Right", AppAction::ResizePane(Direction::Right)),
         ("Resize Pane Up", AppAction::ResizePane(Direction::Up)),
         ("Resize Pane Down", AppAction::ResizePane(Direction::Down)),
+        ("Select Pane...", AppAction::PaneSelect(PaneSelectMode::Focus)),
+        ("Swap Pane...", AppAction::PaneSelect(PaneSelectMode::Swap)),
+        ("Rotate Panes Clockwise", AppAction::RotatePanes(true)),
+        ("Rotate Panes Counterclockwise", AppAction::RotatePanes(false)),
+        ("Go to Tab...", AppAction::ShowTabNavigator),
+        ("Rename Tab...", AppAction::RenameTab),
         ("Open Profile...", AppAction::ShowProfiles),
     ]
 };
@@ -47,6 +54,8 @@ pub enum Command {
     Action(AppAction),
     /// Open the profile at this position in a new tab.
     Profile(usize),
+    /// Give the tab this title, or take its title away if it is empty.
+    RenameTab(String),
 }
 
 /// An entry of the list.
@@ -69,7 +78,9 @@ pub struct Appearance {
 
 /// The list with the text typed to filter it and the selected item.
 pub struct Palette {
-    placeholder: &'static str,
+    placeholder: String,
+    /// Whether this asks for text, which is the result, instead of offering a list.
+    prompt: bool,
     query: String,
     /// Position of the selected item among the items matching the query.
     selected: usize,
@@ -105,8 +116,38 @@ impl Palette {
         Self::new("Open a profile in a new tab", [default].into_iter().chain(profiles).collect())
     }
 
-    fn new(placeholder: &'static str, items: Vec<Item>) -> Self {
-        Self { placeholder, query: String::new(), selected: 0, items, input: widget::Id::unique() }
+    /// The tab navigator: the tabs with their titles, with the shown one selected.
+    pub fn tabs(titles: impl IntoIterator<Item = String>, active: usize) -> Self {
+        let items = titles.into_iter().enumerate().map(|(index, title)| Item {
+            label: format!("{}: {title}", index + 1),
+            detail: String::new(),
+            command: Command::Action(AppAction::SelectTab(index)),
+        });
+
+        let mut palette = Self::new("Go to a tab", items.collect());
+        palette.selected = active.min(palette.items.len().saturating_sub(1));
+        palette
+    }
+
+    /// The prompt for the title of a tab, starting with the title it was given, if any. `shown`
+    /// is the title the tab shows without one.
+    pub fn rename(title: Option<&str>, shown: &str) -> Self {
+        let mut palette =
+            Self::new(format!("Title of the tab, or empty for {shown:?}"), Vec::new());
+        palette.prompt = true;
+        palette.query = title.unwrap_or_default().to_owned();
+        palette
+    }
+
+    fn new(placeholder: impl Into<String>, items: Vec<Item>) -> Self {
+        Self {
+            placeholder: placeholder.into(),
+            prompt: false,
+            query: String::new(),
+            selected: 0,
+            items,
+            input: widget::Id::unique(),
+        }
     }
 
     /// The text input, which needs keyboard focus while the list is shown.
@@ -145,8 +186,12 @@ impl Palette {
         self.matches().get(position).map(|item| item.command.clone())
     }
 
-    /// The command of the selected match.
+    /// The command of the selected match, or the text typed into a prompt.
     pub fn selected(&self) -> Option<Command> {
+        if self.prompt {
+            return Some(Command::RenameTab(self.query.trim().to_owned()));
+        }
+
         self.command(self.selected)
     }
 
@@ -157,7 +202,7 @@ impl Palette {
         let highlight = blend(background, foreground, 0.2);
         let label = move |content: &str| text(content.to_owned()).font(font).size(size);
 
-        let input = text_input(self.placeholder, &self.query)
+        let input = text_input(&self.placeholder, &self.query)
             .id(self.input.clone())
             .font(font)
             .size(size)
@@ -347,6 +392,26 @@ mod tests {
         let details: Vec<_> = palette.matches().iter().map(|item| item.detail.clone()).collect();
         assert_eq!(details[0], "Ctrl+Shift+T");
         assert_eq!(details[1], "");
+    }
+
+    #[test]
+    fn tab_navigator_starts_at_the_shown_tab() {
+        let mut palette = Palette::tabs(["vim".to_owned(), "logs".to_owned()], 1);
+        assert_eq!(labels(&palette), ["1: vim", "2: logs"]);
+        assert_eq!(palette.selected(), Some(Command::Action(AppAction::SelectTab(1))));
+
+        palette.set_query("vim".into());
+        assert_eq!(palette.selected(), Some(Command::Action(AppAction::SelectTab(0))));
+    }
+
+    #[test]
+    fn rename_prompt_returns_the_typed_title() {
+        let mut palette = Palette::rename(Some("build"), "bash");
+        assert!(palette.matches().is_empty());
+        assert_eq!(palette.selected(), Some(Command::RenameTab("build".into())));
+
+        palette.set_query("  ".into());
+        assert_eq!(palette.selected(), Some(Command::RenameTab(String::new())));
     }
 
     #[test]

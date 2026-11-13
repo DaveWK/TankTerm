@@ -133,6 +133,43 @@ preset. All tab and pane keys are regular key bindings that can be replaced or
 unset; see the actions in the [tankTerm(5) manpage] and the keys of every
 preset in the [tankTerm-bindings(5) manpage].
 
+### Choosing panes and tabs
+
+`PaneSelect` puts a letter over every pane of the tab; typing it focuses that
+pane, and `PaneSelectSwap` swaps the current pane with it instead.
+`RotatePanesClockwise` and `RotatePanesCounterClockwise` move every pane to the
+next or previous place. `ShowTabNavigator` lists the tabs to pick one from, and
+`RenameTab` gives the current tab a title of its own. With the `"Leader"` preset
+these are the leader key followed by <kbd>Q</kbd>, <kbd>W</kbd> and
+<kbd>Ctrl</kbd> <kbd>O</kbd>, like in tmux; all of them are in the command
+palette as well.
+
+### Key tables
+
+Key tables, like WezTerm's, are named sets of key bindings that a key turns on
+for a while: for one key, for some time, or until they are left. This makes a
+mode for resizing panes with the arrow keys:
+
+```toml
+[keyboard]
+preset = "Leader"
+bindings = [{ key = "R", mode = "Leader", table = "resize" }]
+
+[keyboard.tables.resize]
+one_shot = false
+bindings = [
+  { key = "ArrowLeft", action = "ResizePaneLeft" },
+  { key = "ArrowRight", action = "ResizePaneRight" },
+  { key = "ArrowUp", action = "ResizePaneUp" },
+  { key = "ArrowDown", action = "ResizePaneDown" },
+  { key = "Escape", action = "PopKeyTable" },
+]
+```
+
+The name of the active table is shown at the end of the tab bar. Keys that
+aren't bound in a table keep working as usual, unless the table sets
+`prevent_fallback = true`.
+
 ### Activity and finished commands
 
 Tabs that aren't shown are marked with `*` in the tab bar when they print
