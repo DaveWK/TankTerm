@@ -32,13 +32,13 @@
 
   <screenshots>
     <screenshot type="default">
-      <image>https://git.infra.xitely.net/xitely/TankTerm/raw/branch/main/extra/promo/tankterm-readme.png</image>
+      <image>https://raw.githubusercontent.com/DaveWK/TankTerm/main/extra/promo/tankterm-readme.png</image>
       <caption>TankTerm with default theme showing neovim</caption>
     </screenshot>
   </screenshots>
 
-  <url type="homepage">https://git.infra.xitely.net/xitely/TankTerm</url>
-  <url type="bugtracker">https://git.infra.xitely.net/xitely/TankTerm/issues</url>
+  <url type="homepage">https://github.com/DaveWK/TankTerm</url>
+  <url type="bugtracker">https://github.com/DaveWK/TankTerm/issues</url>
 
   <launchable type="desktop-id">TankTerm.desktop</launchable>
 

@@ -6,7 +6,7 @@ If you're just interested in the TankTerm binary and you don't need the
 install it directly through cargo:
 
 ```sh
-cargo install --git https://git.infra.xitely.net/xitely/TankTerm tankterm
+cargo install --git https://github.com/DaveWK/TankTerm tankterm
 ```
 
 This installs the `tankTerm` binary.
@@ -58,7 +58,7 @@ section.
 Before compiling TankTerm, you'll have to first clone the source code.
 
 ```sh
-git clone https://git.infra.xitely.net/xitely/TankTerm.git
+git clone https://github.com/DaveWK/TankTerm.git
 cd TankTerm
 ```
 

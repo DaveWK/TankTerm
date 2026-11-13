@@ -939,4 +939,4 @@ listed above.
 
 # BUGS
 
-Found a bug? Please report it at _https://git.infra.xitely.net/xitely/TankTerm/issues_.
+Found a bug? Please report it at _https://github.com/DaveWK/TankTerm/issues_.

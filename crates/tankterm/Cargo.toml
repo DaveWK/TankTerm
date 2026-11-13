@@ -5,8 +5,8 @@ authors = ["Christian Duerr <contact@christianduerr.com>", "Joe Wilm <joe@jwilm.
 license = "Apache-2.0"
 description = "A cross-platform terminal emulator with tabs and split panes"
 readme = "README.md"
-homepage = "https://git.infra.xitely.net/xitely/TankTerm"
-repository = "https://git.infra.xitely.net/xitely/TankTerm"
+homepage = "https://github.com/DaveWK/TankTerm"
+repository = "https://github.com/DaveWK/TankTerm"
 edition.workspace = true
 rust-version.workspace = true
 

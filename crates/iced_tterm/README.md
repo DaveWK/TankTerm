@@ -10,9 +10,8 @@ iced up.
 
 `iced_tterm` is a fork of [iced_term](https://github.com/Harzu/iced_term) by Ilia Shvyrialkin,
 released under the MIT license (see [LICENSE](./LICENSE)). It was developed in a separate
-repository until it was moved into the TankTerm workspace; the history up to that point is in
-[xitely/iced_term](https://git.infra.xitely.net/xitely/iced_term). The upstream examples and
-screenshots were not carried over.
+repository until it was moved into the TankTerm workspace. The upstream examples and screenshots
+were not carried over.
 
 ## Overview
 
