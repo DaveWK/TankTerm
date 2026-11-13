@@ -79,6 +79,9 @@ pub enum Command {
     Resize(Option<Size<f32>>, Option<Size<f32>>),
     SelectStart(SelectionType, (f32, f32)),
     SelectUpdate((f32, f32)),
+    /// Extend the selection to this point, making it of this type, or start
+    /// one of this type there if there is none.
+    ExpandSelection(SelectionType, (f32, f32)),
     /// Drop the selection, if there is one.
     ClearSelection,
     ProcessLink(LinkAction, Point),
@@ -296,6 +299,17 @@ impl Backend {
         self.term.lock().set_options(self.config.clone());
     }
 
+    /// Change the characters that end a word for semantic selection,
+    /// besides whitespace.
+    pub(crate) fn set_semantic_escape_chars(&mut self, chars: &str) {
+        if self.config.semantic_escape_chars == chars {
+            return;
+        }
+
+        self.config.semantic_escape_chars = chars.to_owned();
+        self.term.lock().set_options(self.config.clone());
+    }
+
     /// Change the style the cursor has while the application in the
     /// terminal hasn't set one.
     pub(crate) fn set_default_cursor_style(&mut self, style: CursorStyle) {
@@ -397,6 +411,15 @@ impl Backend {
                 self.start_selection(&mut term, selection_type, x, y);
             },
             Command::SelectUpdate((x, y)) => {
+                self.update_selection(&mut term, x, y);
+            },
+            Command::ExpandSelection(selection_type, (x, y)) => {
+                match &mut term.selection {
+                    Some(selection) => selection.ty = selection_type,
+                    None => {
+                        self.start_selection(&mut term, selection_type, x, y)
+                    },
+                }
                 self.update_selection(&mut term, x, y);
             },
             Command::ClearSelection => term.selection = None,
@@ -1306,6 +1329,53 @@ mod tests {
 
         backend.handle(Command::ClearSelection);
         assert_eq!(backend.selection(), None);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn expanding_starts_or_extends_the_selection() {
+        let mut backend = backend_running("printf 'hello world'; exec cat");
+        eventually("nothing was printed", || {
+            backend.text().concat().contains("hello world")
+        });
+
+        // Without a selection, expanding starts one where the pointer is.
+        backend.handle(Command::ExpandSelection(
+            SelectionType::Semantic,
+            (7.5, 0.),
+        ));
+        assert_eq!(backend.selection().as_deref(), Some("world"));
+
+        // A selection is extended, and takes the new type.
+        backend.handle(Command::SelectStart(SelectionType::Simple, (0., 0.)));
+        backend
+            .handle(Command::ExpandSelection(SelectionType::Simple, (3.6, 0.)));
+        assert_eq!(backend.selection().as_deref(), Some("hel"));
+        backend.handle(Command::ExpandSelection(
+            SelectionType::Semantic,
+            (3.6, 0.),
+        ));
+        assert_eq!(backend.selection().as_deref(), Some("hello"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn words_end_at_the_semantic_escape_chars() {
+        let mut backend = backend_running("printf 'one:two three'; exec cat");
+        eventually("nothing was printed", || {
+            backend.text().concat().contains("three")
+        });
+        let word_at_start = |backend: &mut Backend| {
+            backend.handle(Command::SelectStart(
+                SelectionType::Semantic,
+                (0., 0.),
+            ));
+            backend.selection()
+        };
+
+        assert_eq!(word_at_start(&mut backend).as_deref(), Some("one"));
+        backend.set_semantic_escape_chars(" ");
+        assert_eq!(word_at_start(&mut backend).as_deref(), Some("one:two"));
     }
 
     #[cfg(unix)]

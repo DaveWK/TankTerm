@@ -861,7 +861,7 @@ This section documents the *[selection]* table of the configuration file.
 *semantic_escape_chars* = _"<string>"_
 
 	This string contains all characters that are used as separators for
-	"semantic words" in TankTerm.
+	"semantic words" in TankTerm, which a double click selects.
 
 	Default: _",│`|:\\"' ()[]{}<>\\t"_
 
@@ -982,7 +982,8 @@ This section documents the *[mouse]* table of the configuration file.
 
 *hide_when_typing* = _true_ | _false_
 
-	When this is _true_, the cursor is temporarily hidden when typing.
+	When this is _true_, the mouse pointer is hidden over a terminal when a
+	key is typed into it, until the mouse moves.
 
 	Default: _false_
 
@@ -1003,12 +1004,15 @@ This section documents the *[mouse]* table of the configuration file.
 	*action* = *<keyboard.bindings.action>* | _"ExpandSelection"_
 
 		*ExpandSelection*
-			Expand the selection to the current mouse cursor location.
+			Expand the selection to the current mouse cursor location, or
+			start one there. Clicking twice or three times in a row expands
+			it by words or lines; with _Control_ it becomes a block.
 
 	Of the mouse bindings, only those of the middle and right buttons to the
-	_Paste_ and _PasteSelection_ actions have an effect so far; a _mode_ isn't
-	supported for them. The middle button pastes the selection by default.
-	Binding either button to another action keeps it from pasting.
+	_Paste_, _PasteSelection_ and _ExpandSelection_ actions have an effect so
+	far; a _mode_ isn't supported for them. The middle button pastes the
+	selection and the right button expands it by default. Binding either
+	button to another action takes its default away.
 
 	Example:
 		*[mouse]*++

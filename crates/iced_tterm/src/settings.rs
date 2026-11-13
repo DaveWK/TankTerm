@@ -3,6 +3,7 @@ use std::{collections::HashMap, path::PathBuf};
 
 use crate::ColorPalette;
 use iced::Font;
+use tankterm_terminal::term::SEMANTIC_ESCAPE_CHARS;
 use tankterm_terminal::vte::ansi::CursorShape;
 
 #[cfg(target_os = "windows")]
@@ -18,6 +19,31 @@ pub struct Settings {
     pub backend: BackendSettings,
     pub scroll: ScrollSettings,
     pub cursor: CursorSettings,
+    pub selection: SelectionSettings,
+    pub mouse: MouseSettings,
+}
+
+/// How text is selected with the mouse.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectionSettings {
+    /// Characters that end a word for a double click, besides whitespace.
+    pub semantic_escape_chars: String,
+}
+
+impl Default for SelectionSettings {
+    fn default() -> Self {
+        Self {
+            semantic_escape_chars: SEMANTIC_ESCAPE_CHARS.to_owned(),
+        }
+    }
+}
+
+/// How the mouse pointer behaves over the terminal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct MouseSettings {
+    /// Hide the pointer when a key is typed into the terminal, until the
+    /// mouse moves.
+    pub hide_when_typing: bool,
 }
 
 /// How the cursor looks and blinks.

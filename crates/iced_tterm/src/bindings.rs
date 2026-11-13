@@ -14,6 +14,9 @@ pub enum BindingAction {
     Char(char),
     Esc(String),
     LinkOpen,
+    /// Extend the selection to the pointer, or start one there. With
+    /// Control the selection becomes a block.
+    ExpandSelection,
     Ignore,
 }
 

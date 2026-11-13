@@ -4,7 +4,8 @@ use crate::bindings::{Binding, BindingAction, BindingsLayout, InputKind};
 use crate::cursor::Cursor;
 use crate::font::TermFont;
 use crate::settings::{
-    CursorSettings, FontSettings, ScrollSettings, Settings, ThemeSettings,
+    CursorSettings, FontSettings, MouseSettings, ScrollSettings,
+    SelectionSettings, Settings, ThemeSettings,
 };
 use crate::theme::{ColorPalette, Theme};
 use crate::{AlacrittyEvent, CursorShape, TermMode};
@@ -41,6 +42,10 @@ pub enum Command {
     /// Change how the cursor looks and blinks. A shape the application in
     /// the terminal asked for is kept.
     ChangeCursor(CursorSettings),
+    /// Change how text is selected; a selection that is there is kept.
+    ChangeSelection(SelectionSettings),
+    /// Change how the mouse pointer behaves.
+    ChangeMouse(MouseSettings),
     /// Tell the terminal whether it has the keyboard focus. Without it the
     /// cursor doesn't blink and is drawn hollow, if the settings say so. A
     /// new terminal has the focus.
@@ -63,6 +68,7 @@ pub struct Terminal {
     /// Lines scrolled for every step of the mouse wheel.
     pub(crate) scroll_multiplier: f32,
     pub(crate) cursor: Cursor,
+    pub(crate) mouse: MouseSettings,
     pub(crate) backend: backend::Backend,
     backend_event_rx: Arc<Mutex<backend::EventReceiver>>,
 }
@@ -73,7 +79,7 @@ impl Terminal {
         let theme = Theme::new(settings.theme);
         let font = TermFont::new(settings.font);
         let cursor = Cursor::new(settings.cursor, Instant::now());
-        let backend = backend::Backend::new(
+        let mut backend = backend::Backend::new(
             id,
             backend_event_tx,
             settings.backend,
@@ -81,6 +87,9 @@ impl Terminal {
             settings.scroll.history,
             cursor.default_style(),
         )?;
+        backend.set_semantic_escape_chars(
+            &settings.selection.semantic_escape_chars,
+        );
 
         Ok(Self {
             id,
@@ -90,6 +99,7 @@ impl Terminal {
             bindings: BindingsLayout::default(),
             scroll_multiplier: settings.scroll.multiplier,
             cursor,
+            mouse: settings.mouse,
             cache: Cache::default(),
             backend,
             backend_event_rx: Arc::new(Mutex::new(backend_event_rx)),
@@ -232,6 +242,12 @@ impl Terminal {
                 self.backend
                     .set_default_cursor_style(self.cursor.default_style());
             },
+            Command::ChangeSelection(selection) => {
+                self.backend.set_semantic_escape_chars(
+                    &selection.semantic_escape_chars,
+                );
+            },
+            Command::ChangeMouse(mouse) => self.mouse = mouse,
             Command::Focus(focused) => {
                 self.cursor.set_focused(focused, Instant::now());
             },

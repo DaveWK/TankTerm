@@ -443,6 +443,105 @@ fn window_actions_minimize_hide_and_quit() {
     assert_eq!(run_action(&mut app, AppAction::Quit, [None, None]), [Asked::Close]);
 }
 
+/// Hand batches of events to the window's widgets, each with the pointer at its position.
+///
+/// Returns the pointer's look after every batch, and the messages the widgets published.
+fn ui_events(
+    app: &App,
+    batches: &[((f32, f32), Vec<Event>)],
+) -> (Vec<mouse::Interaction>, Vec<Message>) {
+    use iced_core::renderer::Headless;
+    use iced_winit::runtime::user_interface::{self, UserInterface};
+
+    let renderer =
+        <iced::Renderer as Headless>::new(iced::Font::MONOSPACE, iced::Pixels(16.), None);
+    let mut renderer = block_on(renderer).unwrap();
+    let cache = user_interface::Cache::default();
+    let mut ui = UserInterface::build(app.view(), Size::new(800., 400.), cache, &mut renderer);
+
+    let (mut interactions, mut messages) = (Vec::new(), Vec::new());
+    for (position, events) in batches {
+        let cursor = mouse::Cursor::Available((*position).into());
+        let mut clipboard = iced_core::clipboard::Null;
+        let (state, _) = ui.update(events, cursor, &mut renderer, &mut clipboard, &mut messages);
+        if let user_interface::State::Updated { mouse_interaction, .. } = state {
+            interactions.push(mouse_interaction);
+        }
+    }
+
+    (interactions, messages)
+}
+
+fn click(button: mouse::Button) -> Vec<Event> {
+    vec![
+        Event::Mouse(mouse::Event::ButtonPressed(button)),
+        Event::Mouse(mouse::Event::ButtonReleased(button)),
+    ]
+}
+
+#[test]
+fn pointer_hides_while_typing_until_the_mouse_moves() {
+    use iced::keyboard::key::{NativeCode, Physical};
+    use iced::keyboard::{self, Location};
+
+    let typed = |config: &str| {
+        let app = app_with(config, Hotkeys::default());
+        let key = Key::Character("a".into());
+        let press = Event::Keyboard(keyboard::Event::KeyPressed {
+            key: key.clone(),
+            modified_key: key,
+            physical_key: Physical::Unidentified(NativeCode::Unidentified),
+            location: Location::Standard,
+            modifiers: Modifiers::empty(),
+            text: Some("a".into()),
+            repeat: false,
+        });
+        let moved = Event::Mouse(mouse::Event::CursorMoved { position: (410., 200.).into() });
+
+        ui_events(&app, &[
+            ((400., 200.), click(mouse::Button::Left)),
+            ((400., 200.), vec![press]),
+            ((410., 200.), vec![moved]),
+        ])
+        .0
+    };
+    let text = mouse::Interaction::Text;
+
+    assert_eq!(typed("[mouse]\nhide_when_typing = true\n"), [
+        text,
+        mouse::Interaction::Hidden,
+        text
+    ]);
+    assert_eq!(typed(""), [text, text, text]);
+}
+
+#[test]
+fn right_click_expands_the_selection() {
+    let config = "[terminal]\nshell = { program = \"sh\", args = [\"-c\", \"printf 'hello world'; \
+                  exec cat\"] }\n";
+    let mut app = app_with(config, Hotkeys::default());
+    wait_for_text(&app, 0, "hello world");
+
+    // Click where the selection starts, then right click past the end of the line.
+    let (_, messages) = ui_events(&app, &[
+        ((1., 1.), click(mouse::Button::Left)),
+        ((799., 1.), vec![Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Right))]),
+    ]);
+    let finished = messages
+        .iter()
+        .filter(|message| {
+            matches!(message, Message::Terminal(iced_tterm::Event::SelectionFinished(0)))
+        })
+        .count();
+    for message in messages {
+        let _ = app.update(message);
+    }
+
+    assert_eq!(app.terminals[&0].terminal.selection().as_deref(), Some("hello world"));
+    // The expanded selection is finished like a dragged one, for the selection clipboard.
+    assert_eq!(finished, 2);
+}
+
 #[cfg(unix)]
 #[test]
 fn held_terminal_stays_open_with_its_output_when_its_program_exits() {

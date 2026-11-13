@@ -52,8 +52,8 @@ This front end is new and doesn't support everything the OpenGL one did yet:
 - IPC (`tankTerm msg`, `--socket`) and `--daemon`
 - Hints, vi mode and search, with the key binding actions that need them
 - Key bindings to `SpawnNewInstance`, `CreateNewWindow` and `HideOtherApplications`; mouse
-  bindings other than pasting
-- `window.blur`, `colors.transparent_background_colors` and most `[mouse]` options
+  bindings other than pasting and expanding the selection with the middle and right buttons
+- `window.blur` and `colors.transparent_background_colors`
 
 Command line options that aren't supported yet fail with an error; config
 options that aren't supported yet are ignored. Changes to the configuration

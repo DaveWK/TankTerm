@@ -19,8 +19,8 @@ use iced_tterm::bindings::{Binding as WidgetBinding, BindingAction, InputKind};
 
 use crate::config::ui_config::Program;
 use crate::config::{
-    Action, BindingKey, BindingMode, KeyBinding, KeyLocation, LeaderKey, MouseBinding, MouseEvent,
-    UiConfig,
+    Action, BindingKey, BindingMode, KeyBinding, KeyLocation, LeaderKey, MouseAction, MouseBinding,
+    MouseEvent, UiConfig,
 };
 
 /// Where a scrolling action moves the view of the focused terminal.
@@ -476,9 +476,9 @@ impl Hotkeys {
 
 /// Widget bindings for the config's mouse bindings to the middle and right buttons.
 ///
-/// `Paste` and `PasteSelection` are the actions the terminal widget knows for these buttons. A
-/// button bound to anything else doesn't paste, which takes the middle button's paste away if the
-/// config rebinds it. Bindings limited to a terminal mode aren't supported.
+/// `Paste`, `PasteSelection` and `ExpandSelection` are the actions the terminal widget knows for
+/// these buttons. A button bound to anything else does nothing, which takes the middle button's
+/// paste away if the config rebinds it. Bindings limited to a terminal mode aren't supported.
 pub fn mouse_bindings(bindings: &[MouseBinding]) -> Vec<(WidgetBinding<InputKind>, BindingAction)> {
     use winit::event::MouseButton;
 
@@ -495,6 +495,7 @@ pub fn mouse_bindings(bindings: &[MouseBinding]) -> Vec<(WidgetBinding<InputKind
         let action = match binding.action {
             Action::Paste => BindingAction::Paste,
             Action::PasteSelection => BindingAction::PasteSelection,
+            Action::Mouse(MouseAction::ExpandSelection) => BindingAction::ExpandSelection,
             _ => BindingAction::Ignore,
         };
         let trigger = WidgetBinding {

@@ -862,10 +862,12 @@ fn mouse_paste_bindings_come_from_the_configuration() {
             .collect::<Vec<_>>()
     };
 
-    // By default only the middle button pastes.
+    // By default the middle button pastes and the right one expands the selection.
     let default = bindings("");
     assert!(default.contains(&(Button::Middle, Modifiers::empty(), BindingAction::PasteSelection)));
-    assert!(default.contains(&(Button::Right, Modifiers::empty(), BindingAction::Ignore)));
+    for modifiers in [Modifiers::empty(), Modifiers::CTRL] {
+        assert!(default.contains(&(Button::Right, modifiers, BindingAction::ExpandSelection)));
+    }
 
     let right_click = bindings(
         "[mouse]\nbindings = [{ mouse = \"Right\", action = \"Paste\" }, { mouse = \"Middle\", \

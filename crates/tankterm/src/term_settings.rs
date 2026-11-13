@@ -10,8 +10,8 @@ use iced_core::text::{Alignment, LineHeight, Paragraph as _, Shaping, Text, Wrap
 use iced_graphics::text::paragraph::Paragraph;
 use iced_tterm::ColorPalette;
 use iced_tterm::settings::{
-    BackendSettings, CursorBlinking, CursorSettings, FontSettings, ScrollSettings, Settings,
-    ThemeSettings,
+    BackendSettings, CursorBlinking, CursorSettings, FontSettings, MouseSettings, ScrollSettings,
+    SelectionSettings, Settings, ThemeSettings,
 };
 use log::warn;
 
@@ -47,6 +47,10 @@ pub fn settings(config: &UiConfig, options: &Options) -> Settings {
         backend: backend_settings(config, options, std::env::var("SHELL").ok()),
         scroll: scroll_settings(config),
         cursor: cursor_settings(config),
+        selection: SelectionSettings {
+            semantic_escape_chars: config.selection.semantic_escape_chars.clone(),
+        },
+        mouse: MouseSettings { hide_when_typing: config.mouse.hide_when_typing },
     }
 }
 
@@ -679,6 +683,24 @@ mod tests {
         let plain = profile_settings(&config.profiles[1], &config, &options).backend;
         assert_eq!((plain.program.as_str(), plain.args.len()), ("zsh", 0));
         assert_eq!(plain.env["EDITOR"], "vi");
+    }
+
+    #[test]
+    fn selection_and_mouse_options_reach_the_terminal() {
+        let defaults = settings(&UiConfig::default(), &Options::default());
+        assert_eq!(
+            defaults.selection.semantic_escape_chars,
+            tankterm_terminal::term::SEMANTIC_ESCAPE_CHARS
+        );
+        assert!(!defaults.mouse.hide_when_typing);
+
+        let config: UiConfig = toml::from_str(
+            "[selection]\nsemantic_escape_chars = \" \"\n[mouse]\nhide_when_typing = true\n",
+        )
+        .unwrap();
+        let settings = settings(&config, &Options::default());
+        assert_eq!(settings.selection.semantic_escape_chars, " ");
+        assert!(settings.mouse.hide_when_typing);
     }
 
     #[test]

@@ -123,13 +123,26 @@ impl<'a> TerminalView<'a> {
                 button @ (iced_core::mouse::Button::Middle
                 | iced_core::mouse::Button::Right),
             ) => {
-                let kind = mouse_paste(
+                match mouse_action(
                     &self.term.bindings,
                     *button,
                     state.keyboard_modifiers,
                     terminal_mode,
-                );
-                commands.extend(kind.and_then(|kind| paste(clipboard, kind)));
+                ) {
+                    BindingAction::Paste => commands
+                        .extend(paste(clipboard, ClipboardKind::Standard)),
+                    BindingAction::PasteSelection => commands
+                        .extend(paste(clipboard, ClipboardKind::Primary)),
+                    BindingAction::ExpandSelection if state.is_focused() => {
+                        commands.push(Self::expand_selection(
+                            state,
+                            *button,
+                            cursor_position,
+                            layout_position,
+                        ))
+                    },
+                    _ => (),
+                }
             },
             iced_core::mouse::Event::ButtonPressed(
                 iced_core::mouse::Button::Left,
@@ -224,6 +237,35 @@ impl<'a> TerminalView<'a> {
         };
         commands.push(cmd);
         state.is_dragged = true;
+    }
+
+    /// Extend the selection to the pointer. Clicking twice or three times in
+    /// a row extends it by words or lines, and Control makes it a block.
+    fn expand_selection(
+        state: &mut TerminalViewState,
+        button: mouse::Button,
+        cursor_position: Point,
+        layout_position: Point,
+    ) -> Command {
+        let click = Click::new(cursor_position, button, state.last_click);
+        let selection_type = if state.keyboard_modifiers.control() {
+            SelectionType::Block
+        } else {
+            match click.kind() {
+                mouse::click::Kind::Single => SelectionType::Simple,
+                mouse::click::Kind::Double => SelectionType::Semantic,
+                mouse::click::Kind::Triple => SelectionType::Lines,
+            }
+        };
+        state.last_click = Some(click);
+
+        Command::ExpandSelection(
+            selection_type,
+            (
+                cursor_position.x - layout_position.x,
+                cursor_position.y - layout_position.y,
+            ),
+        )
     }
 
     fn handle_cursor_moved(
@@ -424,31 +466,38 @@ fn paste(
     (!text.is_empty()).then_some(Command::Paste(text))
 }
 
-/// The clipboard a press of a mouse button other than the left one pastes,
-/// going by the mouse bindings.
+/// What a press of a mouse button other than the left one does, going by the
+/// mouse bindings.
 ///
 /// While the application in the terminal asks for mouse reports, clicks belong
 /// to it; holding Shift takes them back, as usual.
-fn mouse_paste(
+fn mouse_action(
     bindings: &BindingsLayout,
     button: mouse::Button,
     modifiers: Modifiers,
     terminal_mode: TermMode,
-) -> Option<ClipboardKind> {
+) -> BindingAction {
     let modifiers = if terminal_mode.intersects(TermMode::MOUSE_MODE) {
         if !modifiers.contains(Modifiers::SHIFT) {
-            return None;
+            return BindingAction::Ignore;
         }
         modifiers - Modifiers::SHIFT
     } else {
         modifiers
     };
 
-    match bindings.get_action(
-        InputKind::Mouse(button),
-        modifiers,
-        terminal_mode,
-    ) {
+    bindings.get_action(InputKind::Mouse(button), modifiers, terminal_mode)
+}
+
+/// The clipboard a press of a mouse button other than the left one pastes.
+#[cfg(test)]
+fn mouse_paste(
+    bindings: &BindingsLayout,
+    button: mouse::Button,
+    modifiers: Modifiers,
+    terminal_mode: TermMode,
+) -> Option<ClipboardKind> {
+    match mouse_action(bindings, button, modifiers, terminal_mode) {
         BindingAction::Paste => Some(ClipboardKind::Standard),
         BindingAction::PasteSelection => Some(ClipboardKind::Primary),
         _ => None,
@@ -847,6 +896,10 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
         let state = tree.state.downcast_mut::<TerminalViewState>();
         self.handle_resize(state, layout, shell);
 
+        if let iced::Event::Mouse(mouse::Event::CursorMoved { .. }) = event {
+            state.pointer_hidden = false;
+        }
+
         let is_cursor_in_layout = self.is_cursor_in_layout(cursor, layout);
         self.handle_focus(event, state, is_cursor_in_layout);
 
@@ -885,12 +938,25 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                     return;
                 }
 
-                self.handle_keyboard_event(state, clipboard, keyboard_event)
+                let commands: Vec<_> = self
+                    .handle_keyboard_event(state, clipboard, keyboard_event)
                     .into_iter()
-                    .collect()
+                    .collect();
+                if self.term.mouse.hide_when_typing
+                    && commands
+                        .iter()
+                        .any(|cmd| matches!(cmd, Command::Write(_)))
+                {
+                    state.pointer_hidden = true;
+                }
+                commands
             },
             _ => Vec::new(),
         };
+        let selection_finished = selection_finished
+            || commands
+                .iter()
+                .any(|cmd| matches!(cmd, Command::ExpandSelection(..)));
 
         if !commands.is_empty() {
             shell.capture_event();
@@ -914,6 +980,10 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
         _renderer: &iced::Renderer,
     ) -> iced_core::mouse::Interaction {
         let state = tree.state.downcast_ref::<TerminalViewState>();
+        if state.pointer_hidden && self.is_cursor_in_layout(cursor, layout) {
+            return iced_core::mouse::Interaction::Hidden;
+        }
+
         let mut cursor_mode = iced_core::mouse::Interaction::Idle;
         let terminal_mode =
             self.term.backend.renderable_content().terminal_mode;
@@ -947,6 +1017,8 @@ struct TerminalViewState {
     size: Size<f32>,
     mouse_position_on_grid: TerminalGridPoint,
     terminal_id: u64,
+    /// The pointer was hidden for typing and the mouse hasn't moved since.
+    pointer_hidden: bool,
 }
 
 impl TerminalViewState {
@@ -960,6 +1032,7 @@ impl TerminalViewState {
             size: Size::from([0.0, 0.0]),
             mouse_position_on_grid: TerminalGridPoint::default(),
             terminal_id,
+            pointer_hidden: false,
         }
     }
 }
@@ -1580,6 +1653,89 @@ mod tests {
 
                 assert_eq!(state.mouse_position_on_grid, expected);
             }
+        }
+
+        #[test]
+        fn expanding_follows_the_clicks_and_control_makes_a_block() {
+            let layout_position = Point { x: 5.0, y: 5.0 };
+            let at = Point { x: 100.0, y: 150.0 };
+            let expand = |state: &mut TerminalViewState| {
+                TerminalView::expand_selection(
+                    state,
+                    mouse::Button::Right,
+                    at,
+                    layout_position,
+                )
+            };
+            let selection_type = |command| match command {
+                Command::ExpandSelection(selection_type, (95.0, 145.0)) => {
+                    selection_type
+                },
+                command => panic!("not an expansion: {command:?}"),
+            };
+
+            let mut state = TerminalViewState::new(0);
+            assert_eq!(
+                selection_type(expand(&mut state)),
+                SelectionType::Simple
+            );
+            assert_eq!(
+                selection_type(expand(&mut state)),
+                SelectionType::Semantic
+            );
+            assert_eq!(
+                selection_type(expand(&mut state)),
+                SelectionType::Lines
+            );
+
+            let mut state = TerminalViewState::new(0);
+            state.keyboard_modifiers = Modifiers::CTRL;
+            assert_eq!(
+                selection_type(expand(&mut state)),
+                SelectionType::Block
+            );
+            assert_eq!(
+                selection_type(expand(&mut state)),
+                SelectionType::Block
+            );
+        }
+
+        #[test]
+        fn right_click_expands_the_selection_by_default() {
+            let bindings = BindingsLayout::default();
+            let action = |modifiers, mode| {
+                mouse_action(&bindings, mouse::Button::Right, modifiers, mode)
+            };
+
+            let expand = BindingAction::ExpandSelection;
+            assert_ne!(action(Modifiers::empty(), TermMode::empty()), expand);
+
+            let mut bindings = BindingsLayout::default();
+            for modifiers in [Modifiers::empty(), Modifiers::CTRL] {
+                bindings.add_bindings(vec![(
+                    crate::bindings::Binding {
+                        target: InputKind::Mouse(mouse::Button::Right),
+                        modifiers,
+                        terminal_mode_include: TermMode::empty(),
+                        terminal_mode_exclude: TermMode::empty(),
+                    },
+                    BindingAction::ExpandSelection,
+                )]);
+            }
+            let action = |modifiers, mode| {
+                mouse_action(&bindings, mouse::Button::Right, modifiers, mode)
+            };
+            assert_eq!(action(Modifiers::empty(), TermMode::empty()), expand);
+            assert_eq!(action(Modifiers::CTRL, TermMode::empty()), expand);
+            // Applications that ask for mouse reports get right clicks too.
+            assert_eq!(
+                action(Modifiers::empty(), TermMode::MOUSE_REPORT_CLICK),
+                BindingAction::Ignore
+            );
+            assert_eq!(
+                action(Modifiers::SHIFT, TermMode::MOUSE_REPORT_CLICK),
+                expand
+            );
         }
 
         #[test]

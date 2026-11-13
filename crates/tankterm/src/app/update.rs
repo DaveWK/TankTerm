@@ -121,6 +121,8 @@ impl App {
                 iced_tterm::Command::ChangeFont(font),
                 iced_tterm::Command::ChangeScroll(settings.scroll),
                 iced_tterm::Command::ChangeCursor(settings.cursor),
+                iced_tterm::Command::ChangeSelection(settings.selection.clone()),
+                iced_tterm::Command::ChangeMouse(settings.mouse),
                 iced_tterm::Command::AddBindings(bindings.clone()),
             ] {
                 shell.terminal.handle(command);
