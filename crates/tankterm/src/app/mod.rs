@@ -183,6 +183,8 @@ struct Shell {
     rang: Option<Instant>,
     /// Name of the profile the terminal was opened from, if it was.
     profile: Option<String>,
+    /// Keep the pane open when the program exits (`--hold`).
+    hold: bool,
 }
 
 /// How terminals are placed in the window.

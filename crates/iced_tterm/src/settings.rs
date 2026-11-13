@@ -92,6 +92,9 @@ pub struct BackendSettings {
     pub args: Vec<String>,
     pub env: HashMap<String, String>,
     pub working_directory: Option<PathBuf>,
+    /// Keep the terminal and what it shows once the program exits: the output it wrote last is
+    /// read before the terminal reports the exit.
+    pub hold: bool,
 }
 
 impl Default for BackendSettings {
@@ -101,6 +104,7 @@ impl Default for BackendSettings {
             args: vec![],
             env: HashMap::new(),
             working_directory: None,
+            hold: false,
         }
     }
 }

@@ -188,13 +188,7 @@ fn unsupported_options(options: &Options) -> Result<(), &'static str> {
         return Err("--socket");
     }
 
-    if options.daemon {
-        Err("--daemon")
-    } else if options.window_options.terminal_options.hold {
-        Err("--hold")
-    } else {
-        Ok(())
-    }
+    if options.daemon { Err("--daemon") } else { Ok(()) }
 }
 
 /// Settings for the main window.
@@ -358,7 +352,7 @@ mod tests {
     #[test]
     fn unsupported_options_are_rejected() {
         assert_eq!(unsupported_options(&options(&["--daemon"])), Err("--daemon"));
-        assert_eq!(unsupported_options(&options(&["--hold"])), Err("--hold"));
+        assert_eq!(unsupported_options(&options(&["--hold"])), Ok(()));
         #[cfg(unix)]
         assert_eq!(unsupported_options(&options(&["--socket", "/tmp/s"])), Err("--socket"));
     }

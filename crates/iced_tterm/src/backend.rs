@@ -225,10 +225,12 @@ impl Backend {
         cursor_style: CursorStyle,
     ) -> Result<Self> {
         let pty_config = tty::Options {
+            drain_on_exit: settings.hold,
             shell: Some(tty::Shell::new(settings.program, settings.args)),
             working_directory: settings.working_directory,
             env: settings.env,
-            ..tty::Options::default()
+            #[cfg(target_os = "windows")]
+            escape_args: false,
         };
 
         let config = term_config(scrollback, cursor_style);
@@ -259,8 +261,13 @@ impl Backend {
 
         let term = Arc::new(FairMutex::new(term));
 
-        let pty_event_loop =
-            EventLoop::new(term.clone(), event_proxy, pty, false, false)?;
+        let pty_event_loop = EventLoop::new(
+            term.clone(),
+            event_proxy,
+            pty,
+            pty_config.drain_on_exit,
+            false,
+        )?;
 
         let notifier = Notifier(pty_event_loop.channel());
 
@@ -1202,6 +1209,35 @@ mod tests {
             CursorStyle::default(),
         )
         .unwrap()
+    }
+
+    /// What a program printed right before it exited is kept when the
+    /// terminal holds: the PTY is read once more after the exit.
+    #[cfg(unix)]
+    #[test]
+    fn held_terminal_keeps_the_last_output() {
+        use tankterm_terminal::term::ColorScheme;
+
+        let (proxy, _receiver) = event_channel(100);
+        let settings = BackendSettings {
+            program: "/bin/sh".into(),
+            args: vec!["-c".into(), "printf held; exit 3".into()],
+            hold: true,
+            ..BackendSettings::default()
+        };
+        let backend = Backend::new(
+            0,
+            proxy,
+            settings,
+            ColorScheme::Dark,
+            100,
+            CursorStyle::default(),
+        )
+        .unwrap();
+
+        eventually("the output was lost", || {
+            backend.text().concat().contains("held")
+        });
     }
 
     #[cfg(unix)]

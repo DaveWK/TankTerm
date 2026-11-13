@@ -203,6 +203,7 @@ impl App {
     pub(super) fn spawn(&mut self, mut settings: Settings, background: Color) -> io::Result<u64> {
         let id = self.next_terminal;
         let working_directory = settings.backend.working_directory.clone();
+        let hold = settings.backend.hold;
         settings.font = zoomed(settings.font, self.font_zoom);
         let mut terminal = iced_tterm::Terminal::new(id, settings)?;
         terminal.handle(iced_tterm::Command::AddBindings(self.options.bindings.clone()));
@@ -220,6 +221,7 @@ impl App {
             focused: true,
             rang: None,
             profile: None,
+            hold,
         };
         self.next_terminal += 1;
         self.terminals.insert(id, shell);

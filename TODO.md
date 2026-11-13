@@ -6,8 +6,8 @@ Approved and waiting their turn, in this order.
 
 1. Delete the `xitely/iced_term` repository and the merged `forgejo-ci` branch on Forgejo.
 2. Config options the iced front end ignores:
-   - Port next: font faces and offsets, the remaining colour options, selection and mouse
-     options, and `--hold`.
+   - Port next: font faces and offsets, the remaining colour options, and the selection and
+     mouse options.
    - Port later, low priority: `window.blur`, `window.resize_increments`,
      `window.dynamic_padding`, `window.option_as_alt`.
 3. `tankTerm msg` in the iced front end: spawn, split, send-text, get-text, list, activate.

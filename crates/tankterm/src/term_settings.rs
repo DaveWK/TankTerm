@@ -92,6 +92,8 @@ pub fn tab_settings(config: &UiConfig, options: &Options) -> Settings {
     let (program, args) = shell(None, config, std::env::var("SHELL").ok());
     settings.backend.program = program;
     settings.backend.args = args;
+    // `--hold` is for the program given on the command line, like `-e`.
+    settings.backend.hold = false;
 
     settings
 }
@@ -293,7 +295,13 @@ fn backend_settings(
         .filter(|dir| dir.is_dir())
         .or_else(|| config.general.working_directory.clone());
 
-    BackendSettings { program, args, env: config.env.clone(), working_directory }
+    BackendSettings {
+        program,
+        args,
+        env: config.env.clone(),
+        working_directory,
+        hold: terminal_options.hold,
+    }
 }
 
 /// The program to run in a terminal and its arguments.
@@ -671,5 +679,17 @@ mod tests {
         let plain = profile_settings(&config.profiles[1], &config, &options).backend;
         assert_eq!((plain.program.as_str(), plain.args.len()), ("zsh", 0));
         assert_eq!(plain.env["EDITOR"], "vi");
+    }
+
+    #[test]
+    fn hold_keeps_only_the_first_terminal() {
+        let config: UiConfig = toml::from_str("[[profiles]]\nname = \"Plain\"\n").unwrap();
+
+        let held = options(&["--hold", "-e", "make"]);
+        assert!(settings(&config, &held).backend.hold);
+        assert!(!tab_settings(&config, &held).backend.hold);
+        assert!(!profile_settings(&config.profiles[0], &config, &held).backend.hold);
+
+        assert!(!settings(&config, &options(&["-e", "make"])).backend.hold);
     }
 }

@@ -17,7 +17,9 @@ profiles, set up through a TOML configuration file; see *tankTerm*(5).
 
 *--hold*
 
-	Remain open after child process exits.
+	Keep the first terminal open, with what it shows, after its program
+	exits. Tabs and panes opened later close when their shell exits, as
+	usual.
 
 *--daemon*
 

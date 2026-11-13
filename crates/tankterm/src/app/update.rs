@@ -357,7 +357,8 @@ impl App {
                 };
 
                 match shell.terminal.handle(iced_tterm::Command::ProxyToBackend(command)) {
-                    // The shell exited, close its pane.
+                    // The shell exited, close its pane, unless it is kept with what it showed.
+                    Action::Shutdown if shell.hold => (),
                     Action::Shutdown => return self.close_terminal(id),
                     Action::ChangeTitle(title) => shell.title = Some(title),
                     Action::Ignore => (),

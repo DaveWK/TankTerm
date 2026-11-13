@@ -443,6 +443,34 @@ fn window_actions_minimize_hide_and_quit() {
     assert_eq!(run_action(&mut app, AppAction::Quit, [None, None]), [Asked::Close]);
 }
 
+#[cfg(unix)]
+#[test]
+fn held_terminal_stays_open_with_its_output_when_its_program_exits() {
+    use super::tab_tests::app_from;
+
+    let config =
+        "[terminal]\nshell = { program = \"sh\", args = [\"-c\", \"printf held; exit 3\"] }\n";
+    let mut app = app_from(config, Hotkeys::default(), None, |first| first.backend.hold = true);
+    perform(&mut app, &[AppAction::Split(iced::widget::pane_grid::Axis::Vertical)]);
+    wait_for_text(&app, 0, "held");
+
+    let exit = BackendCommand::ProcessAlacrittyEvent(iced_tterm::AlacrittyEvent::Exit);
+    for terminal in [0, 1] {
+        let _ =
+            app.update(Message::Terminal(iced_tterm::Event::BackendCall(terminal, exit.clone())));
+    }
+
+    // The held pane is left with what its program printed; the other one closes as usual.
+    assert_eq!(app.tabs.len(), 1);
+    assert_eq!(app.terminals.keys().copied().collect::<Vec<_>>(), [0]);
+    assert!(app.terminals[&0].terminal.text().concat().contains("held"));
+
+    // Typing into it goes nowhere, and closing it works like closing any pane.
+    perform(&mut app, &[AppAction::Chars("ignored".into())]);
+    perform(&mut app, &[AppAction::ClosePane]);
+    assert!(app.tabs.is_empty());
+}
+
 #[test]
 fn chars_are_typed_into_the_focused_terminal() {
     let mut app = app_with("", Hotkeys::default());

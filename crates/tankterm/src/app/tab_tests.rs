@@ -18,6 +18,16 @@ use crate::session::ordered_panes;
 use crate::term_settings;
 
 fn app_with_session(config: &str, hotkeys: Hotkeys, session_file: Option<PathBuf>) -> App {
+    app_from(config, hotkeys, session_file, |_| ())
+}
+
+/// An application for a configuration, with `first` changing the settings of its first terminal.
+pub(super) fn app_from(
+    config: &str,
+    hotkeys: Hotkeys,
+    session_file: Option<PathBuf>,
+    first: impl FnOnce(&mut Settings),
+) -> App {
     let config: UiConfig = toml::from_str(config).unwrap();
     let mut settings = term_settings::settings(&config, &Options::default());
     // Tests run `cat` unless their configuration names a shell.
@@ -53,7 +63,9 @@ fn app_with_session(config: &str, hotkeys: Hotkeys, session_file: Option<PathBuf
         opacity: config.window_opacity(),
     };
 
-    App::new(options, settings.clone(), settings).unwrap()
+    let mut first_settings = settings.clone();
+    first(&mut first_settings);
+    App::new(options, first_settings, settings).unwrap()
 }
 
 pub(super) fn app_with(config: &str, hotkeys: Hotkeys) -> App {
