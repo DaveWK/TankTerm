@@ -28,7 +28,9 @@ pub(super) fn app_from(
     session_file: Option<PathBuf>,
     first: impl FnOnce(&mut Settings),
 ) -> App {
-    let config: UiConfig = toml::from_str(config).unwrap();
+    let mut config: UiConfig = toml::from_str(config).unwrap();
+    // Loading a configuration resolves its styles.
+    config.style.resolve(&config.colors);
     let mut settings = term_settings::settings(&config, &Options::default());
     // Tests run `cat` unless their configuration names a shell.
     if config.terminal.shell.is_none() {

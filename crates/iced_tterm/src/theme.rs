@@ -49,6 +49,18 @@ impl Default for CellColors {
     }
 }
 
+/// Text attributes of something drawn on cells, added to the cells' own.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct TextAttributes {
+    pub bold: bool,
+    pub italic: bool,
+    pub faint: bool,
+    pub underline: bool,
+    pub strikethrough: bool,
+    /// Swap the text and background colors.
+    pub reverse: bool,
+}
+
 #[derive(Debug, Clone)]
 pub struct ColorPalette {
     pub foreground: String,
@@ -88,6 +100,8 @@ pub struct ColorPalette {
     pub cursor: CellColors,
     /// Selected text.
     pub selection: CellColors,
+    /// Attributes selected text is drawn with, besides its own.
+    pub selection_attributes: TextAttributes,
 }
 
 impl Default for ColorPalette {
@@ -125,6 +139,7 @@ impl Default for ColorPalette {
             draw_bold_text_with_bright_colors: false,
             cursor: CellColors::default(),
             selection: CellColors::default(),
+            selection_attributes: TextAttributes::default(),
         }
     }
 }
@@ -185,6 +200,11 @@ impl Theme {
     /// The colors of selected text.
     pub(crate) fn selection_colors(&self) -> CellColors {
         self.palette.selection
+    }
+
+    /// The attributes selected text is drawn with, besides its own.
+    pub(crate) fn selection_attributes(&self) -> TextAttributes {
+        self.palette.selection_attributes
     }
 
     /// The color text in `color` is drawn with when it is bold: the bright

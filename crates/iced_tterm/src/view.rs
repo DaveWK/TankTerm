@@ -5,7 +5,7 @@ use crate::bindings::{BindingAction, BindingsLayout, InputKind};
 use crate::cursor::cursor_rectangles;
 use crate::keyboard::{self, KeyInput, KeyState, KittyOutput};
 use crate::terminal::{Event, Terminal};
-use crate::theme::TerminalStyle;
+use crate::theme::{TerminalStyle, TextAttributes};
 use iced::alignment::Vertical;
 use iced::mouse::{Cursor, ScrollDelta};
 use iced::widget::canvas::{Path, Text};
@@ -692,6 +692,10 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
 
             let mut last_line: Option<i32> = None;
             let mut bg_batch_rect = BackgroundRect::default();
+            // Lines and cursor shapes are drawn after the backgrounds, which
+            // are only filled once a run of them ends and would cover them.
+            let mut lines: Vec<(Path, f32, Color)> = Vec::new();
+            let mut cursor_rects: Vec<(Point, Size, Color)> = Vec::new();
 
             for indexed in content.grid.display_iter() {
                 // Compute per-cell geometry cheaply
@@ -704,6 +708,16 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                     + (((line as f32) + display_offset) * cell_height);
                 let cell_center_y = y + half_h;
                 let cell_center_x = x + half_w;
+
+                // Selected text adds the selection's attributes to its own.
+                let selected = content
+                    .selectable_range
+                    .is_some_and(|r| r.contains(indexed.point));
+                let attributes = if selected {
+                    theme.selection_attributes()
+                } else {
+                    TextAttributes::default()
+                };
 
                 // Resolve colors for this cell. Bold text that isn't dim can
                 // take the bright variant of its color.
@@ -752,15 +766,18 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                 if indexed.cell.flags.contains(cell::Flags::INVERSE) {
                     std::mem::swap(&mut fg, &mut bg);
                 }
-                if content
-                    .selectable_range
-                    .is_some_and(|r| r.contains(indexed.point))
-                {
+                if selected {
                     let selection = theme.selection_colors();
                     (fg, bg) = (
                         selection.foreground.on(fg, bg),
                         selection.background.on(fg, bg),
                     );
+                }
+                if attributes.faint {
+                    fg.a *= 0.7;
+                }
+                if attributes.reverse {
+                    std::mem::swap(&mut fg, &mut bg);
                 }
 
                 // Batch draw backgrounds: skip default background (container already paints it)
@@ -802,18 +819,28 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                     range.contains(&indexed.point)
                         && range.contains(&state.mouse_position_on_grid)
                 }) || indexed.cell.flags.contains(cell::Flags::UNDERLINE)
+                    || attributes.underline
                 {
-                    let underline_height = y + cell_size.height;
+                    // Inside the cell, where the next line's background
+                    // doesn't cover it.
+                    let width = font_size * 0.15;
+                    let underline_height = y + cell_size.height - width / 2.;
                     let underline = Path::line(
                         Point::new(x, underline_height),
                         Point::new(x + cell_size.width, underline_height),
                     );
-                    frame.stroke(
-                        &underline,
-                        Stroke::default()
-                            .with_width(font_size * 0.15)
-                            .with_color(fg),
+                    lines.push((underline, width, fg));
+                }
+
+                if flags.contains(cell::Flags::STRIKEOUT)
+                    || attributes.strikethrough
+                {
+                    let middle = y + cell_size.height / 2.;
+                    let strikethrough = Path::line(
+                        Point::new(x, middle),
+                        Point::new(x + cell_size.width, middle),
                     );
+                    lines.push((strikethrough, font_size * 0.08, fg));
                 }
 
                 // Handle cursor rendering
@@ -837,11 +864,11 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                         cell_size,
                         cursor_thickness,
                     ) {
-                        frame.fill_rectangle(
+                        cursor_rects.push((
                             rectangle.position(),
                             rectangle.size(),
                             cursor_color,
-                        );
+                        ));
                     }
                 }
 
@@ -861,12 +888,12 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                             .foreground
                             .on(cell_fg, cell_bg);
                     }
-                    let flags = indexed.cell.flags;
                     let font = self.term.font.face(
                         flags.intersects(
                             cell::Flags::BOLD | cell::Flags::DIM_BOLD,
-                        ),
-                        flags.contains(cell::Flags::ITALIC),
+                        ) || attributes.bold,
+                        flags.contains(cell::Flags::ITALIC)
+                            || attributes.italic,
                     );
                     let glyph_offset = self.term.font.glyph_offset;
                     let text = Text {
@@ -894,6 +921,16 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                     &bg_batch_rect.build(last_line.unwrap_or(0)),
                     bg_batch_rect.color,
                 );
+            }
+
+            for (line, width, color) in &lines {
+                frame.stroke(
+                    line,
+                    Stroke::default().with_width(*width).with_color(*color),
+                );
+            }
+            for (position, size, color) in cursor_rects {
+                frame.fill_rectangle(position, size, color);
             }
         });
 

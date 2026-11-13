@@ -10,7 +10,7 @@ use iced::widget::pane_grid::Axis;
 use iced::{Size, Theme};
 use iced_test::simulator::Simulator;
 use iced_tterm::settings::BackendSettings;
-use iced_tterm::{AlacrittyEvent, BackendCommand};
+use iced_tterm::{AlacrittyEvent, BackendCommand, SelectionType};
 
 use super::*;
 use crate::cli::Options;
@@ -91,6 +91,38 @@ fn tabs_and_panes() {
     let mut ui = Simulator::with_size(Default::default(), window, app.view());
     let snapshot = ui.snapshot(&Theme::Dark).unwrap();
     assert!(snapshot.matches_image(dir.join("command-palette")).unwrap());
+}
+
+#[test]
+#[ignore = "writes screenshots for manual inspection"]
+fn selection_and_strikethrough() {
+    let Some(dir) = env::var_os("TANKTERM_SNAPSHOT_DIR").map(PathBuf::from) else { return };
+    let window = Size::new(900., 160.);
+
+    // The second line is selected, with a selection style that adds attributes.
+    let config = r#"
+        [terminal]
+        shell = { program = "sh", args = ["-c", 'printf "plain \033[9mstruck out\033[0m plain\nselected line\n"; exec cat'] }
+        [style.selection]
+        bold = true
+        italic = true
+        underline = true
+    "#;
+    let mut app = super::tab_tests::app_with(config, Hotkeys::default());
+    settle(&mut app, window);
+
+    let cell = term_settings::cell_size(&app.settings.font);
+    let select = BackendCommand::SelectStart(SelectionType::Lines, (1., cell.height * 1.5));
+    app.terminals.get_mut(&0).unwrap().terminal.handle(iced_tterm::Command::ProxyToBackend(select));
+    snapshot(&app, window, &dir, "selection-and-strikethrough");
+
+    // Reverse instead: the selection's colors swapped.
+    let config = config.replace("underline = true", "reverse = true");
+    let mut app = super::tab_tests::app_with(&config, Hotkeys::default());
+    settle(&mut app, window);
+    let select = BackendCommand::SelectStart(SelectionType::Lines, (1., cell.height * 1.5));
+    app.terminals.get_mut(&0).unwrap().terminal.handle(iced_tterm::Command::ProxyToBackend(select));
+    snapshot(&app, window, &dir, "selection-reversed");
 }
 
 /// Lay the terminals out so they get their size, then let them show what their shells printed.

@@ -9,7 +9,7 @@ use iced_tterm::settings::{
     BackendSettings, CursorBlinking, CursorSettings, FontSettings, MouseSettings, ScrollSettings,
     SelectionSettings, Settings, ThemeSettings,
 };
-use iced_tterm::{CellColor, CellColors, ColorPalette};
+use iced_tterm::{CellColor, CellColors, ColorPalette, TextAttributes};
 use log::warn;
 
 use crate::cli::Options;
@@ -326,9 +326,19 @@ pub fn foreground(config: &UiConfig) -> Color {
 /// selection, which the `[style]` blocks can change too.
 fn theme_palette(config: &UiConfig) -> ColorPalette {
     let styles = config.style.resolved();
+    let selection = styles.selection.attributes;
     ColorPalette {
+        // Only colors apply to the cursor.
         cursor: cell_colors(&styles.cursor),
         selection: cell_colors(&styles.selection),
+        selection_attributes: TextAttributes {
+            bold: selection.bold,
+            italic: selection.italic,
+            faint: selection.faint,
+            underline: selection.underline,
+            strikethrough: selection.strikethrough,
+            reverse: selection.reverse,
+        },
         ..palette(&config.colors)
     }
 }
@@ -580,6 +590,21 @@ mod tests {
         assert_eq!(configured.selection, CellColors {
             foreground: color(0xab, 0xcd, 0xef),
             background: color(0x12, 0x34, 0x56)
+        });
+    }
+
+    #[test]
+    fn selection_takes_the_text_attributes_of_its_style() {
+        assert_eq!(configured_palette("").selection_attributes, TextAttributes::default());
+
+        let palette = configured_palette(
+            "[style.selection]\nbold = true\nunderline = true\nreverse = true\n",
+        );
+        assert_eq!(palette.selection_attributes, TextAttributes {
+            bold: true,
+            underline: true,
+            reverse: true,
+            ..TextAttributes::default()
         });
     }
 
