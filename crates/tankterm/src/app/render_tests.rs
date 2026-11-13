@@ -137,6 +137,33 @@ fn selection_and_strikethrough() {
 
 #[test]
 #[ignore = "writes screenshots for manual inspection"]
+fn prompt_marks() {
+    let Some(dir) = env::var_os("TANKTERM_SNAPSHOT_DIR").map(PathBuf::from) else { return };
+    let window = Size::new(600., 200.);
+
+    // A command that succeeds, one that fails, and the prompt waiting for the next one, with
+    // their output selected.
+    let config = r#"
+        [terminal.shell]
+        program = "sh"
+        args = ["-c", '''
+        a='\033]133;A\007~/src $ \033]133;B\007'
+        printf "${a}ls\n\033]133;C\007Cargo.toml  crates  docs\n\033]133;D;0\007"
+        printf "${a}false\n\033]133;C\007\033]133;D;1\007"
+        printf "${a}make\n\033]133;C\007make: *** No targets.  Stop.\n\033]133;D;2\007"
+        printf "${a}"
+        exec cat
+        ''']
+    "#;
+    let mut app = super::tab_tests::app_with(config, Hotkeys::default());
+    settle(&mut app, window);
+    let select = iced_tterm::Command::ProxyToBackend(BackendCommand::SelectCommandOutput);
+    app.terminals.get_mut(&0).unwrap().terminal.handle(select);
+    snapshot(&app, window, &dir, "prompt-marks");
+}
+
+#[test]
+#[ignore = "writes screenshots for manual inspection"]
 fn box_drawing() {
     let Some(dir) = env::var_os("TANKTERM_SNAPSHOT_DIR").map(PathBuf::from) else { return };
     let window = Size::new(1100., 560.);

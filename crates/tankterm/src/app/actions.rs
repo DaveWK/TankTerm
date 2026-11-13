@@ -7,7 +7,7 @@ use iced_tterm::settings::FontSettings;
 use iced_tterm::{BackendCommand, Scroll};
 use log::warn;
 
-use super::{App, Message, Shell, working_directory};
+use super::{App, Message, Shell};
 use crate::config::ui_config::Program;
 use crate::daemon::spawn_daemon;
 use crate::hotkeys::ScrollTo;
@@ -86,17 +86,31 @@ impl App {
 
         let half_page = (shell.terminal.screen_lines() / 2) as i32;
         let scroll = match to {
-            ScrollTo::PageUp => Scroll::PageUp,
-            ScrollTo::PageDown => Scroll::PageDown,
-            ScrollTo::HalfPageUp => Scroll::Delta(half_page),
-            ScrollTo::HalfPageDown => Scroll::Delta(-half_page),
-            ScrollTo::LineUp => Scroll::Delta(1),
-            ScrollTo::LineDown => Scroll::Delta(-1),
-            ScrollTo::Top => Scroll::Top,
-            ScrollTo::Bottom => Scroll::Bottom,
+            ScrollTo::PageUp => BackendCommand::ScrollDisplay(Scroll::PageUp),
+            ScrollTo::PageDown => BackendCommand::ScrollDisplay(Scroll::PageDown),
+            ScrollTo::HalfPageUp => BackendCommand::ScrollDisplay(Scroll::Delta(half_page)),
+            ScrollTo::HalfPageDown => BackendCommand::ScrollDisplay(Scroll::Delta(-half_page)),
+            ScrollTo::LineUp => BackendCommand::ScrollDisplay(Scroll::Delta(1)),
+            ScrollTo::LineDown => BackendCommand::ScrollDisplay(Scroll::Delta(-1)),
+            ScrollTo::Top => BackendCommand::ScrollDisplay(Scroll::Top),
+            ScrollTo::Bottom => BackendCommand::ScrollDisplay(Scroll::Bottom),
+            ScrollTo::PreviousPrompt => BackendCommand::ScrollToPreviousPrompt,
+            ScrollTo::NextPrompt => BackendCommand::ScrollToNextPrompt,
         };
-        let scroll = BackendCommand::ScrollDisplay(scroll);
         shell.terminal.handle(iced_tterm::Command::ProxyToBackend(scroll));
+    }
+
+    /// Select the output of a command in the focused terminal, and put it on the selection
+    /// clipboard as a selection made with the mouse is.
+    pub(super) fn select_command_output(&mut self) -> Task<Message> {
+        let Some(terminal) = self.focused_terminal() else { return Task::none() };
+        let selection =
+            |app: &Self| app.focused_shell().and_then(|shell| shell.terminal.selection());
+
+        let before = selection(self);
+        self.send_to_focused(BackendCommand::SelectCommandOutput);
+        // Without output to select, the selection that was there stays as it was.
+        if selection(self) == before { Task::none() } else { self.copy_selection(terminal) }
     }
 
     /// Drop the scrollback buffer of the focused terminal.
@@ -126,9 +140,7 @@ impl App {
     /// Start a program without waiting for it, in the directory of the focused terminal's shell
     /// where that is known.
     pub(super) fn run_command(&self, program: &Program) {
-        let shell = self.focused_shell();
-        let directory =
-            shell.and_then(|shell| shell.terminal.child_pid()).and_then(working_directory);
+        let directory = self.focused_shell().and_then(Shell::directory);
 
         if let Err(err) = spawn_daemon(program.program(), program.args(), directory.as_deref()) {
             warn!("Unable to run the command {:?}: {err}", program.program());

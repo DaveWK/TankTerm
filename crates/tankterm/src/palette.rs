@@ -5,7 +5,7 @@ use iced::widget::{button, column, container, opaque, row, text, text_input};
 use iced::{Border, Color, Element, Font, Length, Padding, widget};
 
 use crate::app::Message;
-use crate::hotkeys::{AppAction, Hotkeys, PaneSelectMode};
+use crate::hotkeys::{AppAction, Hotkeys, PaneSelectMode, ScrollTo};
 
 /// Most items shown at once; the list scrolls with the selection.
 const VISIBLE_ITEMS: usize = 10;
@@ -46,6 +46,9 @@ const COMMANDS: &[(&str, AppAction)] = {
         ("Rename Tab...", AppAction::RenameTab),
         ("Open Profile...", AppAction::ShowProfiles),
         ("Open Config", AppAction::OpenConfig),
+        ("Scroll to Previous Prompt", AppAction::Scroll(ScrollTo::PreviousPrompt)),
+        ("Scroll to Next Prompt", AppAction::Scroll(ScrollTo::NextPrompt)),
+        ("Select Command Output", AppAction::SelectCommandOutput),
     ]
 };
 

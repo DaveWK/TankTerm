@@ -382,6 +382,21 @@ extra/man/scdoc.sh extra/man/tankTerm-bindings.5.scd | gzip -c | sudo tee /usr/l
 extra/man/scdoc.sh extra/man/tankTerm-escapes.7.scd | gzip -c | sudo tee /usr/local/share/man/man7/tankTerm-escapes.7.gz > /dev/null
 ```
 
+### Shell integration
+
+The scripts in `extra/shell-integration` let bash, zsh and fish mark their prompts and commands
+and report their directory; see [shell integration](./docs/features.md#shell-integration). Copy
+the one for your shell somewhere it stays and source it at the end of the shell's startup file:
+
+```sh
+mkdir -p ~/.local/share/tankterm
+cp extra/shell-integration/tankterm.bash ~/.local/share/tankterm/
+echo 'source ~/.local/share/tankterm/tankterm.bash' >> ~/.bashrc
+```
+
+For zsh, use `tankterm.zsh` and `~/.zshrc`; for fish, `tankterm.fish` and
+`~/.config/fish/config.fish`.
+
 ### Shell completions
 
 To get automatic completions for TankTerm's flags and arguments you can install the provided shell completions.

@@ -227,6 +227,9 @@ brevity.
 |  _OSC 4_
 :  Implemented
 :[
+|  _OSC 7_
+:  Implemented
+:[ Working directory, as a _file://_ or _kitty-shell-cwd://_ URL on this host
 |  _OSC 8_
 :  Implemented
 :[
@@ -257,6 +260,10 @@ brevity.
 |  _OSC 112_
 :  Implemented
 :[
+|  _OSC 133_
+:  Implemented
+:[ Prompt marks _A_, _P_, _B_, _C_ and _D_ with an exit status; options are
+   ignored but for kitty's _k=s_
 
 # DCS (Device Control String) - ESC P
 

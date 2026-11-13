@@ -14,7 +14,6 @@ use log::{error, warn};
 use super::actions::{FONT_SIZE_STEP, hide, minimize, toggle_fullscreen, toggle_maximized, zoomed};
 use super::{
     App, Message, PANE_ID_ENV, PaneSelect, PendingPaste, RESIZE_LIMITS, RESIZE_STEP, Shell, Tab,
-    working_directory,
 };
 use crate::hotkeys::{ActiveTable, AppAction, PaneSelectMode};
 use crate::palette::Palette;
@@ -36,10 +35,8 @@ impl App {
             return settings;
         }
 
-        let pid = terminal
-            .and_then(|id| self.terminals.get(&id))
-            .and_then(|shell| shell.terminal.child_pid());
-        if let Some(directory) = pid.and_then(working_directory) {
+        let shell = terminal.and_then(|id| self.terminals.get(&id));
+        if let Some(directory) = shell.and_then(Shell::directory) {
             settings.backend.working_directory = Some(directory);
         }
 
@@ -261,6 +258,7 @@ impl App {
                 self.clear_history();
                 return Task::none();
             },
+            AppAction::SelectCommandOutput => return self.select_command_output(),
             AppAction::ToggleFullscreen => return toggle_fullscreen(),
             AppAction::ToggleMaximized => return toggle_maximized(),
             AppAction::CopySelection => return self.copy_to_selection(),
@@ -331,6 +329,8 @@ impl App {
             title: None,
             background,
             busy: false,
+            marks_commands: false,
+            reported_directory: None,
             working_directory,
             attention: false,
             // A new terminal takes itself to have the keyboard focus.

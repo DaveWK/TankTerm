@@ -28,7 +28,7 @@ Notable changes to the `tankterm_terminal` crate are documented in its
     tab recovery; the layout is remembered, the shells are started fresh
 - `tabs.inherit_working_directory`, on by default, starts the shells of new tabs and panes in the
     directory of the current pane's shell; restored panes start in their directories too. Both
-    only work on Linux
+    work on Linux, and elsewhere with shell integration
 - Tabs that aren't shown are marked in the tab bar when they print something (`*`)
 - Terminals that ring the bell or finish a command while they aren't looked at mark their tab
     (`!`) and pane, and ask the desktop for attention if the window isn't focused. Finished
@@ -76,6 +76,11 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 - A gear at the end of the tab bar and the `OpenConfig` action open the configuration file in
     `$VISUAL` or `$EDITOR` in a new tab, creating it if there is none; a configuration file
     created while TankTerm runs is read like one that was there from the start
+- Shell integration: OSC 133 prompt marks and OSC 7 working directories, with scripts for bash,
+    zsh and fish in `extra/shell-integration`. Prompts are marked at the left edge, in red after a
+    failed command; `ScrollToPreviousPrompt`, `ScrollToNextPrompt` and `SelectCommandOutput` move
+    between prompts and select a command's output. Finished commands are noticed from the marks,
+    and new tabs and panes start in the reported directory, on every platform
 
 ### Changed
 
@@ -120,7 +125,7 @@ Notable changes to the `tankterm_terminal` crate are documented in its
     without focus
 - `bell.command` and the visual bell (`bell.duration`, `bell.color`, `bell.animation` and
     `bell.spring`) apply to the iced front end; the visual bell flashes the pane of the terminal
-    that rang, and the command runs in the directory of that terminal's shell on Linux
+    that rang, and the command runs in the directory of that terminal's shell where that is known
 - `general.live_config_reload` applies to the iced front end: within a second of a change to
     the configuration file or a file it imports, the colors, font, padding, key and mouse
     bindings, tabs, profiles, scrolling, cursor and bell options of the running window change.

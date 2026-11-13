@@ -6,7 +6,7 @@ use iced_tterm::BackendCommand;
 use iced_tterm::settings::Settings;
 
 use super::tabs::nearest_split;
-use super::{App, Message, working_directory};
+use super::{App, Message};
 use crate::cli::{
     ActivateTabOptions, GetTextOptions, ProgramOptions, SetTabTitleOptions, SocketMessage,
     SplitOptions, ZoomOptions,
@@ -78,8 +78,7 @@ impl App {
                 let Some(shell) = self.terminals.get(id) else { continue };
 
                 let title = shell.title.as_deref().filter(|_| self.options.dynamic_title);
-                let cwd = shell.terminal.child_pid().and_then(working_directory);
-                let cwd = cwd.or_else(|| shell.working_directory.clone());
+                let cwd = shell.directory().or_else(|| shell.working_directory.clone());
                 panes.push(PaneInfo {
                     window_id: 0,
                     tab_id: tab.id,

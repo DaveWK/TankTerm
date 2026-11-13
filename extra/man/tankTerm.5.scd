@@ -1246,7 +1246,8 @@ bindings = [++
 	The iced front end runs _command_, _chars_, the tab and pane actions and
 	_Paste_, _Copy_, _PasteSelection_, _CopySelection_, _ClearSelection_,
 	_IncreaseFontSize_, _DecreaseFontSize_, _ResetFontSize_, the _Scroll_
-	actions, _ClearHistory_, _ToggleFullscreen_, _ToggleMaximized_, _Minimize_,
+	actions, _SelectCommandOutput_, _ClearHistory_, _ToggleFullscreen_,
+	_ToggleMaximized_, _Minimize_,
 	_Hide_ and _Quit_. Bindings to the other actions and to scancodes are
 	ignored for now, and their keys are sent to the terminal. A character key
 	is matched as it is without _Shift_: _"="_ with _"Control|Shift"_ on a US
@@ -1348,6 +1349,18 @@ _https://docs.rs/winit/latest/winit/keyboard/enum.Key.html_
 			Scroll all the way to the top.
 		*ScrollToBottom*
 			Scroll all the way to the bottom.
+		*ScrollToPreviousPrompt*
+			Scroll the start of the prompt above the top of the terminal to its
+			top. Needs a shell that marks its prompts; see *SHELL INTEGRATION*
+			in *tankTerm*(1).
+		*ScrollToNextPrompt*
+			Scroll the start of the prompt below the top of the terminal to its
+			top, or to the bottom.
+		*SelectCommandOutput*
+			Select the output of the command whose prompt is at the top of the
+			terminal, or of the last command while the terminal is scrolled to
+			the bottom, and put it on the selection clipboard. Needs a shell that
+			marks its commands.
 		*ClearHistory*
 			Clear the display buffer(s) to remove history.
 		*Hide*

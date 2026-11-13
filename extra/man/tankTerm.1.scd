@@ -129,6 +129,20 @@ profiles, set up through a TOML configuration file; see *tankTerm*(5).
 
 		Print help information.
 
+# SHELL INTEGRATION
+
+Shells can mark their prompts, command lines and command output (OSC 133) and
+report their working directory (OSC 7). The scripts in
+_extra/shell-integration_ of the source code do this for bash, zsh and fish;
+source the one for your shell at the end of its startup file.
+
+TankTerm then marks where every prompt starts at the left edge of the terminal,
+in red when the command typed at it failed. The _ScrollToPreviousPrompt_,
+_ScrollToNextPrompt_ and _SelectCommandOutput_ actions of *tankTerm*(5) move
+between prompts and select a command's output. Finished commands are noticed
+from the marks, and new tabs and panes start in the reported directory; without
+the marks, TankTerm watches the shell's processes for both, where it can.
+
 # SEE ALSO
 
 *tankTerm-msg*(1), *tankTerm*(5), *tankTerm-bindings*(5), *tankTerm-escapes*(7)

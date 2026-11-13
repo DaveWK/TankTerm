@@ -15,10 +15,10 @@ use log::error;
 use polling::{Event as PollingEvent, Events, PollMode, Poller};
 
 use crate::event::{self, Event, EventListener, WindowSize};
+use crate::parser::Parser;
 use crate::sync::FairMutex;
 use crate::term::Term;
 use crate::{thread, tty};
-use vte::ansi;
 
 /// Max bytes to read from the PTY before forced terminal synchronization.
 pub(crate) const READ_BUFFER_SIZE: usize = 0x10_0000;
@@ -405,7 +405,7 @@ impl EventLoopSender {
 pub struct State {
     write_list: VecDeque<Cow<'static, [u8]>>,
     writing: Option<Writing>,
-    parser: ansi::Processor,
+    parser: Parser,
     color_scheme_queries: ColorSchemeQueryScanner,
 }
 
