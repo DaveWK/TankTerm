@@ -20,6 +20,7 @@ fn terminal_size(config: &str, window: Size) -> (Size, Padding) {
         padding: term_settings::padding(&config, cell),
         background: term_settings::background(&config),
         foreground: term_settings::foreground(&config),
+        tab_bar: term_settings::tab_bar_styles(&config),
     };
     let options = AppOptions {
         title: "test".into(),

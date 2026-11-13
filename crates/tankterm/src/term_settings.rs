@@ -18,7 +18,7 @@ use crate::config::UiConfig;
 use crate::config::color::Colors;
 use crate::config::font::FontDescription;
 use crate::config::profile::Profile;
-use crate::config::style::{self, CellStyle, ElementStyles};
+use crate::config::style::{self, CellStyle, ElementStyles, TabBarStyles};
 use crate::config::ui_config::{Delta, Program};
 
 /// Logical pixels per typographic point.
@@ -322,6 +322,12 @@ pub fn background(config: &UiConfig) -> Color {
 pub fn foreground(config: &UiConfig) -> Color {
     let foreground = config.colors.primary.foreground;
     Color::from_rgb8(foreground.r, foreground.g, foreground.b)
+}
+
+/// Styles of the tab bar in a focused and an unfocused window.
+pub fn tab_bar_styles(config: &UiConfig) -> [TabBarStyles; 2] {
+    let styles = config.style.resolved();
+    [styles.tab_bar(true), styles.tab_bar(false)]
 }
 
 /// The `iced_tterm` palette of a configuration: its colors, and how the cursor, the selection

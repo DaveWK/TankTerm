@@ -755,8 +755,9 @@ Each property of an element is taken from, in order:
 	. TankTerm's default for the element.
 
 The iced front end draws _cursor_ and _selection_, the selection with its text
-attributes, and their *[style.blurred]* blocks and *[style.blurred.text]*. The
-other elements belong to features it doesn't have yet.
+attributes, the tab bar elements, and their *[style.blurred]* blocks and
+*[style.blurred.text]*. The other elements belong to features it doesn't have
+yet.
 
 *Elements*
 
@@ -783,13 +784,51 @@ other elements belong to features it doesn't have yet.
 		They default to the grays of Bubbles' help view, lighter on dark
 		backgrounds, on the primary background.
 
+	*tab_bar*
+		The tab bar, and the name of the active key table on it. Its padding
+		goes around everything on the bar.
+
+		Default: the primary colors, with the background a little towards the
+		foreground, and no padding.
+
+	*tab_active*, *tab_inactive*
+		The shown tab, and every other tab. A tab is a button holding its title
+		and its close button.
+
+		Default: the shown tab has the primary colors, the others the bar's
+		background and a dimmer foreground. Both have a _padding_ of _[3, 8]_.
+
+	*tab_button*
+		The new tab button and the gear.
+
+		Default: like _tab\_inactive_.
+
+	*tab_hovered*
+		Changes to a tab or button under the mouse. The hovered tab is drawn
+		in the place of the tab: its _margin_ is ignored, and its _padding_
+		moves the content without resizing the tab.
+
+		Default: the primary foreground.
+
+	*tab_activity*, *tab_attention*
+		Changes to a tab marked with *\** because it printed something, and to
+		a tab marked with *!* because it rang the bell or finished a command
+		unseen. _tab\_attention_ wins over _tab\_activity_, and
+		_tab\_hovered_ is applied over both.
+
+		Default: no changes.
+
+	In the tab bar styles, _CellForeground_ and _CellBackground_ refer to the
+	primary colors. The background of _tab\_bar_ is the default background of
+	_tab\_inactive_ and _tab\_button_.
+
 *blurred*
 
 	Changes to the styles while the window doesn't have focus, like Huh's
 	blurred styles. The *[style.blurred.<element>]* blocks for _cursor_,
 	_vi\_mode\_cursor_, _selection_, _search\_match_, _search\_focused\_match_,
-	_hint\_start_ and _hint\_end_ start as copies of the focused styles, and
-	only the properties they set change. *[style.blurred.text]* applies its text
+	_hint\_start_, _hint\_end_ and the _tab\_\*_ elements start as copies of
+	the focused styles, and only the properties they set change. *[style.blurred.text]* applies its text
 	attributes, like _faint = true_, to all terminal content.
 
 	By default, nothing changes when the window loses focus, apart from
@@ -819,6 +858,27 @@ other elements belong to features it doesn't have yet.
 		foreground and _reverse_ swaps foreground and background.
 
 		Default: _false_
+
+	*padding*, *margin* = _<integer>_ | [_<integer>_, ...]
+
+		Space between the border and the content, and around the border, in
+		logical pixels. Like _window.padding_ and Lip Gloss, 1 value sets all
+		sides, 2 set vertical and horizontal, 3 set top, horizontal and bottom,
+		and 4 set top, right, bottom and left. Only the tab bar uses them.
+
+	*border* = _"Normal"_ | _"Rounded"_ | _"Thick"_ | _"Hidden"_
+
+		A border, named after Lip Gloss's: a thin line, a thin line with rounded
+		corners, a thick line, or none. The border is drawn over the edge of the
+		padding and takes no space of its own. Only the tab bar uses it.
+
+		Default: _"Hidden"_
+
+	*border_foreground* = _"<color>"_ | _"CellForeground"_ | _"CellBackground"_
+
+		Color of the border.
+
+		Default: the primary foreground
 
 Example:
 	*[style.defs.accent]*++

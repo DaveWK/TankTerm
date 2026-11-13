@@ -14,6 +14,7 @@ use iced_tterm::bindings::{Binding, BindingAction, InputKind};
 use iced_tterm::settings::Settings;
 
 use crate::bell::Bell;
+use crate::config::style::TabBarStyles;
 use crate::config::tabs::Tabs;
 use crate::hotkeys::{ActiveTable, AppAction, Hotkeys, PaneSelectMode};
 use crate::palette::Palette;
@@ -233,8 +234,10 @@ pub struct Layout {
     pub padding: Padding,
     /// Color drawn behind the terminals and their padding.
     pub background: Color,
-    /// Text color, used for the tab bar and pane frames.
+    /// Text color, used for the pane frames.
     pub foreground: Color,
+    /// Styles of the tab bar, in a focused and an unfocused window.
+    pub tab_bar: [TabBarStyles; 2],
 }
 
 impl Shell {

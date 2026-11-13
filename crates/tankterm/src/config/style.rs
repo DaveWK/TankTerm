@@ -1,9 +1,10 @@
 //! Lip Gloss style blocks for everything TankTerm draws on top of the terminal content.
 //!
 //! Each element (cursor, selection, search matches, hint labels, footer bar, line indicator, key
-//! help) is styled by a [`Style`] with Lip Gloss's properties: colors and text attributes. Styles
-//! compose like Lip Gloss's `Inherit`: a style can inherit from named styles defined in
-//! `[style.defs]`, taking every property it doesn't set itself.
+//! help, the parts of the tab bar) is styled by a [`Style`] with Lip Gloss's properties: colors
+//! and text attributes, and for the tab bar padding and borders. Styles compose like Lip Gloss's
+//! `Inherit`: a style can inherit from named styles defined in `[style.defs]`, taking every
+//! property it doesn't set itself.
 //!
 //! Every property resolves in this order:
 //!
@@ -24,6 +25,7 @@ use tankterm_config_derive::{ConfigDeserialize, SerdeReplace};
 
 use crate::color::{CellRgb, ColorContext, Rgb};
 use crate::config::color::{BarColors, CellColors, Colors};
+use crate::config::window::Spacing;
 use crate::logging::LOG_TARGET_CONFIG;
 
 /// The `[style]` table.
@@ -44,6 +46,13 @@ pub struct StyleConfig {
     pub help_key: Style,
     pub help_desc: Style,
     pub help_separator: Style,
+    pub tab_bar: Style,
+    pub tab_active: Style,
+    pub tab_inactive: Style,
+    pub tab_button: Style,
+    pub tab_hovered: Style,
+    pub tab_activity: Style,
+    pub tab_attention: Style,
 
     /// Changes to the styles while the window doesn't have focus.
     pub blurred: BlurredStyleConfig,
@@ -68,6 +77,13 @@ pub struct BlurredStyleConfig {
     pub search_focused_match: Style,
     pub hint_start: Style,
     pub hint_end: Style,
+    pub tab_bar: Style,
+    pub tab_active: Style,
+    pub tab_inactive: Style,
+    pub tab_button: Style,
+    pub tab_hovered: Style,
+    pub tab_activity: Style,
+    pub tab_attention: Style,
 }
 
 /// Storage for the resolved styles, which can't be set from the configuration itself.
@@ -98,6 +114,19 @@ impl StyleConfig {
     pub fn resolve(&mut self, colors: &Colors) {
         let defs = &self.defs;
         let style = |style: &Style| resolve_inheritance(style, defs, &mut Vec::new());
+
+        let tab_bar = TabBarStyles::new(
+            &TabBlocks {
+                bar: style(&self.tab_bar),
+                active: style(&self.tab_active),
+                inactive: style(&self.tab_inactive),
+                button: style(&self.tab_button),
+                hovered: style(&self.tab_hovered),
+                activity: style(&self.tab_activity),
+                attention: style(&self.tab_attention),
+            },
+            colors,
+        );
 
         let mut styles = Styles {
             cursor: CellStyle::new(&style(&self.cursor), &colors.cursor, defaults::CURSOR),
@@ -142,6 +171,8 @@ impl StyleConfig {
                 defaults::HELP_SEPARATOR,
             ),
             blurred: ElementStyles::default(),
+            tab_bar,
+            blurred_tab_bar: tab_bar,
         };
 
         // Like Huh, the blurred styles start as copies of the focused ones.
@@ -159,6 +190,18 @@ impl StyleConfig {
             hint_start: focused.hint_start.blurred(&style(&blurred.hint_start)),
             hint_end: focused.hint_end.blurred(&style(&blurred.hint_end)),
         };
+        styles.blurred_tab_bar = styles.tab_bar.blurred(
+            &TabBlocks {
+                bar: style(&blurred.tab_bar),
+                active: style(&blurred.tab_active),
+                inactive: style(&blurred.tab_inactive),
+                button: style(&blurred.tab_button),
+                hovered: style(&blurred.tab_hovered),
+                activity: style(&blurred.tab_activity),
+                attention: style(&blurred.tab_attention),
+            },
+            colors,
+        );
 
         self.resolved = Resolved(Some(styles));
     }
@@ -184,6 +227,16 @@ pub struct Style {
     pub underline: Option<bool>,
     pub strikethrough: Option<bool>,
     pub reverse: Option<bool>,
+
+    /// Space between the border and the content, in logical pixels, in CSS shorthand like
+    /// Lip Gloss's `Padding`. Only the tab bar uses it.
+    pub padding: Option<Spacing>,
+    /// Space around the border, in logical pixels. Only the tab bar uses it.
+    pub margin: Option<Spacing>,
+    /// Border around the element. Only the tab bar uses it.
+    pub border: Option<Border>,
+    /// Color of the border.
+    pub border_foreground: Option<CellRgb>,
 }
 
 impl Style {
@@ -199,6 +252,10 @@ impl Style {
             underline: self.underline.or(parent.underline),
             strikethrough: self.strikethrough.or(parent.strikethrough),
             reverse: self.reverse.or(parent.reverse),
+            padding: self.padding.or(parent.padding),
+            margin: self.margin.or(parent.margin),
+            border: self.border.or(parent.border),
+            border_foreground: self.border_foreground.or(parent.border_foreground),
         }
     }
 
@@ -212,6 +269,20 @@ impl Style {
             reverse: self.reverse.unwrap_or_default(),
         }
     }
+}
+
+/// A border, named after Lip Gloss's.
+#[derive(ConfigDeserialize, Serialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Border {
+    /// No border; it takes the place of one that is inherited.
+    #[default]
+    Hidden,
+    /// A thin line.
+    Normal,
+    /// A thin line with rounded corners.
+    Rounded,
+    /// A thick line.
+    Thick,
 }
 
 /// Names of styles to inherit from: a single name or a list.
@@ -363,6 +434,207 @@ impl BarStyle {
     }
 }
 
+/// Effective style of a part of the tab bar.
+///
+/// Its colors are drawn as they are: `faint` and `reverse` are applied by [`TabStyle::colors`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TabStyle {
+    pub foreground: Rgb,
+    pub background: Rgb,
+    pub attributes: TextAttributes,
+    pub padding: Spacing,
+    pub margin: Spacing,
+    pub border: Border,
+    pub border_foreground: Rgb,
+}
+
+impl TabStyle {
+    /// This style with the properties `layer` sets changed.
+    pub fn with(&self, layer: &TabLayer) -> Self {
+        let attributes = &self.attributes;
+        Self {
+            foreground: layer.foreground.unwrap_or(self.foreground),
+            background: layer.background.unwrap_or(self.background),
+            attributes: TextAttributes {
+                bold: layer.bold.unwrap_or(attributes.bold),
+                italic: layer.italic.unwrap_or(attributes.italic),
+                faint: layer.faint.unwrap_or(attributes.faint),
+                underline: layer.underline.unwrap_or(attributes.underline),
+                strikethrough: layer.strikethrough.unwrap_or(attributes.strikethrough),
+                reverse: layer.reverse.unwrap_or(attributes.reverse),
+            },
+            padding: layer.padding.unwrap_or(self.padding),
+            margin: layer.margin.unwrap_or(self.margin),
+            border: layer.border.unwrap_or(self.border),
+            border_foreground: layer.border_foreground.unwrap_or(self.border_foreground),
+        }
+    }
+
+    /// The text and background colors as they are drawn: swapped by `reverse`, and the text
+    /// halfway to the background with `faint`.
+    pub fn colors(&self) -> (Rgb, Rgb) {
+        let (mut foreground, background) = match self.attributes.reverse {
+            true => (self.background, self.foreground),
+            false => (self.foreground, self.background),
+        };
+        if self.attributes.faint {
+            foreground = mix(foreground, background, 0.5);
+        }
+        (foreground, background)
+    }
+}
+
+/// Properties of a style that change a [`TabStyle`], like the hovered or attention style.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TabLayer {
+    foreground: Option<Rgb>,
+    background: Option<Rgb>,
+    bold: Option<bool>,
+    italic: Option<bool>,
+    faint: Option<bool>,
+    underline: Option<bool>,
+    strikethrough: Option<bool>,
+    reverse: Option<bool>,
+    padding: Option<Spacing>,
+    margin: Option<Spacing>,
+    border: Option<Border>,
+    border_foreground: Option<Rgb>,
+}
+
+impl TabLayer {
+    /// The properties `style` sets. `CellForeground` and `CellBackground` refer to the primary
+    /// colors.
+    fn new(style: &Style, colors: &Colors) -> Self {
+        let primary = &colors.primary;
+        let rgb = |color: CellRgb| color.color(primary.foreground, primary.background);
+        Self {
+            foreground: style.foreground.map(rgb),
+            background: style.background.map(rgb),
+            bold: style.bold,
+            italic: style.italic,
+            faint: style.faint,
+            underline: style.underline,
+            strikethrough: style.strikethrough,
+            reverse: style.reverse,
+            padding: style.padding,
+            margin: style.margin,
+            border: style.border,
+            border_foreground: style.border_foreground.map(rgb),
+        }
+    }
+
+    /// This layer with the properties `above` sets changed.
+    fn below(&self, above: &TabLayer) -> Self {
+        Self {
+            foreground: above.foreground.or(self.foreground),
+            background: above.background.or(self.background),
+            bold: above.bold.or(self.bold),
+            italic: above.italic.or(self.italic),
+            faint: above.faint.or(self.faint),
+            underline: above.underline.or(self.underline),
+            strikethrough: above.strikethrough.or(self.strikethrough),
+            reverse: above.reverse.or(self.reverse),
+            padding: above.padding.or(self.padding),
+            margin: above.margin.or(self.margin),
+            border: above.border.or(self.border),
+            border_foreground: above.border_foreground.or(self.border_foreground),
+        }
+    }
+}
+
+/// The `[style.tab_*]` blocks, with their inherited styles applied.
+struct TabBlocks {
+    bar: Style,
+    active: Style,
+    inactive: Style,
+    button: Style,
+    hovered: Style,
+    activity: Style,
+    attention: Style,
+}
+
+/// Effective styles of the tab bar.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TabBarStyles {
+    /// The bar itself, and the text on it outside of tabs and buttons.
+    pub bar: TabStyle,
+    /// The tab that is shown.
+    pub active: TabStyle,
+    /// Every other tab.
+    pub inactive: TabStyle,
+    /// The buttons on the bar: the new tab button and the gear.
+    pub button: TabStyle,
+    /// Changes to a tab or button under the mouse.
+    pub hovered: TabLayer,
+    /// Changes to a tab whose terminals printed something since it was last shown.
+    pub activity: TabLayer,
+    /// Changes to a tab with a terminal that rang the bell or finished a command unseen.
+    pub attention: TabLayer,
+}
+
+impl TabBarStyles {
+    /// The bar is a blend of the primary colors, the shown tab has the primary colors, and the
+    /// other tabs and the buttons sit on the bar with dimmer text.
+    fn new(blocks: &TabBlocks, colors: &Colors) -> Self {
+        let primary = &colors.primary;
+        let (foreground, background) = (primary.foreground, primary.background);
+        let layer = |style: &Style| TabLayer::new(style, colors);
+
+        let base = TabStyle {
+            foreground,
+            background,
+            attributes: TextAttributes::default(),
+            padding: Spacing::new(3, 8),
+            margin: Spacing::default(),
+            border: Border::Hidden,
+            border_foreground: foreground,
+        };
+        let bar = TabStyle {
+            background: mix(background, foreground, 0.12),
+            padding: Spacing::default(),
+            ..base
+        }
+        .with(&layer(&blocks.bar));
+
+        // Tabs and buttons that aren't shown sit on the bar's background.
+        let dim = mix(foreground, background, 0.4);
+        let on_bar = TabStyle { foreground: dim, background: bar.background, ..base };
+        Self {
+            bar,
+            active: base.with(&layer(&blocks.active)),
+            inactive: on_bar.with(&layer(&blocks.inactive)),
+            button: on_bar.with(&layer(&blocks.button)),
+            hovered: TabLayer { foreground: Some(foreground), ..TabLayer::default() }
+                .below(&layer(&blocks.hovered)),
+            activity: layer(&blocks.activity),
+            attention: layer(&blocks.attention),
+        }
+    }
+
+    /// These styles with the properties the `[style.blurred.tab_*]` blocks set changed.
+    fn blurred(&self, blocks: &TabBlocks, colors: &Colors) -> Self {
+        let layer = |style: &Style| TabLayer::new(style, colors);
+        Self {
+            bar: self.bar.with(&layer(&blocks.bar)),
+            active: self.active.with(&layer(&blocks.active)),
+            inactive: self.inactive.with(&layer(&blocks.inactive)),
+            button: self.button.with(&layer(&blocks.button)),
+            hovered: self.hovered.below(&layer(&blocks.hovered)),
+            activity: self.activity.below(&layer(&blocks.activity)),
+            attention: self.attention.below(&layer(&blocks.attention)),
+        }
+    }
+}
+
+/// `color` moved `amount` of the way to `other`.
+fn mix(color: Rgb, other: Rgb, amount: f32) -> Rgb {
+    let channel = |a: u8, b: u8| {
+        let (a, b) = (f32::from(a), f32::from(b));
+        (a + (b - a) * amount).round() as u8
+    };
+    Rgb::new(channel(color.r, other.r), channel(color.g, other.g), channel(color.b, other.b))
+}
+
 /// Effective styles of every element.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Styles {
@@ -381,6 +653,10 @@ pub struct Styles {
 
     /// Element styles while the window doesn't have focus.
     pub blurred: ElementStyles,
+
+    pub tab_bar: TabBarStyles,
+    /// Tab bar styles while the window doesn't have focus.
+    pub blurred_tab_bar: TabBarStyles,
 }
 
 impl Styles {
@@ -400,6 +676,11 @@ impl Styles {
             hint_start: self.hint_start,
             hint_end: self.hint_end,
         }
+    }
+
+    /// Styles of the tab bar, for a focused or unfocused window.
+    pub fn tab_bar(&self, focused: bool) -> TabBarStyles {
+        if focused { self.tab_bar } else { self.blurred_tab_bar }
     }
 
     /// Whether losing or gaining focus changes how terminal content is drawn.
@@ -691,6 +972,135 @@ mod tests {
         let cursor = config.style.resolved().elements(false).cursor;
 
         assert!(cursor.attributes.faint && cursor.attributes.italic);
+    }
+
+    #[test]
+    fn tab_bar_defaults_blend_primary_colors() {
+        let config = load("[colors.primary]\nforeground = '#ffffff'\nbackground = '#000000'\n");
+        let tabs = config.style.resolved().tab_bar(true);
+
+        assert_eq!(tabs.bar.background, Rgb::new(31, 31, 31));
+        assert_eq!(tabs.active.foreground, Rgb::new(0xff, 0xff, 0xff));
+        assert_eq!(tabs.active.background, Rgb::new(0, 0, 0));
+        assert_eq!(tabs.inactive.foreground, Rgb::new(153, 153, 153));
+        assert_eq!(tabs.inactive.background, tabs.bar.background);
+        assert_eq!(tabs.button, tabs.inactive);
+        assert_eq!(tabs.active.padding, Spacing::new(3, 8));
+        assert_eq!(tabs.bar.padding, Spacing::default());
+        assert_eq!(tabs.active.border, Border::Hidden);
+
+        // Hovering brings the text up to the primary foreground and changes nothing else.
+        let hovered = tabs.inactive.with(&tabs.hovered);
+        assert_eq!(hovered, TabStyle { foreground: Rgb::new(0xff, 0xff, 0xff), ..tabs.inactive });
+        assert_eq!(tabs.inactive.with(&tabs.activity), tabs.inactive);
+        assert_eq!(tabs.inactive.with(&tabs.attention), tabs.inactive);
+
+        // The unfocused window looks the same.
+        assert_eq!(config.style.resolved().tab_bar(false), tabs);
+    }
+
+    #[test]
+    fn tab_styles_set_padding_borders_and_attributes() {
+        let config = load(
+            "[style.tab_active]\npadding = [2, 10]\nmargin = 1\nborder = \
+             'rounded'\nborder_foreground = '#ff0000'\nbold = \
+             true\n\n[style.tab_attention]\nbackground = '#880000'\nitalic = true\n",
+        );
+        let tabs = config.style.resolved().tab_bar(true);
+
+        assert_eq!(tabs.active.padding, Spacing { top: 2, right: 10, bottom: 2, left: 10 });
+        assert_eq!(tabs.active.border, Border::Rounded);
+        assert_eq!(tabs.active.margin, Spacing::new(1, 1));
+        assert_eq!(tabs.active.border_foreground, Rgb::new(0xff, 0, 0));
+        assert!(tabs.active.attributes.bold);
+        // Other tabs keep their defaults.
+        assert_eq!(tabs.inactive.border, Border::Hidden);
+
+        // The attention style changes only what it sets.
+        let attention = tabs.active.with(&tabs.attention);
+        assert_eq!(attention.background, Rgb::new(0x88, 0, 0));
+        assert!(attention.attributes.bold && attention.attributes.italic);
+        assert_eq!(attention.padding, tabs.active.padding);
+    }
+
+    #[test]
+    fn tab_bar_background_carries_to_tabs_on_it() {
+        let config = load("[style.tab_bar]\nbackground = '#123456'\n");
+        let tabs = config.style.resolved().tab_bar(true);
+
+        assert_eq!(tabs.inactive.background, Rgb::new(0x12, 0x34, 0x56));
+        assert_eq!(tabs.button.background, Rgb::new(0x12, 0x34, 0x56));
+        assert_ne!(tabs.active.background, Rgb::new(0x12, 0x34, 0x56));
+    }
+
+    #[test]
+    fn tab_styles_inherit_and_refer_to_primary_colors() {
+        let config = load(
+            "[colors.primary]\nforeground = '#aaaaaa'\nbackground = \
+             '#111111'\n\n[style.defs.boxed]\nborder = 'thick'\npadding = \
+             4\n\n[style.tab_button]\ninherit = 'boxed'\nforeground = \
+             'CellBackground'\nbackground = 'CellForeground'\n",
+        );
+        let button = config.style.resolved().tab_bar(true).button;
+
+        assert_eq!(button.border, Border::Thick);
+        assert_eq!(button.padding, Spacing::new(4, 4));
+        assert_eq!(button.foreground, Rgb::new(0x11, 0x11, 0x11));
+        assert_eq!(button.background, Rgb::new(0xaa, 0xaa, 0xaa));
+    }
+
+    #[test]
+    fn padding_takes_one_to_four_values() {
+        let padding = |value: &str| {
+            let config = load(&format!("[style.tab_active]\npadding = {value}\n"));
+            config.style.resolved().tab_bar(true).active.padding
+        };
+        let spacing = |top, right, bottom, left| Spacing { top, right, bottom, left };
+
+        assert_eq!(padding("5"), spacing(5, 5, 5, 5));
+        assert_eq!(padding("[5]"), spacing(5, 5, 5, 5));
+        assert_eq!(padding("[1, 2]"), spacing(1, 2, 1, 2));
+        assert_eq!(padding("[1, 2, 3]"), spacing(1, 2, 3, 2));
+        assert_eq!(padding("[1, 2, 3, 4]"), spacing(1, 2, 3, 4));
+
+        // Lists of other lengths and negative values keep the default.
+        assert_eq!(padding("[1, 2, 3, 4, 5]"), Spacing::new(3, 8));
+        assert_eq!(padding("-1"), Spacing::new(3, 8));
+    }
+
+    #[test]
+    fn faint_and_reverse_change_drawn_colors() {
+        let config = load(
+            "[style.tab_active]\nforeground = '#ffffff'\nbackground = '#000000'\nfaint = true\n",
+        );
+        let active = config.style.resolved().tab_bar(true).active;
+        assert_eq!(active.colors(), (Rgb::new(128, 128, 128), Rgb::new(0, 0, 0)));
+
+        let config = load(
+            "[style.tab_active]\nforeground = '#ffffff'\nbackground = '#000000'\nreverse = true\n",
+        );
+        let active = config.style.resolved().tab_bar(true).active;
+        assert_eq!(active.colors(), (Rgb::new(0, 0, 0), Rgb::new(0xff, 0xff, 0xff)));
+    }
+
+    #[test]
+    fn blurred_tab_styles_change_only_set_properties() {
+        let config = load(
+            "[style.tab_active]\nbold = true\n\n[style.blurred.tab_active]\nforeground = \
+             '#555555'\n\n[style.blurred.tab_hovered]\nunderline = true\n",
+        );
+        let styles = config.style.resolved();
+        let (focused, blurred) = (styles.tab_bar(true), styles.tab_bar(false));
+
+        assert_eq!(blurred.active.foreground, Rgb::new(0x55, 0x55, 0x55));
+        assert!(blurred.active.attributes.bold);
+        assert_eq!(blurred.inactive, focused.inactive);
+
+        // The blurred hovered style keeps the focused one's text color and adds an underline.
+        let hovered = blurred.inactive.with(&blurred.hovered);
+        assert_eq!(hovered.foreground, focused.inactive.with(&focused.hovered).foreground);
+        assert!(hovered.attributes.underline);
+        assert!(!focused.inactive.with(&focused.hovered).attributes.underline);
     }
 
     #[test]

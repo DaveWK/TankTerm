@@ -8,8 +8,8 @@ Approved and waiting their turn, in this order.
 2. Config options the iced front end ignores:
    - Port later, low priority: `window.resize_increments` and `window.option_as_alt`.
 3. Vi mode, scrollback search and hints in the iced front end.
-4. Tab bar: `[style.tab_*]` blocks, tab title templates, status segments, and window buttons in
-   the tab bar in place of the OS title bar.
+4. Tab bar: tab title templates, status segments, and window buttons in the tab bar in place of
+   the OS title bar. The `[style.tab_*]` blocks are done.
 5. `tankTerm ssh` with terminfo negotiation; design and decisions are in the section below
    the deferred list.
 
@@ -41,6 +41,13 @@ Nothing below is started; each item lists what has to be decided or built first.
 Options given where a table is activated (`replace_current`, and `one_shot` and `timeout` per
 binding instead of per table), `PaneSelect` modes that move the chosen pane to a new tab or
 window, and a configurable label alphabet.
+
+### Rest of Lip Gloss's box properties in the tab bar
+
+Borders on single sides (`border_top` and so on, for a line under the shown tab), the `Double`,
+`Block` and `ASCII` borders, `width`/`max_width` per tab style in place of the fixed 240 pixels,
+and the space between tabs. iced's `Border` has one width for all sides, so single sides need
+widgets of their own.
 
 ### Event API (planned, deferred)
 

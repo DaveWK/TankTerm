@@ -53,6 +53,7 @@ pub(super) fn app_from(
             padding: Padding::ZERO,
             background: term_settings::background(&config),
             foreground: term_settings::foreground(&config),
+            tab_bar: term_settings::tab_bar_styles(&config),
         },
         tabs: config.tabs,
         hotkeys,
@@ -1193,6 +1194,32 @@ fn tab_bar_buttons_select_close_and_add_tabs() {
     // Both tabs have a close button; the first one found belongs to the first tab.
     let messages = click(&app, "\u{d7}");
     assert!(matches!(messages[..], [Message::CloseTab(0)]));
+}
+
+#[test]
+fn hovered_tabs_handle_a_click_once() {
+    use iced::mouse::{Button, Event as MouseEvent};
+
+    // A tab under the mouse is drawn twice, with and without the hovered style, and its
+    // padding changes when hovered.
+    let mut app = app_with("[style.tab_hovered]\npadding = 0\n", Hotkeys::default());
+    perform(&mut app, &[AppAction::NewTab, AppAction::NewTab]);
+
+    let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
+    let tab = ui.find("2: test").unwrap();
+    ui.point_at(iced_test::selector::Bounded::visible_bounds(&tab).unwrap().center());
+    ui.simulate([
+        iced::Event::Mouse(MouseEvent::ButtonPressed(Button::Middle)),
+        iced::Event::Mouse(MouseEvent::ButtonReleased(Button::Middle)),
+    ]);
+    ui.simulate(simulator::click());
+
+    let messages: Vec<_> =
+        ui.into_messages().filter(|message| !matches!(message, Message::Terminal(_))).collect();
+    assert!(matches!(messages[..], [
+        Message::CloseTab(1),
+        Message::Action(AppAction::SelectTab(1))
+    ]));
 }
 
 #[test]

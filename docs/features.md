@@ -185,6 +185,42 @@ asked to draw attention to the window if that doesn't have focus. A shell with
 it, TankTerm watches which process has the terminal, which works on Unix with
 shells that have job control.
 
+### Tab bar styles
+
+The tab bar is styled with `[style.tab_*]` blocks, which take the same Lip Gloss
+properties as the other `[style]` blocks, plus `padding`, `margin`, `border`
+and `border_foreground`:
+
+- `tab_bar`: the bar itself.
+- `tab_active` and `tab_inactive`: the shown tab and the others.
+- `tab_button`: the `+` button and the gear.
+- `tab_hovered`, `tab_activity` and `tab_attention`: changes to a tab under the
+  mouse, a tab marked with `*` and a tab marked with `!`.
+
+Like the other styles, they can `inherit` from `[style.defs]`, and
+`[style.blurred.tab_*]` blocks change them while the window doesn't have focus.
+This draws the tabs as rounded pills and the shown one in green:
+
+```toml
+[style.defs.pill]
+border = "Rounded"
+padding = [2, 12]
+margin = [0, 2]
+
+[style.tab_active]
+inherit = "pill"
+foreground = "#000000"
+background = "#00ff00"
+bold = true
+
+[style.tab_inactive]
+inherit = "pill"
+border_foreground = "#3a3a4a"
+
+[style.tab_hovered]
+border_foreground = "#00ff00"
+```
+
 [tankTerm(5) manpage]: ../extra/man/tankTerm.5.scd
 [tankTerm-bindings(5) manpage]: ../extra/man/tankTerm-bindings.5.scd
 

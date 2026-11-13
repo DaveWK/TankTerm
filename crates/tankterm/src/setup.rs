@@ -96,6 +96,7 @@ pub fn setup(config: &UiConfig, options: &mut Options) -> Setup {
             padding: term_settings::padding(config, cell),
             background: term_settings::background(config),
             foreground: term_settings::foreground(config),
+            tab_bar: term_settings::tab_bar_styles(config),
         },
         tabs: config.tabs,
         hotkeys: Hotkeys::from_config(config),

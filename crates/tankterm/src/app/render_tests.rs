@@ -38,6 +38,7 @@ fn tabs_and_panes() {
             padding: Padding::new(4.),
             background: term_settings::background(&config),
             foreground: term_settings::foreground(&config),
+            tab_bar: term_settings::tab_bar_styles(&config),
         },
         tabs: config.tabs,
         hotkeys: Hotkeys::from_config(&config),
@@ -388,4 +389,85 @@ fn dynamic_padding() {
     }
     settle(&mut app, window);
     snapshot(&app, window, &dir, "dynamic-padding");
+}
+
+#[test]
+#[ignore = "writes screenshots for manual inspection"]
+fn tab_bar_styles() {
+    let Some(dir) = env::var_os("TANKTERM_SNAPSHOT_DIR").map(PathBuf::from) else { return };
+    let window = Size::new(900., 120.);
+
+    // Four tabs: the second is shown, the third printed something unseen, and the fourth rang
+    // the bell. The mouse is over the first one in the `-hovered` pictures.
+    let shots = |name: &str, config: &str| {
+        let mut app = super::tab_tests::app_with(config, Hotkeys::default());
+        for action in
+            [AppAction::NewTab, AppAction::NewTab, AppAction::NewTab, AppAction::SelectTab(1)]
+        {
+            let _ = app.update(Message::Action(action));
+        }
+        settle(&mut app, window);
+        for (index, tab) in app.tabs.iter_mut().enumerate() {
+            tab.activity = index == 2;
+        }
+        app.terminals.get_mut(&3).unwrap().attention = true;
+
+        snapshot(&app, window, &dir, name);
+
+        let mut ui = Simulator::with_size(Default::default(), window, app.view());
+        let tab = ui.find("1: test").unwrap();
+        ui.point_at(iced_test::selector::Bounded::visible_bounds(&tab).unwrap().center());
+        let hovered = ui.snapshot(&Theme::Dark).unwrap();
+        assert!(hovered.matches_image(dir.join(format!("{name}-hovered"))).unwrap());
+        drop(ui);
+
+        app.window_focused = false;
+        snapshot(&app, window, &dir, &format!("{name}-blurred"));
+    };
+
+    shots("tab-bar-default", "");
+    shots(
+        "tab-bar-styled",
+        r##"
+        [style.defs.pill]
+        border = "Rounded"
+        padding = [2, 12]
+        margin = [0, 2]
+
+        [style.tab_bar]
+        background = "#1b1b24"
+        padding = [4, 6]
+
+        [style.tab_active]
+        inherit = "pill"
+        foreground = "#000000"
+        background = "#00ff00"
+        border_foreground = "#00ff00"
+        bold = true
+
+        [style.tab_inactive]
+        inherit = "pill"
+        foreground = "#9a9aa8"
+        border_foreground = "#3a3a4a"
+
+        [style.tab_hovered]
+        foreground = "#ffffff"
+        border_foreground = "#00ff00"
+
+        [style.tab_activity]
+        italic = true
+
+        [style.tab_attention]
+        foreground = "#ff4d5a"
+        underline = true
+
+        [style.tab_button]
+        foreground = "#00ff00"
+
+        [style.blurred.tab_active]
+        foreground = "#00ff00"
+        background = "#1b1b24"
+        bold = false
+        "##,
+    );
 }

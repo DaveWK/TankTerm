@@ -1,14 +1,21 @@
 //! What the application draws: the tab bar, the panes of the shown tab and what lies over them.
 
+use iced::alignment::Vertical;
+use iced::font::{Style as FontStyle, Weight};
 use iced::widget::pane_grid::{self, PaneGrid};
-use iced::widget::text::Wrapping;
-use iced::widget::{button, column, container, keyed_column, mouse_area, row, stack, text};
-use iced::{Border, Color, Element, Length};
+use iced::widget::text::{Rich, Wrapping};
+use iced::widget::{
+    button, column, container, hover, keyed_column, mouse_area, row, span, stack, text,
+};
+use iced::{Border, Color, Element, Font, Length, Padding};
 use iced_tterm::TerminalView;
 
 use super::{App, Layout, MAX_TAB_WIDTH, Message, Shell};
+use crate::color::Rgb;
 use crate::config::BindingMode;
+use crate::config::style::{Border as StyleBorder, TabStyle};
 use crate::config::tabs::{ShowTabs, TabsPosition};
+use crate::config::window::Spacing;
 use crate::hotkeys::{AppAction, KeyFilter, PANE_LABELS};
 use crate::palette::{self, blend, paste_warning};
 use crate::session::ordered_panes;
@@ -160,22 +167,17 @@ impl App {
     }
 
     /// The tab bar: a button for every tab, each with a close button, and one to add a tab.
+    ///
+    /// Every part is drawn with its `[style.tab_*]` style. A tab or button under the mouse is
+    /// drawn again over itself with the hovered style, in the same place: the hovered style's
+    /// margin is ignored, and its padding moves the content but doesn't resize the tab.
     fn tab_bar(&self) -> Element<'_, Message> {
-        let Layout { background, foreground, .. } = self.options.layout;
-        let bar = blend(background, foreground, 0.12);
+        let [focused, blurred] = self.options.layout.tab_bar;
+        let styles = if self.window_focused { focused } else { blurred };
         let font = self.settings.font.font_type;
         let size = self.settings.font.size;
-        let label = move |content: String| text(content).font(font).size(size);
 
         let tabs = self.tabs.iter().enumerate().map(|(index, tab)| {
-            let active = index == self.active;
-            let color = if active { foreground } else { blend(foreground, background, 0.4) };
-            let style = move |hovered: bool| button::Style {
-                background: Some(if active { background } else { bar }.into()),
-                text_color: if hovered { foreground } else { color },
-                ..Default::default()
-            };
-
             let attention = tab
                 .panes
                 .iter()
@@ -185,50 +187,166 @@ impl App {
                 (false, true) => " *",
                 (false, false) => "",
             };
-            let title = label(format!("{}: {}{marker}", index + 1, self.tab_title(tab)));
-            let select = button(container(title.wrapping(Wrapping::None)).clip(true))
-                .padding([3, 8])
-                .width(Length::Fill)
-                .style(move |_, status| style(status == button::Status::Hovered))
-                .on_press(Message::Action(AppAction::SelectTab(index)));
-            let close = button(label("\u{d7}".into()))
-                .padding([3, 6])
-                .style(move |_, status| style(status == button::Status::Hovered))
-                .on_press(Message::CloseTab(index));
+            let title = format!("{}: {}{marker}", index + 1, self.tab_title(tab));
 
-            // Like in browsers, a middle click closes the tab.
-            let tab = mouse_area(row![select, close]).on_middle_press(Message::CloseTab(index));
-            container(tab).width(Length::FillPortion(1)).max_width(MAX_TAB_WIDTH).into()
+            let style = if index == self.active { styles.active } else { styles.inactive };
+            let style = match (attention, tab.activity) {
+                (true, _) => style.with(&styles.attention),
+                (false, true) => style.with(&styles.activity),
+                (false, false) => style,
+            };
+
+            let view = |style: TabStyle, height: Length| -> Element<'_, Message> {
+                let (foreground, _) = style.colors();
+                let title = container(label(title.clone(), &style, font, size)).clip(true);
+                let close = button(text("\u{d7}").font(font).size(size).color(color(foreground)))
+                    .padding(Padding::ZERO.left(8))
+                    .style(|_, _| button::Style::default())
+                    .on_press(Message::CloseTab(index));
+
+                let content = row![title.width(Length::Fill), close].align_y(Vertical::Center);
+                let select = button(content)
+                    .padding(padding(style.padding))
+                    .width(Length::Fill)
+                    .height(height)
+                    .style(move |_, _| button_style(&style))
+                    .on_press(Message::Action(AppAction::SelectTab(index)));
+
+                // Like in browsers, a middle click closes the tab.
+                mouse_area(select).on_middle_press(Message::CloseTab(index)).into()
+            };
+            let hovered = view(style.with(&styles.hovered), Length::Fill);
+            container(hoverable(view(style, Length::Shrink), hovered))
+                .padding(padding(style.margin))
+                .width(Length::FillPortion(1))
+                .max_width(MAX_TAB_WIDTH)
+                .into()
         });
 
         // The key table that was activated last, while one is active.
         let table = self.key_tables.last().map(|table| {
-            container(label(table.name.to_string()).color(foreground)).padding([3, 8])
+            container(label(table.name.to_string(), &styles.bar, font, size)).padding([3, 8])
         });
 
-        let bar_button = move |content: Element<'static, Message>, action: AppAction| {
-            button(content)
-                .padding([3, 8])
-                .style(move |_, status| button::Style {
-                    background: Some(bar.into()),
-                    text_color: match status {
-                        button::Status::Hovered => foreground,
-                        _ => blend(foreground, background, 0.4),
-                    },
-                    ..Default::default()
-                })
-                .on_press(Message::Action(action))
+        // A button on the bar. Content that is as high as the padding leaves the other buttons
+        // gets only the horizontal padding.
+        let bar_button = |content: &dyn Fn(&TabStyle) -> Element<'static, Message>,
+                          vertical_padding: bool,
+                          action: AppAction| {
+            let view = |style: TabStyle, height: Length| -> Element<'static, Message> {
+                let mut spacing = padding(style.padding);
+                if !vertical_padding {
+                    spacing = spacing.top(0).bottom(0);
+                }
+                button(content(&style))
+                    .padding(spacing)
+                    .height(height)
+                    .style(move |_, _| button_style(&style))
+                    .on_press(Message::Action(action.clone()))
+                    .into()
+            };
+            let style = styles.button;
+            let hovered = view(style.with(&styles.hovered), Length::Fill);
+            container(hoverable(view(style, Length::Shrink), hovered))
+                .padding(padding(style.margin))
         };
-        let new_tab = bar_button(label("+".into()).into(), AppAction::NewTab);
+        let new_tab =
+            bar_button(&|style| label("+".into(), style, font, size), true, AppAction::NewTab);
         // The gear at the right end opens the configuration file. The font draws it small, so
         // it is larger, in the height the padding leaves the other buttons.
-        let gear = text("\u{2699}").font(font).size(size * 1.3).height(size * 1.3 + 6.);
-        let settings = bar_button(gear.center().into(), AppAction::OpenConfig).padding([0, 8]);
+        let gear = |style: &TabStyle| -> Element<'static, Message> {
+            let height = size * 1.3 + f32::from(style.padding.top + style.padding.bottom);
+            text("\u{2699}")
+                .font(font)
+                .size(size * 1.3)
+                .height(height)
+                .color(color(style.colors().0))
+                .center()
+                .into()
+        };
+        let settings = bar_button(&gear, false, AppAction::OpenConfig);
 
-        let tabs = container(row(tabs).push(new_tab).push(table).spacing(1)).width(Length::Fill);
-        container(row![tabs, settings])
+        let tabs = row(tabs).push(new_tab).push(table).spacing(1).align_y(Vertical::Center);
+        let tabs = container(tabs).width(Length::Fill);
+        let bar = styles.bar;
+        container(row![tabs, settings].align_y(Vertical::Center))
             .width(Length::Fill)
-            .style(move |_| container::Style { background: Some(bar.into()), ..Default::default() })
+            .padding(padding(bar.padding))
+            .style(move |_| container::Style {
+                background: Some(color(bar.colors().1).into()),
+                border: border(&bar),
+                ..Default::default()
+            })
             .into()
     }
+}
+
+/// `normal`, drawn as `hovered` while the mouse is over it.
+///
+/// `hovered` is laid out in the place of `normal`, so it has the same size, and it gets the
+/// mouse first.
+fn hoverable<'a>(
+    normal: Element<'a, Message>,
+    hovered: Element<'a, Message>,
+) -> Element<'a, Message> {
+    hover(normal, container(hovered).width(Length::Fill).height(Length::Fill))
+}
+
+/// Text in a tab bar style, on one line.
+fn label<'a>(content: String, style: &TabStyle, font: Font, size: f32) -> Element<'a, Message> {
+    let attributes = style.attributes;
+    let font = Font {
+        weight: if attributes.bold { Weight::Bold } else { font.weight },
+        style: if attributes.italic { FontStyle::Italic } else { font.style },
+        ..font
+    };
+    let foreground = color(style.colors().0);
+
+    // Only rich text draws lines; plain text is what tests can find.
+    if attributes.underline || attributes.strikethrough {
+        let span =
+            span(content).underline(attributes.underline).strikethrough(attributes.strikethrough);
+        Rich::<(), Message>::with_spans([span])
+            .font(font)
+            .size(size)
+            .color(foreground)
+            .wrapping(Wrapping::None)
+            .into()
+    } else {
+        text(content).font(font).size(size).color(foreground).wrapping(Wrapping::None).into()
+    }
+}
+
+/// How a button of the tab bar looks in `style`, whatever the mouse does.
+fn button_style(style: &TabStyle) -> button::Style {
+    let (foreground, background) = style.colors();
+    button::Style {
+        background: Some(color(background).into()),
+        text_color: color(foreground),
+        border: border(style),
+        ..Default::default()
+    }
+}
+
+fn border(style: &TabStyle) -> Border {
+    let (width, radius) = match style.border {
+        StyleBorder::Hidden => (0., 0.),
+        StyleBorder::Normal => (1., 0.),
+        StyleBorder::Rounded => (1., 6.),
+        StyleBorder::Thick => (2., 0.),
+    };
+    Border { color: color(style.border_foreground), width, radius: radius.into() }
+}
+
+fn padding(spacing: Spacing) -> Padding {
+    Padding {
+        top: spacing.top.into(),
+        right: spacing.right.into(),
+        bottom: spacing.bottom.into(),
+        left: spacing.left.into(),
+    }
+}
+
+fn color(rgb: Rgb) -> Color {
+    Color::from_rgb8(rgb.r, rgb.g, rgb.b)
 }
