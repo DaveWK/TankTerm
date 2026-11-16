@@ -1686,9 +1686,14 @@ mod tests {
         args: &[&str],
     ) -> (Backend, EventReceiver) {
         let (proxy, receiver) = event_channel(100);
+        // TankTerm sets `TERM` for its shells when it starts. Tests run with
+        // the test runner's, which on CI is unset or `dumb`, where the shell
+        // integration scripts stay out of the way.
+        let env = [("TERM".to_owned(), "xterm-256color".to_owned())];
         let settings = BackendSettings {
             program: program.into(),
             args: args.iter().map(|arg| (*arg).to_owned()).collect(),
+            env: env.into(),
             ..BackendSettings::default()
         };
         let backend = Backend::new(

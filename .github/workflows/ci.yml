@@ -163,8 +163,12 @@ jobs:
             extra/man/scdoc.sh "$f" > /dev/null
           done
 
+      # The checkout belongs to the runner's user and not to the container's root, so git only
+      # reads it once it is marked safe.
       - name: Run shellcheck
-        run: git ls-files -z '*.sh' '*.bash' | xargs -0 shellcheck
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git ls-files -z '*.sh' '*.bash' | xargs -0 shellcheck
 
   build:
     name: Build (${{ matrix.os }})
