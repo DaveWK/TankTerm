@@ -94,6 +94,10 @@ Notable changes to the `tankterm_terminal` crate are documented in its
     failed command; `ScrollToPreviousPrompt`, `ScrollToNextPrompt` and `SelectCommandOutput` move
     between prompts and select a command's output. Finished commands are noticed from the marks,
     and new tabs and panes start in the reported directory, on every platform
+- Scrollback search in the iced front end: `SearchForward` and `SearchBackward` open a bar on the
+    terminal's last row, and the search actions, its history and the `search_match`,
+    `search_focused_match` and `footer_bar` styles work as they did in the OpenGL front end.
+    The command palette offers both searches
 
 ### Changed
 

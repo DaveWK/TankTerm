@@ -4,7 +4,7 @@
 use iced::{Task, window};
 use iced_core::clipboard::Kind;
 use iced_tterm::settings::FontSettings;
-use iced_tterm::{BackendCommand, Scroll};
+use iced_tterm::{BackendCommand, Scroll, SearchCommand};
 use log::warn;
 
 use super::{App, Message, Shell};
@@ -111,6 +111,26 @@ impl App {
         self.send_to_focused(BackendCommand::SelectCommandOutput);
         // Without output to select, the selection that was there stays as it was.
         if selection(self) == before { Task::none() } else { self.copy_selection(terminal) }
+    }
+
+    /// Open, change or close the search of the focused terminal.
+    ///
+    /// Closing the search leaves the focused match selected, and on the selection clipboard as
+    /// a selection made with the mouse is.
+    pub(super) fn search(&mut self, command: SearchCommand) -> Task<Message> {
+        let Some(terminal) = self.focused_terminal() else { return Task::none() };
+        let selection =
+            |app: &Self| app.focused_shell().and_then(|shell| shell.terminal.selection());
+
+        let before = selection(self);
+        self.send_to_focused(BackendCommand::Search(command));
+        // Keys go to the terminal's search bar, also after the command palette opened it.
+        let focus = self.focus();
+        if selection(self) == before {
+            focus
+        } else {
+            Task::batch([self.copy_selection(terminal), focus])
+        }
     }
 
     /// Drop the scrollback buffer of the focused terminal.

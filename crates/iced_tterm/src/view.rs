@@ -5,6 +5,7 @@ use crate::bindings::{BindingAction, BindingsLayout, InputKind};
 use crate::box_drawing;
 use crate::cursor::cursor_rectangles;
 use crate::keyboard::{self, KeyInput, KeyState, KittyOutput};
+use crate::search::SearchCommand;
 use crate::terminal::{Event, Terminal};
 use crate::theme::TerminalStyle;
 use iced::alignment::Vertical;
@@ -20,10 +21,13 @@ use iced_core::widget::operation::{self, Focusable};
 use iced_graphics::core::widget::{tree, Tree};
 use iced_graphics::core::Widget;
 use iced_graphics::geometry::Stroke;
+use tankterm_terminal::grid::Dimensions;
 use tankterm_terminal::index::Point as TerminalGridPoint;
 use tankterm_terminal::selection::SelectionType;
+use tankterm_terminal::term::search::Match;
 use tankterm_terminal::term::{cell, TermMode};
 use tankterm_terminal::vte::ansi::{self as ansi, CursorShape, NamedColor};
+use unicode_width::UnicodeWidthChar;
 
 /// The color of the mark at a prompt: red when the command typed at it
 /// failed, faint text color otherwise.
@@ -467,6 +471,12 @@ impl<'a> TerminalView<'a> {
             },
         };
 
+        // While the search bar is shown, keys type into it and the terminal
+        // gets none.
+        if self.term.backend.search_active() {
+            return search_input(&input).map(Command::Search);
+        }
+
         match key_output(
             &self.term.bindings,
             state.keyboard_modifiers,
@@ -483,6 +493,48 @@ impl<'a> TerminalView<'a> {
                 None
             },
         }
+    }
+}
+
+/// What a key typed into the search bar adds to the regex: its text, or a
+/// backspace.
+fn search_input(input: &KeyInput<'_>) -> Option<SearchCommand> {
+    if input.state == KeyState::Released {
+        return None;
+    }
+
+    let text = match input.key {
+        Key::Named(iced_core::keyboard::key::Named::Backspace) => "\x08",
+        _ => input.text?,
+    };
+    Some(SearchCommand::Input(text.to_owned()))
+}
+
+/// The search matches a run of cells in order is in, one cell after another.
+struct MatchTracker<'a> {
+    matches: &'a [Match],
+    /// The first match that doesn't end before the last cell asked about.
+    index: usize,
+}
+
+impl<'a> MatchTracker<'a> {
+    fn new(matches: &'a [Match]) -> Self {
+        Self { matches, index: 0 }
+    }
+
+    /// Whether `point`, which comes after the points asked about before, is
+    /// in a match.
+    fn contains(&mut self, point: TerminalGridPoint) -> bool {
+        while let Some(found) = self.matches.get(self.index) {
+            if *found.start() > point {
+                return false;
+            }
+            if *found.end() >= point {
+                return true;
+            }
+            self.index += 1;
+        }
+        false
     }
 }
 
@@ -742,6 +794,7 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
             let mut builtin_glyphs: Vec<(Path, Color)> = Vec::new();
             // Lines where a prompt starts, marked at the left edge.
             let mut prompts: Vec<(i32, cell::CommandStatus)> = Vec::new();
+            let mut matches = MatchTracker::new(&content.search_matches);
 
             for indexed in content.grid.display_iter() {
                 // Compute per-cell geometry cheaply
@@ -755,16 +808,38 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                 let cell_center_y = y + half_h;
                 let cell_center_x = x + half_w;
 
-                // Text adds the theme's attributes to its own, and selected
-                // text the selection's too.
+                // Selected text and search matches have colors of their own
+                // and add their attributes to the theme's; the selection
+                // wins over a match.
                 let selected = content
                     .selectable_range
                     .is_some_and(|r| r.contains(indexed.point));
-                let attributes = if selected {
-                    elements.text.and(elements.selection_attributes)
+                let in_match = matches.contains(indexed.point);
+                let highlight = if selected {
+                    Some((elements.selection, elements.selection_attributes))
+                } else if in_match {
+                    let focused = content
+                        .focused_match
+                        .as_ref()
+                        .is_some_and(|found| found.contains(&indexed.point));
+                    Some(if focused {
+                        (
+                            elements.search_focused_match,
+                            elements.search_focused_match_attributes,
+                        )
+                    } else {
+                        (
+                            elements.search_match,
+                            elements.search_match_attributes,
+                        )
+                    })
                 } else {
-                    elements.text
+                    None
                 };
+                let attributes = highlight
+                    .map_or(elements.text, |(_, added)| {
+                        elements.text.and(added)
+                    });
 
                 // Resolve colors for this cell. Bold text that isn't dim can
                 // take the bright variant of its color.
@@ -819,11 +894,10 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                 if indexed.cell.flags.contains(cell::Flags::INVERSE) {
                     std::mem::swap(&mut fg, &mut bg);
                 }
-                if selected {
-                    let selection = elements.selection;
+                if let Some((colors, _)) = highlight {
                     (fg, bg) = (
-                        selection.foreground.on(fg, bg),
-                        selection.background.on(fg, bg),
+                        colors.foreground.on(fg, bg),
+                        colors.background.on(fg, bg),
                     );
                 }
                 if attributes.faint {
@@ -1014,6 +1088,71 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
             for (glyph, color) in &builtin_glyphs {
                 frame.fill(glyph, *color);
             }
+
+            // The search bar, on the row below the grid.
+            if let Some(bar) = &content.search_bar {
+                let default_fg = theme.get_color_with_overrides(
+                    ansi::Color::Named(NamedColor::Foreground),
+                    overrides,
+                );
+                let colors = elements.footer_bar;
+                let fg = colors.foreground.on(default_fg, default_bg);
+                let bg = colors.background.on(default_fg, default_bg);
+                let y = layout_offset_y
+                    + term_size.screen_lines() as f32 * cell_height;
+                frame.fill_rectangle(
+                    Point::new(layout_offset_x, y),
+                    Size::new(
+                        term_size.columns() as f32 * cell_width,
+                        cell_height,
+                    ),
+                    bg,
+                );
+
+                let glyph_offset = self.term.font.glyph_offset;
+                let mut column = 0;
+                for c in bar.chars() {
+                    let width = c.width().unwrap_or(0);
+                    if width == 0 {
+                        continue;
+                    }
+                    frame.fill_text(Text {
+                        content: c.to_string(),
+                        position: Point::new(
+                            layout_offset_x
+                                + (column as f32 + width as f32 / 2.)
+                                    * cell_width
+                                + glyph_offset.x,
+                            y + half_h + glyph_offset.y,
+                        ),
+                        font: self.term.font.face(false, false),
+                        size: iced_core::Pixels(font_size),
+                        color: fg,
+                        align_x: Alignment::Center,
+                        align_y: Vertical::Center,
+                        shaping: Shaping::Advanced,
+                        line_height: LineHeight::Relative(font_scale_factor),
+                        ..Default::default()
+                    });
+                    column += width;
+                }
+
+                // The bar's cursor, after the regex.
+                let cursor =
+                    Point::new(layout_offset_x + column as f32 * cell_width, y);
+                for rectangle in cursor_rectangles(
+                    CursorShape::Underline,
+                    cursor,
+                    cell_size,
+                    cursor_thickness,
+                ) {
+                    frame.fill_rectangle(
+                        rectangle.position(),
+                        rectangle.size(),
+                        fg,
+                    );
+                }
+            }
         });
 
         use iced::advanced::graphics::geometry::Renderer as _;
@@ -1081,9 +1220,9 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                     .into_iter()
                     .collect();
                 if self.term.mouse.hide_when_typing
-                    && commands
-                        .iter()
-                        .any(|cmd| matches!(cmd, Command::Write(_)))
+                    && commands.iter().any(|cmd| {
+                        matches!(cmd, Command::Write(_) | Command::Search(_))
+                    })
                 {
                     state.pointer_hidden = true;
                 }

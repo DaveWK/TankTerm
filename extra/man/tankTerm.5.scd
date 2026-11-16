@@ -862,8 +862,9 @@ Each property of an element is taken from, in order:
 	. The matching *[colors]* setting, like _colors.selection.background_.
 	. TankTerm's default for the element.
 
-The iced front end draws _cursor_ and _selection_, the selection with its text
-attributes, the tab bar elements, and their *[style.blurred]* blocks and
+The iced front end draws _cursor_ and _selection_, _search_match_ and
+_search_focused_match_ with their text attributes, _footer_bar_ for the search
+bar, the tab bar elements, and their *[style.blurred]* blocks and
 *[style.blurred.text]*. The other elements belong to features it doesn't have
 yet.
 
@@ -1420,7 +1421,8 @@ bindings = [++
 	The iced front end runs _command_, _chars_, the tab and pane actions and
 	_Paste_, _Copy_, _PasteSelection_, _CopySelection_, _ClearSelection_,
 	_IncreaseFontSize_, _DecreaseFontSize_, _ResetFontSize_, the _Scroll_
-	actions, _SelectCommandOutput_, _ClearHistory_, _ToggleFullscreen_,
+	actions, _SelectCommandOutput_, _ClearHistory_, _SearchForward_,
+	_SearchBackward_, the search actions, _ToggleFullscreen_,
 	_ToggleMaximized_, _Minimize_,
 	_Hide_ and _Quit_. Bindings to the other actions and to scancodes are
 	ignored for now, and their keys are sent to the terminal. A character key
@@ -1462,9 +1464,10 @@ _https://docs.rs/winit/latest/winit/keyboard/enum.Key.html_
 		_Leader_ isn't a terminal mode: a binding with it takes effect when its
 		key is pressed after the leader key (see _leader_).
 
-		There is no vi mode or search in the iced front end yet: bindings that
-		require _Vi_ or _Search_ never take effect, and _~Vi_ and _~Search_ are
-		always met.
+		There is no vi mode in the iced front end yet: bindings that require
+		_Vi_ never take effect, and _~Vi_ is always met. _Search_ is active
+		while the focused terminal shows its search bar; keys without a
+		binding in it type into the bar.
 
 		Prepending _~_ to a mode will require the mode to *not* = be active for
 		the binding to take effect.
@@ -1561,9 +1564,10 @@ _https://docs.rs/winit/latest/winit/keyboard/enum.Key.html_
 			Cycle the key help between hidden, a single line and full columns, like
 			Charm's Bubbles help view. It's generated from the key bindings.
 		*SearchForward*
-			Start a forward buffer search.
+			Start a forward buffer search, from the top of the view. The regex
+			is typed into a bar on the terminal's last row.
 		*SearchBackward*
-			Start a backward buffer search.
+			Start a backward buffer search, from the bottom of the view.
 
 		_Vi mode actions:_
 
@@ -1654,9 +1658,10 @@ _https://docs.rs/winit/latest/winit/keyboard/enum.Key.html_
 		*SearchFocusPrevious*
 			Move the focus to the previous search match.
 		*SearchConfirm*
-			Confirm the active search.
+			Confirm the active search. Outside vi mode this is _SearchCancel_.
 		*SearchCancel*
-			Cancel the active search.
+			Cancel the active search. Outside vi mode the focused match is left
+			selected, and on the selection clipboard.
 		*SearchClear*
 			Reset the search regex.
 		*SearchDeleteWord*

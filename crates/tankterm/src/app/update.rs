@@ -11,7 +11,7 @@ use iced::{Color, Subscription, Task, Theme, window};
 use iced_tterm::actions::Action;
 use iced_tterm::bindings::BindingAction;
 use iced_tterm::settings::Settings;
-use iced_tterm::{AlacrittyEvent, BackendCommand, TermMode, TerminalView};
+use iced_tterm::{AlacrittyEvent, BackendCommand, SearchCommand, TermMode, TerminalView};
 use log::{debug, error, warn};
 
 use super::actions::{toggle_maximized, zoomed};
@@ -571,6 +571,13 @@ impl App {
         }
 
         let Some(shell) = self.terminals.get_mut(&terminal) else { return };
+
+        // Text pasted while the search bar is shown goes into it, without its line breaks.
+        if shell.terminal.search_active() {
+            let input = BackendCommand::Search(SearchCommand::Input(text));
+            shell.terminal.handle(iced_tterm::Command::ProxyToBackend(input));
+            return;
+        }
 
         let bracketed = shell.terminal.mode().contains(TermMode::BRACKETED_PASTE);
         if self.options.confirm_multiline_paste && !bracketed && text.contains(['\n', '\r']) {

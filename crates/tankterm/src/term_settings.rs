@@ -18,7 +18,7 @@ use crate::config::UiConfig;
 use crate::config::color::Colors;
 use crate::config::font::FontDescription;
 use crate::config::profile::Profile;
-use crate::config::style::{self, CellStyle, ElementStyles, TabBarStyles};
+use crate::config::style::{self, BarStyle, CellStyle, ElementStyles, TabBarStyles};
 use crate::config::ui_config::{Delta, Program};
 
 /// Logical pixels per typographic point.
@@ -335,20 +335,31 @@ pub fn tab_bar_styles(config: &UiConfig) -> [TabBarStyles; 2] {
 fn theme_palette(config: &UiConfig) -> ColorPalette {
     let styles = config.style.resolved();
     ColorPalette {
-        focused: elements(&styles.elements(true)),
-        blurred: elements(&styles.elements(false)),
+        focused: elements(&styles.elements(true), &styles.footer_bar),
+        blurred: elements(&styles.elements(false), &styles.footer_bar),
         ..palette(&config.colors)
     }
 }
 
-/// How the cursor, the selection and the text are drawn with these styles.
-fn elements(styles: &ElementStyles) -> Elements {
+/// How the cursor, the selection, search matches, the search bar and the text are drawn with
+/// these styles.
+fn elements(styles: &ElementStyles, footer_bar: &BarStyle) -> Elements {
+    let rgb = |rgb: Rgb| CellColor::Color(Color::from_rgb8(rgb.r, rgb.g, rgb.b));
+
     Elements {
         text: text_attributes(&styles.text),
         // Only colors apply to the cursor.
         cursor: cell_colors(&styles.cursor),
         selection: cell_colors(&styles.selection),
         selection_attributes: text_attributes(&styles.selection.attributes),
+        search_match: cell_colors(&styles.search_match),
+        search_match_attributes: text_attributes(&styles.search_match.attributes),
+        search_focused_match: cell_colors(&styles.search_focused_match),
+        search_focused_match_attributes: text_attributes(&styles.search_focused_match.attributes),
+        footer_bar: CellColors {
+            foreground: rgb(footer_bar.foreground),
+            background: rgb(footer_bar.background),
+        },
     }
 }
 

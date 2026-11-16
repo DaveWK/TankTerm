@@ -3,6 +3,7 @@ use crate::backend;
 use crate::bindings::{Binding, BindingAction, BindingsLayout, InputKind};
 use crate::cursor::Cursor;
 use crate::font::TermFont;
+use crate::search::SearchCommand;
 use crate::settings::{
     CursorSettings, FontSettings, MouseSettings, ScrollSettings,
     SelectionSettings, Settings, ThemeSettings,
@@ -19,6 +20,10 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tankterm_terminal::vte::ansi::NamedColor;
 use tokio::sync::Mutex;
+
+/// How long typing has to pause before the whole buffer is searched, when
+/// the search while typing found no match in the lines it looked at.
+const SEARCH_DELAY: Duration = Duration::from_millis(500);
 
 #[derive(Debug, Clone)]
 pub enum Event {
@@ -130,20 +135,32 @@ impl Terminal {
         };
         let events = Subscription::run_with(data, terminal_subscription_stream);
 
-        if !self.cursor_blinks() {
-            return events;
-        }
-
         // The timer only runs while the cursor blinks, so a terminal with a
         // steady cursor is never woken up for it.
-        let blink = BlinkSubscriptionData {
-            id: self.id,
-            interval: self.cursor.settings.blink_interval,
-        };
-        Subscription::batch([
-            events,
-            Subscription::run_with(blink, blink_subscription_stream),
-        ])
+        let blink = self.cursor_blinks().then(|| {
+            let blink = BlinkSubscriptionData {
+                id: self.id,
+                interval: self.cursor.settings.blink_interval,
+            };
+            Subscription::run_with(blink, blink_subscription_stream)
+        });
+
+        // A new regex replaces the timer, so it only goes off once typing
+        // pauses.
+        let search = self.backend.search_pending().map(|generation| {
+            let search = SearchDelayData {
+                id: self.id,
+                generation,
+            };
+            Subscription::run_with(search, search_delay_stream)
+        });
+
+        Subscription::batch([Some(events), blink, search].into_iter().flatten())
+    }
+
+    /// Whether the search bar is shown. Keys typed meanwhile go into it.
+    pub fn search_active(&self) -> bool {
+        self.backend.search_active()
     }
 
     /// The shape the cursor is drawn with right now:
@@ -375,6 +392,28 @@ fn blink_subscription_stream(
         {
             break;
         }
+    });
+
+    receiver.boxed()
+}
+
+/// Identifies the search of a terminal's whole buffer for a regex.
+#[derive(Clone, Hash)]
+struct SearchDelayData {
+    id: u64,
+    generation: u64,
+}
+
+/// One search of the whole buffer, a moment after the regex last changed.
+fn search_delay_stream(data: &SearchDelayData) -> BoxStream<'static, Event> {
+    let id = data.id;
+    let (mut sender, receiver) = iced::futures::channel::mpsc::channel(1);
+
+    std::thread::spawn(move || {
+        std::thread::sleep(SEARCH_DELAY);
+        let resume = backend::Command::Search(SearchCommand::Resume);
+        // A closed channel means the regex changed meanwhile.
+        let _ = sender.try_send(Event::BackendCall(id, resume));
     });
 
     receiver.boxed()

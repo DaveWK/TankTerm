@@ -82,12 +82,15 @@ impl App {
                 (None, None, None) => (&self.options.hotkeys, &self.key_tables),
             };
 
-        // Bindings can be limited to modes of the terminal the keys are typed into.
-        let mode = self.focused_shell().map(|shell| shell.terminal.mode()).unwrap_or_default();
+        // Bindings can be limited to modes of the terminal the keys are typed into, and to its
+        // search.
+        let focused = self.focused_shell();
+        let mode = focused.map(|shell| shell.terminal.mode()).unwrap_or_default();
+        let search = focused.is_some_and(|shell| shell.terminal.search_active());
 
         KeyFilter::new(layers, hotkeys, Message::Action)
             .exclusive(self.pending_paste.is_some() || self.pane_select.is_some())
-            .mode(BindingMode::new(&mode, false))
+            .mode(BindingMode::new(&mode, search))
             .tables(tables)
             .into()
     }

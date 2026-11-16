@@ -7,12 +7,14 @@ mod box_drawing;
 mod cursor;
 mod font;
 mod keyboard;
+mod search;
 mod terminal;
 mod theme;
 mod view;
 
 pub use backend::Command as BackendCommand;
 pub use backend::{LinkAction, MouseButton};
+pub use search::{SearchCommand, SearchDirection};
 pub use tankterm_terminal::event::Event as AlacrittyEvent;
 pub use tankterm_terminal::grid::Scroll;
 pub use tankterm_terminal::index::Point as AlacrittyPoint;

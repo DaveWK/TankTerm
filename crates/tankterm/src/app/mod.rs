@@ -37,6 +37,8 @@ mod option_tests;
 mod reload_tests;
 #[cfg(all(test, unix))]
 mod render_tests;
+#[cfg(all(test, unix))]
+mod search_tests;
 pub mod status;
 mod tab_strip;
 #[cfg(all(test, unix))]

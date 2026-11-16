@@ -44,10 +44,19 @@ you're looking for a way to jump to the start or the end of a match.
 
 ### Normal Search
 
-During normal search you don't have the opportunity to move around freely, but
-you can still jump between matches using <kbd>Enter</kbd> and <kbd>Shift</kbd>
-<kbd>Enter</kbd>. After leaving search with <kbd>Escape</kbd> your active match
-stays selected, allowing you to easily copy it.
+The regex you type goes into a bar on the terminal's last row, and the view
+scrolls to the first match while you type. Matches are drawn in the
+`[style.search_match]` style and the focused one in
+`[style.search_focused_match]`. During normal search you don't have the
+opportunity to move around freely, but you can still jump between matches using
+<kbd>Enter</kbd> and <kbd>Shift</kbd> <kbd>Enter</kbd>. After leaving search
+with <kbd>Escape</kbd> your active match stays selected, allowing you to easily
+copy it.
+
+<kbd>Up</kbd> and <kbd>Down</kbd> go through the regexes you searched for
+before, <kbd>Ctrl</kbd> <kbd>w</kbd> deletes the last word and <kbd>Ctrl</kbd>
+<kbd>u</kbd> the whole regex. Pasted text goes into the bar, without its line
+breaks. The command palette offers the search too.
 
 ## Hints
 

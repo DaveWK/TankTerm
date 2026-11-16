@@ -1639,6 +1639,7 @@ dependencies = [
  "open",
  "tankterm_terminal",
  "tokio",
+ "unicode-width",
 ]
 
 [[package]]

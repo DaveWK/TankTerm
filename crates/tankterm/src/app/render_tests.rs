@@ -141,6 +141,46 @@ fn selection_and_strikethrough() {
 
 #[test]
 #[ignore = "writes screenshots for manual inspection"]
+fn search() {
+    let Some(dir) = env::var_os("TANKTERM_SNAPSHOT_DIR").map(PathBuf::from) else { return };
+    let window = Size::new(700., 160.);
+
+    let config = r#"
+        [terminal]
+        shell = { program = "sh", args = ["-c", 'printf "cargo test\ntest foo ... ok\ntest bar ... ok\ntest bar_baz ... ok\n"; exec cat'] }
+    "#;
+    let mut app = super::tab_tests::app_with(config, Hotkeys::default());
+    settle(&mut app, window);
+
+    let start = iced_tterm::SearchCommand::Start(iced_tterm::SearchDirection::Backward);
+    let input = iced_tterm::SearchCommand::Input("bar".into());
+    for command in [start, input] {
+        let search = BackendCommand::Search(command);
+        let _ = app.update(Message::Terminal(iced_tterm::Event::BackendCall(0, search)));
+    }
+    snapshot(&app, window, &dir, "search");
+
+    // With dynamic padding the bar is centred with the grid.
+    let config = format!(
+        "{config}
+[window]
+dynamic_padding = true
+"
+    );
+    let mut app = super::tab_tests::app_with(&config, Hotkeys::default());
+    settle(&mut app, window);
+    for command in [
+        iced_tterm::SearchCommand::Start(iced_tterm::SearchDirection::Forward),
+        iced_tterm::SearchCommand::Input("ok".into()),
+    ] {
+        let search = BackendCommand::Search(command);
+        let _ = app.update(Message::Terminal(iced_tterm::Event::BackendCall(0, search)));
+    }
+    snapshot(&app, window, &dir, "search-dynamic-padding");
+}
+
+#[test]
+#[ignore = "writes screenshots for manual inspection"]
 fn prompt_marks() {
     let Some(dir) = env::var_os("TANKTERM_SNAPSHOT_DIR").map(PathBuf::from) else { return };
     let window = Size::new(600., 200.);

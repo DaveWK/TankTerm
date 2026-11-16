@@ -264,6 +264,7 @@ impl App {
             AppAction::ToggleFullscreen => return toggle_fullscreen(),
             AppAction::ToggleMaximized => return toggle_maximized(),
             AppAction::CopySelection => return self.copy_to_selection(),
+            AppAction::Search(command) => return self.search(command),
             AppAction::ClearSelection => {
                 self.clear_selection();
                 return Task::none();

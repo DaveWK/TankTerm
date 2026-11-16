@@ -129,6 +129,16 @@ pub struct Elements {
     pub selection: CellColors,
     /// Attributes selected text is drawn with, besides its own.
     pub selection_attributes: TextAttributes,
+    /// Matches of the search.
+    pub search_match: CellColors,
+    /// Attributes matches of the search are drawn with, besides their own.
+    pub search_match_attributes: TextAttributes,
+    /// The search match the view was scrolled to.
+    pub search_focused_match: CellColors,
+    /// Attributes the focused search match is drawn with, besides its own.
+    pub search_focused_match_attributes: TextAttributes,
+    /// The search bar, on the terminal's default colors.
+    pub footer_bar: CellColors,
 }
 
 impl Default for ColorPalette {

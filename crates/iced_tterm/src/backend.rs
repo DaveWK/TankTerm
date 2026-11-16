@@ -1,4 +1,5 @@
 use crate::actions::Action;
+use crate::search::{visible_regex_match_iter, Search, SearchCommand};
 use crate::settings::BackendSettings;
 use crate::theme::Theme;
 use iced::keyboard::Modifiers;
@@ -17,7 +18,7 @@ use tankterm_terminal::grid::{Dimensions, Scroll};
 use tankterm_terminal::index::{Column, Direction, Line, Point, Side};
 use tankterm_terminal::selection::{Selection, SelectionRange, SelectionType};
 use tankterm_terminal::sync::FairMutex;
-use tankterm_terminal::term::search::{Match, RegexIter, RegexSearch};
+use tankterm_terminal::term::search::{Match, RegexSearch};
 use tankterm_terminal::term::{
     self, cell::Cell, color::Colors, test::TermSize, viewport_to_point, Term,
     TermMode,
@@ -97,6 +98,9 @@ pub enum Command {
     ProcessLink(LinkAction, Point),
     MouseReport(MouseButton, Modifiers, Point, bool),
     ProcessAlacrittyEvent(Event),
+    /// Search the terminal's text. While the search bar is shown, it takes
+    /// the terminal's last row.
+    Search(SearchCommand),
 }
 
 #[derive(Debug, Clone)]
@@ -144,6 +148,8 @@ pub struct TerminalSize {
     pub cell_height: u16,
     num_cols: u16,
     num_lines: u16,
+    /// Rows below the grid that the search bar takes.
+    bar_lines: u16,
     layout_width: f32,
     layout_height: f32,
 }
@@ -155,6 +161,7 @@ impl Default for TerminalSize {
             cell_height: 1,
             num_cols: 80,
             num_lines: 50,
+            bar_lines: 0,
             layout_width: 80.0,
             layout_height: 50.0,
         }
@@ -165,8 +172,9 @@ impl TerminalSize {
     /// How far the grid is moved into `space` to centre it: half of what
     /// whole cells leave over on each axis, in whole pixels.
     ///
-    /// A grid bigger than `space`, which it is for a moment while the
-    /// terminal hasn't been resized yet, isn't moved.
+    /// The search bar below the grid is centred along with it. A grid
+    /// bigger than `space`, which it is for a moment while the terminal
+    /// hasn't been resized yet, isn't moved.
     pub fn centring_offset(&self, space: Size<f32>) -> iced_core::Vector {
         let half_left_over = |space: f32, cell: u16, cells: u16| {
             ((space - f32::from(cell) * f32::from(cells)) / 2.)
@@ -176,7 +184,11 @@ impl TerminalSize {
 
         iced_core::Vector::new(
             half_left_over(space.width, self.cell_width, self.num_cols),
-            half_left_over(space.height, self.cell_height, self.num_lines),
+            half_left_over(
+                space.height,
+                self.cell_height,
+                self.num_lines + self.bar_lines,
+            ),
         )
     }
 }
@@ -225,6 +237,7 @@ pub struct Backend {
     config: term::Config,
     last_content: RenderableContent,
     pub(crate) url_regex: RegexSearch,
+    search: Search,
     /// The program started in the terminal and the PTY it talks to.
     #[cfg(unix)]
     process: Process,
@@ -293,6 +306,9 @@ impl Backend {
             cursor_style: term.cursor_style(),
             hovered_hyperlink: None,
             colors: *term.colors(),
+            search_matches: Vec::new(),
+            focused_match: None,
+            search_bar: None,
         };
 
         let term = Arc::new(FairMutex::new(term));
@@ -317,6 +333,7 @@ impl Backend {
             config,
             last_content: initial_content,
             url_regex: RegexSearch::new(URL_REGEX).expect("invalid url regexp"),
+            search: Search::default(),
             #[cfg(unix)]
             process,
         })
@@ -353,6 +370,18 @@ impl Backend {
 
         self.config.default_cursor_style = style;
         self.term.lock().set_options(self.config.clone());
+    }
+
+    /// Whether the search bar is shown.
+    pub fn search_active(&self) -> bool {
+        self.search.active()
+    }
+
+    /// While the search while typing found no match in the lines it looked
+    /// at, a number that changes with the regex. The whole buffer is
+    /// searched on [`SearchCommand::Resume`].
+    pub fn search_pending(&self) -> Option<u64> {
+        self.search.pending()
     }
 
     /// The terminal's modes as they are right now, not as of the last sync.
@@ -476,6 +505,14 @@ impl Backend {
             },
             Command::MouseReport(button, modifiers, point, pressed) => {
                 self.process_mouse_report(button, modifiers, point, pressed);
+            },
+            Command::Search(command) => {
+                let shown = self.search.active();
+                self.search.handle(&mut term, command);
+                // The bar takes a row from the terminal or gives it back.
+                if self.search.active() != shown {
+                    self.resize(&mut term, None, None);
+                }
             },
         };
 
@@ -692,12 +729,20 @@ impl Backend {
             return;
         }
 
+        // The search bar takes the last row.
         let lines = (self.size.layout_height / self.size.cell_height as f32)
             .floor() as u16;
+        let bar_lines = u16::from(self.search.active());
+        let lines = lines.saturating_sub(bar_lines);
         let cols = (self.size.layout_width / self.size.cell_width as f32)
             .floor() as u16;
         if lines > 0 && cols > 0 {
+            if (lines, cols) != (self.size.num_lines, self.size.num_cols) {
+                // The focused match isn't where it was in a resized grid.
+                self.search.clear_focused_match();
+            }
             self.size.num_lines = lines;
+            self.size.bar_lines = bar_lines;
             self.size.num_cols = cols;
             self.notifier.on_resize(self.size.into());
             terminal.resize(TermSize::new(
@@ -820,6 +865,11 @@ impl Backend {
         self.last_content.terminal_mode = *terminal.mode();
         self.last_content.terminal_size = self.size;
         self.last_content.colors = *terminal.colors();
+        self.last_content.search_matches =
+            self.search.visible_matches(terminal);
+        self.last_content.focused_match = self.search.focused_match().cloned();
+        self.last_content.search_bar =
+            self.search.bar(self.size.num_cols as usize);
     }
 
     pub fn renderable_content(&self) -> &RenderableContent {
@@ -869,25 +919,6 @@ pub(crate) fn color_request_reply(
     theme.rgb_for_index(index, overrides).map(formatter)
 }
 
-/// Copied from alacritty/src/display/hint.rs:
-/// Iterate over all visible regex matches.
-fn visible_regex_match_iter<'a>(
-    term: &'a Term<EventProxy>,
-    regex: &'a mut RegexSearch,
-) -> impl Iterator<Item = Match> + 'a {
-    let viewport_start = Line(-(term.grid().display_offset() as i32));
-    let viewport_end = viewport_start + term.bottommost_line();
-    let mut start =
-        term.line_search_left(Point::new(viewport_start, Column(0)));
-    let mut end = term.line_search_right(Point::new(viewport_end, Column(0)));
-    start.line = start.line.max(viewport_start - 100);
-    end.line = end.line.min(viewport_end + 100);
-
-    RegexIter::new(start, end, Direction::Right, term, regex)
-        .skip_while(move |rm| rm.end().line < viewport_start)
-        .take_while(move |rm| rm.start().line <= viewport_end)
-}
-
 pub struct RenderableContent {
     pub grid: Grid<Cell>,
     pub hovered_hyperlink: Option<RangeInclusive<Point>>,
@@ -901,6 +932,13 @@ pub struct RenderableContent {
     /// Colors the application changed at runtime (OSC 4/10/11/12); `None`
     /// entries use the theme's palette.
     pub colors: Colors,
+    /// The search's matches in the view, and in the lines next to it for
+    /// those that reach into it, in order.
+    pub search_matches: Vec<Match>,
+    /// The search match the view was scrolled to.
+    pub focused_match: Option<Match>,
+    /// The search bar's text, while it is shown on the row below the grid.
+    pub search_bar: Option<String>,
 }
 
 impl Default for RenderableContent {
@@ -914,6 +952,9 @@ impl Default for RenderableContent {
             terminal_mode: TermMode::empty(),
             terminal_size: TerminalSize::default(),
             colors: Colors::default(),
+            search_matches: Vec::new(),
+            focused_match: None,
+            search_bar: None,
         }
     }
 }
@@ -1451,6 +1492,45 @@ mod tests {
         assert_eq!(size(&backend), (100, 20));
         backend.handle(Command::Resize(None, Some(Size::new(10., 32.))));
         assert_eq!(size(&backend), (80, 10));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn search_bar_takes_a_row_and_shows_the_matches() {
+        use crate::search::SearchDirection;
+        use tankterm_terminal::grid::Dimensions;
+
+        let mut backend = backend_running("printf needle; exec cat");
+        let lines = |backend: &Backend| backend.term.lock().screen_lines();
+        backend.handle(Command::Resize(
+            Some(Size::new(800., 320.)),
+            Some(Size::new(8., 16.)),
+        ));
+        assert_eq!(lines(&backend), 20);
+
+        let forward = SearchCommand::Start(SearchDirection::Forward);
+        backend.handle(Command::Search(forward));
+        assert!(backend.search_active());
+        assert_eq!(lines(&backend), 19);
+
+        eventually("the program prints its needle", || {
+            backend.sync();
+            backend.text().concat().contains("needle")
+        });
+        backend.handle(Command::Search(SearchCommand::Input("needle".into())));
+        backend.sync();
+        let content = backend.renderable_content();
+        assert_eq!(content.search_bar.as_deref(), Some("Search: needle"));
+        assert_eq!(content.search_matches.len(), 1);
+        assert_eq!(
+            content.focused_match,
+            Some(content.search_matches[0].clone())
+        );
+
+        backend.handle(Command::Search(SearchCommand::Cancel));
+        assert!(!backend.search_active());
+        assert_eq!(lines(&backend), 20);
+        assert_eq!(backend.selection().as_deref(), Some("needle"));
     }
 
     #[cfg(unix)]
