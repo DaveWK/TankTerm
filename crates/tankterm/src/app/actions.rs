@@ -4,7 +4,7 @@
 use iced::{Task, window};
 use iced_core::clipboard::Kind;
 use iced_tterm::settings::FontSettings;
-use iced_tterm::{BackendCommand, Scroll, SearchCommand};
+use iced_tterm::{BackendCommand, Scroll, SearchCommand, ViCommand};
 use log::warn;
 
 use super::{App, Message, Shell};
@@ -78,18 +78,18 @@ impl App {
         }
     }
 
-    /// Scroll the focused terminal through its scrollback buffer.
+    /// Scroll the focused terminal through its scrollback buffer. In vi mode, scrolling by
+    /// pages or to the top or bottom takes the vi cursor along.
     pub(super) fn scroll(&mut self, to: ScrollTo) {
         let Some(shell) = self.focused_terminal().and_then(|id| self.terminals.get_mut(&id)) else {
             return;
         };
 
-        let half_page = (shell.terminal.screen_lines() / 2) as i32;
         let scroll = match to {
             ScrollTo::PageUp => BackendCommand::ScrollDisplay(Scroll::PageUp),
             ScrollTo::PageDown => BackendCommand::ScrollDisplay(Scroll::PageDown),
-            ScrollTo::HalfPageUp => BackendCommand::ScrollDisplay(Scroll::Delta(half_page)),
-            ScrollTo::HalfPageDown => BackendCommand::ScrollDisplay(Scroll::Delta(-half_page)),
+            ScrollTo::HalfPageUp => BackendCommand::ScrollHalfPageUp,
+            ScrollTo::HalfPageDown => BackendCommand::ScrollHalfPageDown,
             ScrollTo::LineUp => BackendCommand::ScrollDisplay(Scroll::Delta(1)),
             ScrollTo::LineDown => BackendCommand::ScrollDisplay(Scroll::Delta(-1)),
             ScrollTo::Top => BackendCommand::ScrollDisplay(Scroll::Top),
@@ -127,6 +127,27 @@ impl App {
         // Keys go to the terminal's search bar, also after the command palette opened it.
         let focus = self.focus();
         if selection(self) == before {
+            focus
+        } else {
+            Task::batch([self.copy_selection(terminal), focus])
+        }
+    }
+
+    /// Enter or leave vi mode in the focused terminal, or act in it.
+    ///
+    /// A selection the vi cursor changes goes on the selection clipboard, as a selection made
+    /// with the mouse does.
+    pub(super) fn vi(&mut self, command: ViCommand) -> Task<Message> {
+        let Some(terminal) = self.focused_terminal() else { return Task::none() };
+        let selection =
+            |app: &Self| app.focused_shell().and_then(|shell| shell.terminal.selection());
+
+        let before = selection(self);
+        self.send_to_focused(BackendCommand::Vi(command));
+        // Keys go to the terminal, also after the command palette toggled vi mode.
+        let focus = self.focus();
+        let after = selection(self);
+        if after.is_none() || after == before {
             focus
         } else {
             Task::batch([self.copy_selection(terminal), focus])

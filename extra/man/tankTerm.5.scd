@@ -1422,7 +1422,8 @@ bindings = [++
 	_Paste_, _Copy_, _PasteSelection_, _CopySelection_, _ClearSelection_,
 	_IncreaseFontSize_, _DecreaseFontSize_, _ResetFontSize_, the _Scroll_
 	actions, _SelectCommandOutput_, _ClearHistory_, _SearchForward_,
-	_SearchBackward_, the search actions, _ToggleFullscreen_,
+	_SearchBackward_, the search actions, _ToggleViMode_, the vi mode actions
+	but _Open_, _ToggleFullscreen_,
 	_ToggleMaximized_, _Minimize_,
 	_Hide_ and _Quit_. Bindings to the other actions and to scancodes are
 	ignored for now, and their keys are sent to the terminal. A character key
@@ -1464,10 +1465,10 @@ _https://docs.rs/winit/latest/winit/keyboard/enum.Key.html_
 		_Leader_ isn't a terminal mode: a binding with it takes effect when its
 		key is pressed after the leader key (see _leader_).
 
-		There is no vi mode in the iced front end yet: bindings that require
-		_Vi_ never take effect, and _~Vi_ is always met. _Search_ is active
-		while the focused terminal shows its search bar; keys without a
-		binding in it type into the bar.
+		_Vi_ is active while the focused terminal is in vi mode; keys without
+		a binding in it do nothing. _Search_ is active while the focused
+		terminal shows its search bar; keys without a binding in it type into
+		the bar.
 
 		Prepending _~_ to a mode will require the mode to *not* = be active for
 		the binding to take effect.
@@ -1559,7 +1560,9 @@ _https://docs.rs/winit/latest/winit/keyboard/enum.Key.html_
 		*ClearSelection*
 			Clear active selection.
 		*ToggleViMode*
-			Toggle vi mode.
+			Toggle vi mode. In vi mode a cursor of its own moves through the
+			text and the scrollback, and its line is shown in the top right
+			corner, counted up from the last line.
 		*ToggleHelp*
 			Cycle the key help between hidden, a single line and full columns, like
 			Charm's Bubbles help view. It's generated from the key bindings.
@@ -1631,7 +1634,8 @@ _https://docs.rs/winit/latest/winit/keyboard/enum.Key.html_
 		*SearchEnd*
 			Jump to the next end of a match to the right of the origin.
 		*Open*
-			Launch the URL below the vi mode cursor.
+			Launch the URL below the vi mode cursor. Not supported by the iced
+			front end yet.
 		*CenterAroundViCursor*
 			Centers the screen around the vi mode cursor.
 		*InlineSearchForward*

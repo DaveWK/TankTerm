@@ -18,7 +18,7 @@ use crate::config::UiConfig;
 use crate::config::color::Colors;
 use crate::config::font::FontDescription;
 use crate::config::profile::Profile;
-use crate::config::style::{self, BarStyle, CellStyle, ElementStyles, TabBarStyles};
+use crate::config::style::{self, BarStyle, CellStyle, ElementStyles, Styles, TabBarStyles};
 use crate::config::ui_config::{Delta, Program};
 
 /// Logical pixels per typographic point.
@@ -75,6 +75,7 @@ fn cursor_settings(config: &UiConfig) -> CursorSettings {
         blink_timeout: (!timeout.is_zero()).then_some(timeout),
         unfocused_hollow: cursor.unfocused_hollow,
         thickness: cursor.thickness(),
+        vi_mode_style: cursor.vi_mode_style(),
     }
 }
 
@@ -335,16 +336,20 @@ pub fn tab_bar_styles(config: &UiConfig) -> [TabBarStyles; 2] {
 fn theme_palette(config: &UiConfig) -> ColorPalette {
     let styles = config.style.resolved();
     ColorPalette {
-        focused: elements(&styles.elements(true), &styles.footer_bar),
-        blurred: elements(&styles.elements(false), &styles.footer_bar),
+        focused: elements(&styles.elements(true), styles),
+        blurred: elements(&styles.elements(false), styles),
         ..palette(&config.colors)
     }
 }
 
-/// How the cursor, the selection, search matches, the search bar and the text are drawn with
-/// these styles.
-fn elements(styles: &ElementStyles, footer_bar: &BarStyle) -> Elements {
+/// How the cursors, the selection, search matches, the search bar, the line indicator and the
+/// text are drawn with these styles, and the bars' styles from `bars`.
+fn elements(styles: &ElementStyles, bars: &Styles) -> Elements {
     let rgb = |rgb: Rgb| CellColor::Color(Color::from_rgb8(rgb.r, rgb.g, rgb.b));
+    let bar = |bar: &BarStyle| CellColors {
+        foreground: rgb(bar.foreground),
+        background: rgb(bar.background),
+    };
 
     Elements {
         text: text_attributes(&styles.text),
@@ -356,10 +361,9 @@ fn elements(styles: &ElementStyles, footer_bar: &BarStyle) -> Elements {
         search_match_attributes: text_attributes(&styles.search_match.attributes),
         search_focused_match: cell_colors(&styles.search_focused_match),
         search_focused_match_attributes: text_attributes(&styles.search_focused_match.attributes),
-        footer_bar: CellColors {
-            foreground: rgb(footer_bar.foreground),
-            background: rgb(footer_bar.background),
-        },
+        vi_mode_cursor: cell_colors(&styles.vi_mode_cursor),
+        footer_bar: bar(&bars.footer_bar),
+        line_indicator: bar(&bars.line_indicator),
     }
 }
 
@@ -792,6 +796,7 @@ mod tests {
     #[test]
     fn cursor_follows_the_config() {
         use iced_tterm::CursorShape;
+        use tankterm_terminal::vte::ansi::CursorStyle;
 
         assert_eq!(cursor_settings(&UiConfig::default()), CursorSettings {
             shape: CursorShape::Block,
@@ -800,6 +805,7 @@ mod tests {
             blink_timeout: Some(Duration::from_secs(5)),
             unfocused_hollow: true,
             thickness: 0.15,
+            vi_mode_style: None,
         });
 
         let config = config(concat!(
@@ -809,6 +815,7 @@ mod tests {
             "blink_timeout = 0\n",
             "unfocused_hollow = false\n",
             "thickness = 0.5\n",
+            "vi_mode_style = \"Underline\"\n",
         ));
         let cursor = cursor_settings(&config);
         assert_eq!(cursor, CursorSettings {
@@ -818,6 +825,7 @@ mod tests {
             blink_timeout: None,
             unfocused_hollow: false,
             thickness: 0.5,
+            vi_mode_style: Some(CursorStyle { shape: CursorShape::Underline, blinking: false }),
         });
         assert_eq!(settings(&config, &options(&[])).cursor, cursor);
 

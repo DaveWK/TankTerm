@@ -8,9 +8,10 @@ use crate::keyboard::{self, KeyInput, KeyState, KittyOutput};
 use crate::search::SearchCommand;
 use crate::terminal::{Event, Terminal};
 use crate::theme::TerminalStyle;
+use crate::vi::ViCommand;
 use iced::alignment::Vertical;
 use iced::mouse::{Cursor, ScrollDelta};
-use iced::widget::canvas::{Path, Text};
+use iced::widget::canvas::{Frame, Path, Text};
 use iced::widget::container;
 use iced::{Color, Element, Length, Point, Rectangle, Size, Theme};
 use iced_core::clipboard::Kind as ClipboardKind;
@@ -106,6 +107,49 @@ impl<'a> TerminalView<'a> {
         bounds.position() + size.centring_offset(bounds.size())
     }
 
+    /// Draw `text` a character to a cell, wide characters on two, from
+    /// the cell at `origin`, and give the number of cells it took.
+    fn draw_cell_text(
+        &self,
+        frame: &mut Frame,
+        text: &str,
+        origin: Point,
+        color: Color,
+    ) -> usize {
+        let size = self.term.backend.renderable_content().terminal_size;
+        let (cell_width, cell_height) =
+            (size.cell_width as f32, size.cell_height as f32);
+        let glyph_offset = self.term.font.glyph_offset;
+
+        let mut column = 0;
+        for c in text.chars() {
+            let width = c.width().unwrap_or(0);
+            if width == 0 {
+                continue;
+            }
+            frame.fill_text(Text {
+                content: c.to_string(),
+                position: Point::new(
+                    origin.x
+                        + (column as f32 + width as f32 / 2.) * cell_width
+                        + glyph_offset.x,
+                    origin.y + cell_height / 2. + glyph_offset.y,
+                ),
+                font: self.term.font.face(false, false),
+                size: iced_core::Pixels(self.term.font.size),
+                color,
+                align_x: Alignment::Center,
+                align_y: Vertical::Center,
+                shaping: Shaping::Advanced,
+                line_height: LineHeight::Relative(self.term.font.scale_factor),
+                ..Default::default()
+            });
+            column += width;
+        }
+
+        column
+    }
+
     fn is_cursor_hovered_hyperlink(&self, state: &TerminalViewState) -> bool {
         let content = self.term.backend.renderable_content();
         if let Some(hyperlink_range) = &content.hovered_hyperlink {
@@ -156,7 +200,7 @@ impl<'a> TerminalView<'a> {
     ) -> Vec<Command> {
         let mut commands = Vec::new();
         let terminal_content = self.term.backend.renderable_content();
-        let terminal_mode = terminal_content.terminal_mode;
+        let terminal_mode = mouse_modes(terminal_content.terminal_mode);
 
         match event {
             iced_core::mouse::Event::ButtonPressed(
@@ -326,7 +370,7 @@ impl<'a> TerminalView<'a> {
 
         // Handle command or selection update based on terminal mode and modifiers
         if state.is_dragged {
-            let terminal_mode = terminal_content.terminal_mode;
+            let terminal_mode = mouse_modes(terminal_content.terminal_mode);
             // Report drags when the app requested button-motion (1002) or
             // any-motion (1003) tracking. Checking only MOUSE_MOTION left
             // 1002-mode apps (e.g. tmux with `mouse on`) seeing press and
@@ -477,12 +521,27 @@ impl<'a> TerminalView<'a> {
             return search_input(&input).map(Command::Search);
         }
 
+        // The key after a vi mode inline search started is the character to
+        // move to.
+        if self.term.backend.inline_search_pending() {
+            if input.state == KeyState::Released {
+                return None;
+            }
+            let text = input.text?.to_owned();
+            return Some(Command::Vi(ViCommand::InlineSearchInput(text)));
+        }
+
+        // In vi mode, keys move the vi cursor through their bindings and
+        // aren't typed into the terminal.
+        let vi_mode = self.term.backend.mode().contains(TermMode::VI);
+
         match key_output(
             &self.term.bindings,
             state.keyboard_modifiers,
             &input,
             last_content.terminal_mode,
         )? {
+            KeyOutput::Write(_) if vi_mode => None,
             KeyOutput::Write(bytes) => Some(Command::Write(bytes)),
             KeyOutput::Paste(kind) => paste(clipboard, kind),
             KeyOutput::Copy => {
@@ -493,6 +552,17 @@ impl<'a> TerminalView<'a> {
                 None
             },
         }
+    }
+}
+
+/// The terminal's modes as far as the mouse goes: in vi mode the mouse
+/// selects text and moves the vi cursor, and isn't reported to the
+/// application.
+fn mouse_modes(mode: TermMode) -> TermMode {
+    if mode.contains(TermMode::VI) {
+        mode - TermMode::MOUSE_MODE
+    } else {
+        mode
     }
 }
 
@@ -782,6 +852,13 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
             // dark half of a blink.
             let cursor_shape = self.term.cursor_shape();
             let cursor_thickness = self.term.cursor.settings.thickness;
+            // In vi mode the vi cursor is drawn instead, in its own colors.
+            let cursor_point =
+                content.vi_cursor.unwrap_or(content.grid.cursor.point);
+            let cursor_colors = match content.vi_cursor {
+                Some(_) => elements.vi_mode_cursor,
+                None => elements.cursor,
+            };
 
             let mut last_line: Option<i32> = None;
             let mut bg_batch_rect = BackgroundRect::default();
@@ -971,13 +1048,13 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                 }
 
                 // Handle cursor rendering
-                let is_cursor = content.grid.cursor.point == indexed.point;
+                let is_cursor = cursor_point == indexed.point;
                 if is_cursor {
                     // An application-set cursor color (OSC 12) wins;
                     // otherwise the theme's, on the cell's colors.
                     let cursor_color = match overrides[NamedColor::Cursor] {
                         Some(rgb) => Color::from_rgb8(rgb.r, rgb.g, rgb.b),
-                        None => elements.cursor.background.on(
+                        None => cursor_colors.background.on(
                             theme.get_color_with_overrides(
                                 content.cursor.fg,
                                 overrides,
@@ -1010,7 +1087,7 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                     // was INVERSE or inside a selection.
                     // The other cursor shapes leave the glyph as it is.
                     if is_cursor && cursor_shape == CursorShape::Block {
-                        fg = elements.cursor.foreground.on(cell_fg, cell_bg);
+                        fg = cursor_colors.foreground.on(cell_fg, cell_bg);
                     }
                     if self.term.font.builtin_box_drawing
                         && box_drawing::is_builtin(indexed.c)
@@ -1089,12 +1166,13 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                 frame.fill(glyph, *color);
             }
 
+            let default_fg = theme.get_color_with_overrides(
+                ansi::Color::Named(NamedColor::Foreground),
+                overrides,
+            );
+
             // The search bar, on the row below the grid.
             if let Some(bar) = &content.search_bar {
-                let default_fg = theme.get_color_with_overrides(
-                    ansi::Color::Named(NamedColor::Foreground),
-                    overrides,
-                );
                 let colors = elements.footer_bar;
                 let fg = colors.foreground.on(default_fg, default_bg);
                 let bg = colors.background.on(default_fg, default_bg);
@@ -1109,33 +1187,8 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                     bg,
                 );
 
-                let glyph_offset = self.term.font.glyph_offset;
-                let mut column = 0;
-                for c in bar.chars() {
-                    let width = c.width().unwrap_or(0);
-                    if width == 0 {
-                        continue;
-                    }
-                    frame.fill_text(Text {
-                        content: c.to_string(),
-                        position: Point::new(
-                            layout_offset_x
-                                + (column as f32 + width as f32 / 2.)
-                                    * cell_width
-                                + glyph_offset.x,
-                            y + half_h + glyph_offset.y,
-                        ),
-                        font: self.term.font.face(false, false),
-                        size: iced_core::Pixels(font_size),
-                        color: fg,
-                        align_x: Alignment::Center,
-                        align_y: Vertical::Center,
-                        shaping: Shaping::Advanced,
-                        line_height: LineHeight::Relative(font_scale_factor),
-                        ..Default::default()
-                    });
-                    column += width;
-                }
+                let origin = Point::new(layout_offset_x, y);
+                let column = self.draw_cell_text(frame, bar, origin, fg);
 
                 // The bar's cursor, after the regex.
                 let cursor =
@@ -1152,6 +1205,25 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                         fg,
                     );
                 }
+            }
+
+            // The line indicator, in the top right corner.
+            if let Some(indicator) = &content.line_indicator {
+                let colors = elements.line_indicator;
+                let fg = colors.foreground.on(default_fg, default_bg);
+                let bg = colors.background.on(default_fg, default_bg);
+                let width = indicator.chars().count();
+                let column = term_size.columns().saturating_sub(width);
+                let origin = Point::new(
+                    layout_offset_x + column as f32 * cell_width,
+                    layout_offset_y,
+                );
+                frame.fill_rectangle(
+                    origin,
+                    Size::new(width as f32 * cell_width, cell_height),
+                    bg,
+                );
+                self.draw_cell_text(frame, indicator, origin, fg);
             }
         });
 
@@ -1190,12 +1262,10 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
         );
         let selection_finished = released_left
             && state.is_dragged
-            && !self
-                .term
-                .backend
-                .renderable_content()
-                .terminal_mode
-                .intersects(TermMode::MOUSE_MODE);
+            && !mouse_modes(
+                self.term.backend.renderable_content().terminal_mode,
+            )
+            .intersects(TermMode::MOUSE_MODE);
 
         let commands = match event {
             iced::Event::Mouse(mouse_event) if is_cursor_in_layout => self
@@ -1221,7 +1291,12 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                     .collect();
                 if self.term.mouse.hide_when_typing
                     && commands.iter().any(|cmd| {
-                        matches!(cmd, Command::Write(_) | Command::Search(_))
+                        matches!(
+                            cmd,
+                            Command::Write(_)
+                                | Command::Search(_)
+                                | Command::Vi(_)
+                        )
                     })
                 {
                     state.pointer_hidden = true;

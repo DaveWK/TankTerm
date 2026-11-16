@@ -19,6 +19,11 @@ The cursor motions are setup by default to mimic vi, however they are fully
 configurable. If you don't like vi's bindings, take a look at the configuration
 file to change the various movements.
 
+The top right corner shows how many lines the vi cursor is above the last line,
+and the vi cursor takes the `[style.vi_mode_cursor]` colors and the
+`cursor.vi_mode_style` shape. Opening the URL under the vi cursor with
+<kbd>Enter</kbd> comes with hints, which the iced front end doesn't have yet.
+
 ### Selection
 
 One useful feature of vi mode is the ability to make selections and copy text to
@@ -27,7 +32,8 @@ it using <kbd>y</kbd>. All selection modes that are available with the mouse can
 be accessed from vi mode, including the semantic (<kbd>Alt</kbd> <kbd>v</kbd>),
 line (<kbd>Shift</kbd> <kbd>v</kbd>) and block selection (<kbd>Ctrl</kbd>
 <kbd>v</kbd>). You can also toggle between them while the selection is still
-active.
+active. A selection made in vi mode goes on the selection clipboard, like one
+made with the mouse.
 
 ## Search
 
@@ -51,7 +57,7 @@ scrolls to the first match while you type. Matches are drawn in the
 opportunity to move around freely, but you can still jump between matches using
 <kbd>Enter</kbd> and <kbd>Shift</kbd> <kbd>Enter</kbd>. After leaving search
 with <kbd>Escape</kbd> your active match stays selected, allowing you to easily
-copy it.
+copy it. The top right corner shows how many lines the view is scrolled back.
 
 <kbd>Up</kbd> and <kbd>Down</kbd> go through the regexes you searched for
 before, <kbd>Ctrl</kbd> <kbd>w</kbd> deletes the last word and <kbd>Ctrl</kbd>

@@ -9,7 +9,7 @@ use crate::settings::{
     SelectionSettings, Settings, ThemeSettings,
 };
 use crate::theme::{ColorPalette, Theme};
-use crate::{AlacrittyEvent, CursorShape, TermMode};
+use crate::{AlacrittyEvent, AlacrittyPoint, CursorShape, TermMode};
 use iced::futures::stream::BoxStream;
 use iced::futures::{SinkExt, StreamExt};
 use iced::widget::canvas::Cache;
@@ -106,6 +106,7 @@ impl Terminal {
         backend.set_semantic_escape_chars(
             &settings.selection.semantic_escape_chars,
         );
+        backend.set_vi_cursor_style(cursor.settings.vi_mode_style);
 
         Ok(Self {
             id,
@@ -163,14 +164,23 @@ impl Terminal {
         self.backend.search_active()
     }
 
+    /// Whether a vi mode inline search waits for the character to move to.
+    /// The next key typed is that character, whatever it is bound to.
+    pub fn inline_search_pending(&self) -> bool {
+        self.backend.inline_search_pending()
+    }
+
     /// The shape the cursor is drawn with right now:
     /// [`CursorShape::Hidden`] while the application in the terminal hides
-    /// it and in the dark half of a blink, [`CursorShape::HollowBlock`]
-    /// without the keyboard focus, and otherwise the shape the application
-    /// asked for or the one from the settings.
+    /// it outside vi mode and in the dark half of a blink,
+    /// [`CursorShape::HollowBlock`] without the keyboard focus, and
+    /// otherwise the shape the application asked for or the one from the
+    /// settings.
     pub fn cursor_shape(&self) -> CursorShape {
         let content = self.backend.renderable_content();
-        let shown = content.terminal_mode.contains(TermMode::SHOW_CURSOR);
+        let shown = content
+            .terminal_mode
+            .intersects(TermMode::SHOW_CURSOR | TermMode::VI);
         self.cursor.shape(content.cursor_style, shown)
     }
 
@@ -236,6 +246,12 @@ impl Terminal {
         self.backend.columns()
     }
 
+    /// Where the vi cursor is, in vi mode. Line 0 is the top of the screen
+    /// and negative lines are scrollback.
+    pub fn vi_cursor(&self) -> Option<AlacrittyPoint> {
+        self.backend.renderable_content().vi_cursor
+    }
+
     /// How many lines the view is scrolled back into the scrollback buffer;
     /// `0` while it shows the screen.
     pub fn display_offset(&self) -> usize {
@@ -284,6 +300,8 @@ impl Terminal {
                 self.cursor.restart(Instant::now());
                 self.backend
                     .set_default_cursor_style(self.cursor.default_style());
+                self.backend
+                    .set_vi_cursor_style(self.cursor.settings.vi_mode_style);
             },
             Command::ChangeSelection(selection) => {
                 self.backend.set_semantic_escape_chars(
@@ -330,7 +348,9 @@ impl Terminal {
             },
             Command::ProxyToBackend(cmd) => {
                 match &cmd {
-                    backend::Command::Write(_) | backend::Command::Paste(_) => {
+                    backend::Command::Write(_)
+                    | backend::Command::Paste(_)
+                    | backend::Command::Vi(_) => {
                         self.cursor.typed(Instant::now());
                     },
                     // The application changed whether the cursor blinks.

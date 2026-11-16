@@ -10,6 +10,7 @@ mod keyboard;
 mod search;
 mod terminal;
 mod theme;
+mod vi;
 mod view;
 
 pub use backend::Command as BackendCommand;
@@ -25,4 +26,5 @@ pub use terminal::{Command, Event, Terminal};
 pub use theme::{
     CellColor, CellColors, ColorPalette, Elements, TextAttributes, Theme,
 };
+pub use vi::{ViCommand, ViMotion};
 pub use view::TerminalView;

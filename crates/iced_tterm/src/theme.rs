@@ -137,8 +137,14 @@ pub struct Elements {
     pub search_focused_match: CellColors,
     /// Attributes the focused search match is drawn with, besides its own.
     pub search_focused_match_attributes: TextAttributes,
+    /// The cursor in vi mode and the text under it. A cursor color an
+    /// application sets wins.
+    pub vi_mode_cursor: CellColors,
     /// The search bar, on the terminal's default colors.
     pub footer_bar: CellColors,
+    /// The line indicator in vi mode and while searching, on the
+    /// terminal's default colors.
+    pub line_indicator: CellColors,
 }
 
 impl Default for ColorPalette {

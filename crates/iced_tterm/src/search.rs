@@ -65,9 +65,12 @@ pub enum SearchCommand {
     FocusNext,
     /// Focus the next match against the search's direction.
     FocusPrevious,
-    /// Close the search bar. Outside vi mode this is [`Self::Cancel`].
+    /// Close the search bar. In vi mode the vi cursor stays on the focused
+    /// match, and the matches stay shown for the vi mode search commands.
+    /// Outside vi mode this is [`Self::Cancel`].
     Confirm,
-    /// Close the search bar. The focused match is left selected.
+    /// Close the search bar. Outside vi mode the focused match is left
+    /// selected; in vi mode the vi cursor goes back to where it was.
     Cancel,
     /// Empty the regex.
     Clear,
@@ -152,6 +155,40 @@ impl Search {
     /// Forget the focused match, whose place in the grid a resize changes.
     pub(crate) fn clear_focused_match(&mut self) {
         self.focused_match = None;
+    }
+
+    /// The direction the search goes in.
+    pub(crate) fn direction(&self) -> Direction {
+        self.direction
+    }
+
+    /// The next match of the last regex searched for, from `origin` in
+    /// `direction`: the first one whose start, or end with `Side::Right`,
+    /// is at or past `origin`. The search goes round at the ends of the
+    /// buffer.
+    pub(crate) fn next_match<T>(
+        &mut self,
+        term: &Term<T>,
+        origin: Point,
+        direction: Direction,
+        side: Side,
+    ) -> Option<Match> {
+        let dfas = self.dfas.as_mut()?;
+        term.search_next(dfas, origin, direction, side, None)
+    }
+
+    /// Forget the last regex searched for, so its matches are no longer
+    /// shown.
+    pub(crate) fn drop_regex(&mut self) {
+        self.dfas = None;
+    }
+
+    /// The view was scrolled by `lines`, up being positive, other than by
+    /// the search. Leaving the search in vi mode scrolls back by them too.
+    pub(crate) fn scrolled(&mut self, lines: i32) {
+        if self.active() {
+            self.display_offset_delta += lines;
+        }
     }
 
     /// The regex the whole buffer is still to be searched for, as a number

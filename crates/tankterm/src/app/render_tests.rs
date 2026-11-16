@@ -181,6 +181,44 @@ dynamic_padding = true
 
 #[test]
 #[ignore = "writes screenshots for manual inspection"]
+fn vi_mode() {
+    use iced_tterm::{SearchCommand, SearchDirection, SelectionType, ViCommand, ViMotion};
+
+    let Some(dir) = env::var_os("TANKTERM_SNAPSHOT_DIR").map(PathBuf::from) else { return };
+    let window = Size::new(700., 160.);
+
+    // Enough lines for scrollback, the vi cursor on a word with a selection from the line
+    // above, and the matches of the last search shown.
+    let config = r#"
+        [terminal]
+        shell = { program = "sh", args = ["-c", 'seq 1 20; printf "cargo test\ntest foo ... ok\ntest bar ... ok\n"; exec cat'] }
+    "#;
+    let mut app = super::tab_tests::app_with(config, Hotkeys::default());
+    settle(&mut app, window);
+
+    let commands = [
+        BackendCommand::Vi(ViCommand::Toggle),
+        BackendCommand::Search(SearchCommand::Start(SearchDirection::Backward)),
+        BackendCommand::Search(SearchCommand::Input("ok".into())),
+        BackendCommand::Search(SearchCommand::Confirm),
+        BackendCommand::Vi(ViCommand::Motion(ViMotion::Up)),
+        BackendCommand::Vi(ViCommand::ToggleSelection(SelectionType::Simple)),
+        BackendCommand::Vi(ViCommand::Motion(ViMotion::Down)),
+        BackendCommand::Vi(ViCommand::Motion(ViMotion::SemanticLeft)),
+    ];
+    for command in commands {
+        let _ = app.update(Message::Terminal(iced_tterm::Event::BackendCall(0, command)));
+    }
+    snapshot(&app, window, &dir, "vi-mode");
+
+    // Paged up into the scrollback, the line indicator counts up.
+    let page = BackendCommand::ScrollDisplay(iced_tterm::Scroll::PageUp);
+    let _ = app.update(Message::Terminal(iced_tterm::Event::BackendCall(0, page)));
+    snapshot(&app, window, &dir, "vi-mode-scrolled");
+}
+
+#[test]
+#[ignore = "writes screenshots for manual inspection"]
 fn prompt_marks() {
     let Some(dir) = env::var_os("TANKTERM_SNAPSHOT_DIR").map(PathBuf::from) else { return };
     let window = Size::new(600., 200.);

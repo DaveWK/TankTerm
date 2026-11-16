@@ -98,6 +98,10 @@ Notable changes to the `tankterm_terminal` crate are documented in its
     terminal's last row, and the search actions, its history and the `search_match`,
     `search_focused_match` and `footer_bar` styles work as they did in the OpenGL front end.
     The command palette offers both searches
+- Vi mode in the iced front end: `ToggleViMode`, the motions, selections, copying, searching from
+    vi mode and the vi mode actions but `Open`, which waits for hints. The `vi_mode_cursor` and
+    `line_indicator` styles and `cursor.vi_mode_style` apply, and the command palette offers
+    "Toggle Vi Mode"
 
 ### Changed
 

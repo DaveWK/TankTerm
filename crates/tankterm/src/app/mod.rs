@@ -45,6 +45,8 @@ mod tab_strip;
 mod tab_tests;
 mod tabs;
 mod update;
+#[cfg(all(test, unix))]
+mod vi_tests;
 mod view;
 
 /// Environment variable with the ID of the pane a shell runs in, for `tankTerm msg`.
@@ -180,6 +182,9 @@ pub struct App {
     pane_select: Option<PaneSelect>,
     /// The keys of the pane labels, and `Escape`.
     pane_keys: Hotkeys,
+    /// No keys: while a vi mode inline search waits for its character, every key goes to the
+    /// terminal.
+    no_keys: Hotkeys,
     /// Where the configuration comes from, while its files are watched for changes.
     config: Option<ConfigSource>,
     /// Whether the window was opened transparent, which it is for the rest of its life.

@@ -11,7 +11,9 @@ use iced::{Color, Subscription, Task, Theme, window};
 use iced_tterm::actions::Action;
 use iced_tterm::bindings::BindingAction;
 use iced_tterm::settings::Settings;
-use iced_tterm::{AlacrittyEvent, BackendCommand, SearchCommand, TermMode, TerminalView};
+use iced_tterm::{
+    AlacrittyEvent, BackendCommand, SearchCommand, TermMode, TerminalView, ViCommand,
+};
 use log::{debug, error, warn};
 
 use super::actions::{toggle_maximized, zoomed};
@@ -55,6 +57,7 @@ impl App {
             key_tables: Vec::new(),
             pane_select: None,
             pane_keys: Hotkeys::pane_select(),
+            no_keys: Hotkeys::default(),
             config: None,
             #[cfg(unix)]
             socket: None,
@@ -575,6 +578,13 @@ impl App {
         // Text pasted while the search bar is shown goes into it, without its line breaks.
         if shell.terminal.search_active() {
             let input = BackendCommand::Search(SearchCommand::Input(text));
+            shell.terminal.handle(iced_tterm::Command::ProxyToBackend(input));
+            return;
+        }
+
+        // Text pasted while a vi mode inline search waits for its character starts with it.
+        if shell.terminal.inline_search_pending() {
+            let input = BackendCommand::Vi(ViCommand::InlineSearchInput(text));
             shell.terminal.handle(iced_tterm::Command::ProxyToBackend(input));
             return;
         }

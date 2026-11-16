@@ -12,7 +12,7 @@ use super::*;
 use crate::config::UiConfig;
 
 /// Keys pressed in the focused terminal of `app`, as the messages they lead to.
-fn press(app: &App, keys: &[(Key, Modifiers)]) -> Vec<Message> {
+pub(super) fn press(app: &App, keys: &[(Key, Modifiers)]) -> Vec<Message> {
     let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
     // Click the terminal to give it keyboard focus.
     ui.point_at((400., 200.));
@@ -54,18 +54,20 @@ fn press(app: &App, keys: &[(Key, Modifiers)]) -> Vec<Message> {
                 Message::Action(_)
                     | Message::Terminal(iced_tterm::Event::BackendCall(
                         _,
-                        BackendCommand::Write(_) | BackendCommand::Search(_)
+                        BackendCommand::Write(_)
+                            | BackendCommand::Search(_)
+                            | BackendCommand::Vi(_)
                     ))
             )
         })
         .collect()
 }
 
-fn typed(text: &str) -> Vec<(Key, Modifiers)> {
+pub(super) fn typed(text: &str) -> Vec<(Key, Modifiers)> {
     text.chars().map(|c| (Key::Character(c.to_string().into()), Modifiers::empty())).collect()
 }
 
-fn named(key: Named) -> (Key, Modifiers) {
+pub(super) fn named(key: Named) -> (Key, Modifiers) {
     (Key::Named(key), Modifiers::empty())
 }
 

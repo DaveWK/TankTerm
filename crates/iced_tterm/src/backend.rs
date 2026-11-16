@@ -2,6 +2,7 @@ use crate::actions::Action;
 use crate::search::{visible_regex_match_iter, Search, SearchCommand};
 use crate::settings::BackendSettings;
 use crate::theme::Theme;
+use crate::vi::{Vi, ViCommand};
 use iced::keyboard::Modifiers;
 use iced_core::Size;
 use std::borrow::Cow;
@@ -18,11 +19,12 @@ use tankterm_terminal::grid::{Dimensions, Scroll};
 use tankterm_terminal::index::{Column, Direction, Line, Point, Side};
 use tankterm_terminal::selection::{Selection, SelectionRange, SelectionType};
 use tankterm_terminal::sync::FairMutex;
+use tankterm_terminal::term::cell::{Cell, Flags};
 use tankterm_terminal::term::search::{Match, RegexSearch};
 use tankterm_terminal::term::{
-    self, cell::Cell, color::Colors, test::TermSize, viewport_to_point, Term,
-    TermMode,
+    self, color::Colors, test::TermSize, viewport_to_point, Term, TermMode,
 };
+use tankterm_terminal::vi_mode::ViMotion;
 use tankterm_terminal::vte::ansi::{ClearMode, CursorStyle, Handler, Rgb};
 use tankterm_terminal::{tty, Grid};
 use tokio::sync::mpsc;
@@ -70,8 +72,13 @@ pub enum Command {
     /// alternate screen, applications that asked for it get arrow keys
     /// instead.
     Scroll(i32),
-    /// Move the view through the scrollback buffer.
+    /// Move the view through the scrollback buffer. In vi mode, scrolling
+    /// by pages or to the top or bottom takes the vi cursor along.
     ScrollDisplay(Scroll),
+    /// Scroll up half a screen, taking the vi cursor along in vi mode.
+    ScrollHalfPageUp,
+    /// Scroll down half a screen, taking the vi cursor along in vi mode.
+    ScrollHalfPageDown,
     /// Drop the scrollback buffer, keeping what is on the screen.
     ClearHistory,
     /// Scroll the view to put the prompt before the top of the view at
@@ -101,6 +108,8 @@ pub enum Command {
     /// Search the terminal's text. While the search bar is shown, it takes
     /// the terminal's last row.
     Search(SearchCommand),
+    /// Enter or leave vi mode, or act in it.
+    Vi(ViCommand),
 }
 
 #[derive(Debug, Clone)]
@@ -238,6 +247,7 @@ pub struct Backend {
     last_content: RenderableContent,
     pub(crate) url_regex: RegexSearch,
     search: Search,
+    vi: Vi,
     /// The program started in the terminal and the PTY it talks to.
     #[cfg(unix)]
     process: Process,
@@ -309,6 +319,8 @@ impl Backend {
             search_matches: Vec::new(),
             focused_match: None,
             search_bar: None,
+            vi_cursor: None,
+            line_indicator: None,
         };
 
         let term = Arc::new(FairMutex::new(term));
@@ -334,6 +346,7 @@ impl Backend {
             last_content: initial_content,
             url_regex: RegexSearch::new(URL_REGEX).expect("invalid url regexp"),
             search: Search::default(),
+            vi: Vi::default(),
             #[cfg(unix)]
             process,
         })
@@ -372,9 +385,25 @@ impl Backend {
         self.term.lock().set_options(self.config.clone());
     }
 
+    /// Change the style the cursor has in vi mode; without one, it is the
+    /// cursor's style outside vi mode.
+    pub(crate) fn set_vi_cursor_style(&mut self, style: Option<CursorStyle>) {
+        if self.config.vi_mode_cursor_style == style {
+            return;
+        }
+
+        self.config.vi_mode_cursor_style = style;
+        self.term.lock().set_options(self.config.clone());
+    }
+
     /// Whether the search bar is shown.
     pub fn search_active(&self) -> bool {
         self.search.active()
+    }
+
+    /// Whether a vi mode inline search waits for the character to move to.
+    pub fn inline_search_pending(&self) -> bool {
+        self.vi.inline_search_pending()
     }
 
     /// While the search while typing found no match in the lines it looked
@@ -437,6 +466,7 @@ impl Backend {
         let mut action = Action::default();
         let term = self.term.clone();
         let mut term = term.lock();
+        let search_shown = self.search.active();
         match cmd {
             Command::ProcessAlacrittyEvent(event) => {
                 match event {
@@ -465,16 +495,34 @@ impl Backend {
                 self.scroll(&mut term, delta);
             },
             Command::ScrollDisplay(scroll) => {
-                term.scroll_display(scroll);
+                let screen = term.screen_lines() as i32;
+                let cursor_lines = match scroll {
+                    Scroll::PageUp => screen,
+                    Scroll::PageDown => -screen,
+                    _ => 0,
+                };
+                self.scroll_display(&mut term, scroll, cursor_lines);
+            },
+            Command::ScrollHalfPageUp => {
+                let lines = term.screen_lines() as i32 / 2;
+                self.scroll_display(&mut term, Scroll::Delta(lines), lines);
+            },
+            Command::ScrollHalfPageDown => {
+                let lines = -(term.screen_lines() as i32 / 2);
+                self.scroll_display(&mut term, Scroll::Delta(lines), lines);
             },
             Command::ClearHistory => {
                 term.clear_screen(ClearMode::Saved);
             },
             Command::ScrollToPreviousPrompt => {
+                let offset = term.grid().display_offset();
                 term.scroll_to_prompt(Direction::Left);
+                self.scrolled_from(&term, offset);
             },
             Command::ScrollToNextPrompt => {
+                let offset = term.grid().display_offset();
                 term.scroll_to_prompt(Direction::Right);
+                self.scrolled_from(&term, offset);
             },
             Command::SelectCommandOutput => {
                 term.select_command_output();
@@ -507,16 +555,69 @@ impl Backend {
                 self.process_mouse_report(button, modifiers, point, pressed);
             },
             Command::Search(command) => {
-                let shown = self.search.active();
                 self.search.handle(&mut term, command);
-                // The bar takes a row from the terminal or gives it back.
-                if self.search.active() != shown {
-                    self.resize(&mut term, None, None);
+            },
+            Command::Vi(command) => {
+                let offset = term.grid().display_offset();
+                let center = command == ViCommand::CenterAroundCursor;
+                self.vi.handle(&mut term, &mut self.search, command);
+                if center {
+                    self.scrolled_from(&term, offset);
                 }
             },
         };
 
+        // The search bar takes a row from the terminal or gives it back.
+        if self.search.active() != search_shown {
+            self.resize(&mut term, None, None);
+        }
+
         action
+    }
+
+    /// Scroll the view. In vi mode, the vi cursor moves `cursor_lines` up
+    /// with it, to the first character on its line, and scrolling to the
+    /// top or bottom takes it to the first or last line, as in Alacritty.
+    fn scroll_display(
+        &mut self,
+        terminal: &mut Term<EventProxy>,
+        scroll: Scroll,
+        cursor_lines: i32,
+    ) {
+        let offset = terminal.grid().display_offset();
+        if terminal.mode().contains(TermMode::VI) && cursor_lines != 0 {
+            let cursor = terminal.vi_mode_cursor;
+            terminal.vi_mode_cursor = cursor.scroll(terminal, cursor_lines);
+        }
+
+        terminal.scroll_display(scroll);
+
+        if terminal.mode().contains(TermMode::VI) {
+            match scroll {
+                Scroll::Top => {
+                    terminal.vi_mode_cursor.point.line =
+                        terminal.topmost_line();
+                    terminal.vi_motion(ViMotion::FirstOccupied);
+                },
+                Scroll::Bottom => {
+                    terminal.vi_mode_cursor.point.line =
+                        terminal.bottommost_line();
+                    // Twice, to get past a line that wraps.
+                    terminal.vi_motion(ViMotion::FirstOccupied);
+                    terminal.vi_motion(ViMotion::FirstOccupied);
+                },
+                _ => (),
+            }
+        }
+
+        self.scrolled_from(terminal, offset);
+    }
+
+    /// Tell the search the view was scrolled from `offset` other than by
+    /// the search.
+    fn scrolled_from(&mut self, terminal: &Term<EventProxy>, offset: usize) {
+        let lines = offset as i32 - terminal.grid().display_offset() as i32;
+        self.search.scrolled(lines);
     }
 
     fn process_link_action(
@@ -661,6 +762,11 @@ impl Backend {
             location,
             self.selection_side(x),
         ));
+
+        // In vi mode, the vi cursor goes where the mouse is.
+        if terminal.mode().contains(TermMode::VI) && !self.search.active() {
+            terminal.vi_mode_cursor.point = location;
+        }
     }
 
     fn update_selection(
@@ -670,10 +776,20 @@ impl Backend {
         y: f32,
     ) {
         let display_offset = terminal.grid().display_offset();
-        if let Some(ref mut selection) = terminal.selection {
-            let location =
-                Self::selection_point(x, y, &self.size, display_offset);
-            selection.update(location, self.selection_side(x));
+        let vi_mode =
+            terminal.mode().contains(TermMode::VI) && !self.search.active();
+        let location = Self::selection_point(x, y, &self.size, display_offset);
+        let side = self.selection_side(x);
+        let Some(selection) = &mut terminal.selection else {
+            return;
+        };
+        selection.update(location, side);
+
+        // In vi mode, the vi cursor goes where the mouse is, and the cell
+        // under it is selected.
+        if vi_mode {
+            selection.include_all();
+            terminal.vi_mode_cursor.point = location;
         }
     }
 
@@ -774,7 +890,10 @@ impl Backend {
 
                 self.notifier.notify(content);
             } else {
-                terminal.grid_mut().scroll_display(scroll);
+                let offset = terminal.grid().display_offset();
+                // The terminal keeps the vi cursor in the view.
+                terminal.scroll_display(scroll);
+                self.scrolled_from(terminal, offset);
             }
         }
     }
@@ -857,10 +976,27 @@ impl Backend {
             None => None,
         };
 
-        let cursor = terminal.grid_mut().cursor_cell().clone();
+        // In vi mode, the vi cursor is the one shown.
+        let vi_cursor = terminal.mode().contains(TermMode::VI).then(|| {
+            let mut point = terminal.vi_mode_cursor.point;
+            if terminal.grid()[point]
+                .flags
+                .contains(Flags::WIDE_CHAR_SPACER)
+            {
+                point.column -= 1;
+            }
+            point
+        });
+        let cursor = match vi_cursor {
+            Some(point) => terminal.grid()[point].clone(),
+            None => terminal.grid_mut().cursor_cell().clone(),
+        };
         self.last_content.grid = terminal.grid().clone();
         self.last_content.selectable_range = selectable_range;
-        self.last_content.cursor = cursor.clone();
+        self.last_content.cursor = cursor;
+        self.last_content.vi_cursor = vi_cursor;
+        self.last_content.line_indicator =
+            line_indicator(terminal, vi_cursor, self.search.active());
         self.last_content.cursor_style = terminal.cursor_style();
         self.last_content.terminal_mode = *terminal.mode();
         self.last_content.terminal_size = self.size;
@@ -888,6 +1024,32 @@ impl Backend {
             .find(|rm| rm.contains(&point));
         x
     }
+}
+
+/// The text of the line indicator: in vi mode, how many lines the vi cursor
+/// is above the last line, and otherwise while searching, how far the view
+/// is scrolled; out of the buffer's lines.
+///
+/// In vi mode it is left out while it would cover the vi cursor.
+fn line_indicator<T>(
+    terminal: &Term<T>,
+    vi_cursor: Option<Point>,
+    searching: bool,
+) -> Option<String> {
+    let offset = terminal.grid().display_offset();
+    let line = match vi_cursor {
+        Some(point) => (terminal.bottommost_line() - point.line).0 as usize,
+        None if searching => offset,
+        None => return None,
+    };
+
+    let text = format!("[{}/{}]", line, terminal.total_lines() - 1);
+    let column = terminal.columns().saturating_sub(text.len());
+    let covers_cursor = vi_cursor.is_some_and(|point| {
+        point.line.0 == -(offset as i32) && point.column.0 >= column
+    });
+
+    (!covers_cursor).then_some(text)
 }
 
 /// The configuration of the widget's `Term`, keeping at most `scrollback`
@@ -939,6 +1101,12 @@ pub struct RenderableContent {
     pub focused_match: Option<Match>,
     /// The search bar's text, while it is shown on the row below the grid.
     pub search_bar: Option<String>,
+    /// Where the vi cursor is, in vi mode. It is drawn instead of the
+    /// terminal's cursor, with the vi cursor's colors.
+    pub vi_cursor: Option<Point>,
+    /// Where the vi cursor or the view is in the buffer, for the top right
+    /// corner of the view: in vi mode, and while the search bar is shown.
+    pub line_indicator: Option<String>,
 }
 
 impl Default for RenderableContent {
@@ -955,6 +1123,8 @@ impl Default for RenderableContent {
             search_matches: Vec::new(),
             focused_match: None,
             search_bar: None,
+            vi_cursor: None,
+            line_indicator: None,
         }
     }
 }
@@ -1531,6 +1701,90 @@ mod tests {
         assert!(!backend.search_active());
         assert_eq!(lines(&backend), 20);
         assert_eq!(backend.selection().as_deref(), Some("needle"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn vi_mode_shows_its_cursor_and_where_it_is() {
+        use crate::search::SearchDirection;
+        use crate::vi::ViCommand;
+        use tankterm_terminal::grid::Dimensions;
+
+        // 30 lines and the cursor's on a screen of 10 lines, printed once it
+        // has its size: 21 lines of scrollback.
+        let mut backend = backend_running(
+            "stty -echo; printf ready; read x; printf '\\r\\033[K'; \
+             seq 1 30; exec cat",
+        );
+        eventually("the program waits", || {
+            backend.text().concat().contains("ready")
+        });
+        backend.handle(Command::Resize(
+            Some(Size::new(800., 160.)),
+            Some(Size::new(8., 16.)),
+        ));
+        backend.handle(Command::Write(b"\n".to_vec()));
+        eventually("the program prints its lines", || {
+            backend.term.lock().total_lines() == 31
+        });
+        let last = 30;
+        let content = |backend: &mut Backend| {
+            backend.sync();
+            let content = backend.renderable_content();
+            (content.vi_cursor, content.line_indicator.clone())
+        };
+        assert_eq!(content(&mut backend), (None, None));
+
+        // The vi cursor starts at the terminal's, on the last line.
+        backend.handle(Command::Vi(ViCommand::Toggle));
+        let cursor = backend.term.lock().grid().cursor.point;
+        let indicator = |line: usize| Some(format!("[{line}/{last}]"));
+        assert_eq!(content(&mut backend), (Some(cursor), indicator(0)));
+
+        // Paging takes the vi cursor along, to the start of its line.
+        backend.handle(Command::ScrollDisplay(Scroll::PageUp));
+        let (vi_cursor, line) = content(&mut backend);
+        assert_eq!(vi_cursor, Some(Point::new(cursor.line - 10, Column(0))));
+        assert_eq!(line, indicator(10));
+        assert_eq!(backend.renderable_content().grid.display_offset(), 10);
+
+        backend.handle(Command::ScrollHalfPageDown);
+        assert_eq!(content(&mut backend).1, indicator(5));
+        backend.handle(Command::ScrollDisplay(Scroll::Top));
+        assert_eq!(content(&mut backend).1, indicator(last));
+
+        // A click moves the vi cursor too; cells are 8 by 16 pixels.
+        backend.handle(Command::SelectStart(SelectionType::Simple, (20., 40.)));
+        let top = Line(-(backend.term.lock().grid().display_offset() as i32));
+        let (vi_cursor, _) = content(&mut backend);
+        assert_eq!(vi_cursor, Some(Point::new(top + 2, Column(2))));
+
+        // Leaving vi mode takes the cursor and the indicator away; a search
+        // outside vi mode shows how far the view is scrolled.
+        backend.handle(Command::Vi(ViCommand::Toggle));
+        assert_eq!(content(&mut backend), (None, None));
+        backend.handle(Command::ScrollDisplay(Scroll::Bottom));
+        let backward = SearchCommand::Start(SearchDirection::Backward);
+        backend.handle(Command::Search(backward));
+        assert_eq!(content(&mut backend), (None, indicator(0)));
+    }
+
+    #[test]
+    fn line_indicator_makes_way_for_the_vi_cursor() {
+        use tankterm_terminal::event::VoidListener;
+        use tankterm_terminal::term::Config;
+
+        let size = TermSize::new(20, 5);
+        let term = Term::new(Config::default(), &size, VoidListener);
+
+        let corner = Point::new(Line(0), Column(19));
+        assert_eq!(line_indicator(&term, Some(corner), false), None);
+        let next_line = Point::new(Line(1), Column(19));
+        let indicator = line_indicator(&term, Some(next_line), false);
+        assert_eq!(indicator.as_deref(), Some("[3/4]"));
+        let left = Point::new(Line(0), Column(14));
+        let indicator = line_indicator(&term, Some(left), false);
+        assert_eq!(indicator.as_deref(), Some("[4/4]"));
     }
 
     #[cfg(unix)]
