@@ -9,7 +9,9 @@ use iced_tterm::settings::{
     BackendSettings, CursorBlinking, CursorSettings, FontSettings, MouseSettings, ScrollSettings,
     SelectionSettings, Settings, ThemeSettings,
 };
-use iced_tterm::{CellColor, CellColors, ColorPalette, Elements, TextAttributes};
+use iced_tterm::{
+    CellColor, CellColors, ColorPalette, Elements, Hint, HintAction, HintSettings, TextAttributes,
+};
 use log::warn;
 
 use crate::cli::Options;
@@ -19,7 +21,7 @@ use crate::config::color::Colors;
 use crate::config::font::FontDescription;
 use crate::config::profile::Profile;
 use crate::config::style::{self, BarStyle, CellStyle, ElementStyles, Styles, TabBarStyles};
-use crate::config::ui_config::{Delta, Program};
+use crate::config::ui_config::{self, Delta, HintInternalAction, Program};
 
 /// Logical pixels per typographic point.
 ///
@@ -50,6 +52,38 @@ pub fn settings(config: &UiConfig, options: &Options) -> Settings {
         },
         mouse: MouseSettings { hide_when_typing: config.mouse.hide_when_typing },
         dynamic_padding: config.window.dynamic_padding,
+        hints: hint_settings(&config.hints),
+    }
+}
+
+/// The hints, with the label characters.
+fn hint_settings(hints: &ui_config::Hints) -> HintSettings {
+    let hint = |hint: &ui_config::Hint| Hint {
+        regex: hint.content.regex.as_ref().map(ui_config::LazyRegex::pattern),
+        hyperlinks: hint.content.hyperlinks,
+        post_processing: hint.post_processing,
+        persist: hint.persist,
+        action: match &hint.action {
+            ui_config::HintAction::Action(HintInternalAction::Copy) => HintAction::Copy,
+            ui_config::HintAction::Action(HintInternalAction::Paste) => HintAction::Paste,
+            ui_config::HintAction::Action(HintInternalAction::Select) => HintAction::Select,
+            ui_config::HintAction::Action(HintInternalAction::MoveViModeCursor) => {
+                HintAction::MoveViModeCursor
+            },
+            ui_config::HintAction::Command(program) => HintAction::Command {
+                program: program.program().to_owned(),
+                args: program.args().to_vec(),
+            },
+        },
+        mouse: hint
+            .mouse
+            .filter(|mouse| mouse.enabled)
+            .map(|mouse| iced_winit::conversion::modifiers(mouse.mods.0)),
+    };
+
+    HintSettings {
+        alphabet: hints.alphabet().to_owned(),
+        hints: hints.enabled.iter().map(|enabled| hint(enabled)).collect(),
     }
 }
 
@@ -361,6 +395,10 @@ fn elements(styles: &ElementStyles, bars: &Styles) -> Elements {
         search_match_attributes: text_attributes(&styles.search_match.attributes),
         search_focused_match: cell_colors(&styles.search_focused_match),
         search_focused_match_attributes: text_attributes(&styles.search_focused_match.attributes),
+        hint_start: cell_colors(&styles.hint_start),
+        hint_start_attributes: text_attributes(&styles.hint_start.attributes),
+        hint_end: cell_colors(&styles.hint_end),
+        hint_end_attributes: text_attributes(&styles.hint_end.attributes),
         vi_mode_cursor: cell_colors(&styles.vi_mode_cursor),
         footer_bar: bar(&bars.footer_bar),
         line_indicator: bar(&bars.line_indicator),

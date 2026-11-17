@@ -74,9 +74,12 @@ impl App {
 
         // The paste warning and the pane labels are answered with a key; nothing typed meanwhile
         // reaches a terminal. The key a vi mode inline search waits for is the character it
-        // moves to, whatever it is bound to. Key tables only apply to the regular bindings.
+        // moves to, and keys typed while hints are labeled choose one, whatever they are bound
+        // to. Key tables only apply to the regular bindings.
         let focused = self.focused_shell();
-        let inline_search = focused.is_some_and(|shell| shell.terminal.inline_search_pending());
+        let inline_search = focused.is_some_and(|shell| {
+            shell.terminal.inline_search_pending() || shell.terminal.hint_active()
+        });
         let (hotkeys, tables): (_, &[_]) =
             match (&self.pending_paste, &self.palette, &self.pane_select) {
                 (Some(_), ..) => (&self.paste_keys, &[]),

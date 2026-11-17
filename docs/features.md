@@ -21,8 +21,7 @@ file to change the various movements.
 
 The top right corner shows how many lines the vi cursor is above the last line,
 and the vi cursor takes the `[style.vi_mode_cursor]` colors and the
-`cursor.vi_mode_style` shape. Opening the URL under the vi cursor with
-<kbd>Enter</kbd> comes with hints, which the iced front end doesn't have yet.
+`cursor.vi_mode_style` shape.
 
 ### Selection
 
@@ -71,10 +70,17 @@ start vi mode. They consist of a regex that detects these text elements and then
 either feeds them to an external application or triggers one of TankTerm's
 built-in actions.
 
+A hint's key binding labels its matches, in the `[style.hint_start]` and
+`[style.hint_end]` styles, and typing a label triggers the hint for that match.
+<kbd>Escape</kbd> takes the labels away and <kbd>Backspace</kbd> takes back the
+last key typed. By default <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>o</kbd> labels
+the URLs.
+
 Hints can also be triggered using the mouse or vi mode cursor. If a hint is
 enabled for mouse interaction and recognized as such, it will be underlined when
 the mouse or vi mode cursor is on top of it. Using the left mouse button or
-<kbd>Enter</kbd> key in vi mode will then trigger the hint.
+<kbd>Enter</kbd> key in vi mode will then trigger the hint. The URI of a
+hyperlink underlined this way is shown at the bottom of the terminal.
 
 Hints can be configured in the `hints` and `colors.hints` sections in the
 TankTerm configuration file.

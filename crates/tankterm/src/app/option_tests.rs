@@ -451,7 +451,7 @@ fn window_actions_minimize_hide_and_quit() {
 /// Hand batches of events to the window's widgets, each with the pointer at its position.
 ///
 /// Returns the pointer's look after every batch, and the messages the widgets published.
-fn ui_events(
+pub(super) fn ui_events(
     app: &App,
     batches: &[((f32, f32), Vec<Event>)],
 ) -> (Vec<mouse::Interaction>, Vec<Message>) {
@@ -477,7 +477,7 @@ fn ui_events(
     (interactions, messages)
 }
 
-fn click(button: mouse::Button) -> Vec<Event> {
+pub(super) fn click(button: mouse::Button) -> Vec<Event> {
     vec![
         Event::Mouse(mouse::Event::ButtonPressed(button)),
         Event::Mouse(mouse::Event::ButtonReleased(button)),

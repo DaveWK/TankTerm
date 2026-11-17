@@ -23,6 +23,8 @@ use crate::session::Session;
 use crate::setup::ConfigSource;
 
 mod actions;
+#[cfg(all(test, unix))]
+mod hint_tests;
 #[cfg(unix)]
 mod ipc;
 #[cfg(all(test, unix))]

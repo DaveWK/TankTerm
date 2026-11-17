@@ -58,7 +58,6 @@ tabs and panes and sends and reads their text, like `wezterm cli`; see
 This front end is new and doesn't support everything the OpenGL one did yet:
 
 - `--daemon`, and the `create-window`, `config` and `get-config` messages of `tankTerm msg`
-- Hints, with the key binding actions that need them, the vi mode `Open` action among them
 - Key bindings to `SpawnNewInstance`, `CreateNewWindow` and `HideOtherApplications`; mouse
   bindings other than pasting and expanding the selection with the middle and right buttons
 - `colors.transparent_background_colors`

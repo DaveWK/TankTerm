@@ -132,6 +132,9 @@ pub enum AppAction {
     Search(SearchCommand),
     /// Enter or leave vi mode in the focused terminal, or act in it.
     Vi(ViCommand),
+    /// Label the text the hint at this position in the configuration finds in the focused
+    /// terminal, to choose one by typing its label.
+    Hint(usize),
     /// Write text to the focused terminal, as if it was typed (`chars`).
     Chars(Arc<str>),
     /// Start a program (`command`), in the directory of the focused terminal's shell where that
@@ -227,7 +230,7 @@ impl AppAction {
             }),
             Action::ToggleViMode => Self::Vi(ViCommand::Toggle),
             Action::ViMotion(motion) => Self::Vi(ViCommand::Motion(*motion)),
-            Action::Vi(action) => Self::Vi(vi_command(*action)?),
+            Action::Vi(action) => Self::Vi(vi_command(*action)),
             Action::Esc(chars) => Self::Chars(chars.as_str().into()),
             Action::Command(program) => Self::RunCommand(program.clone()),
             Action::Minimize => Self::Minimize,
@@ -238,10 +241,10 @@ impl AppAction {
     }
 }
 
-/// The widget's command for a vi mode action, if it has one. `Open` waits for hints.
-fn vi_command(action: ViAction) -> Option<ViCommand> {
+/// The widget's command for a vi mode action.
+fn vi_command(action: ViAction) -> ViCommand {
     let inline = |direction, stop_short| ViCommand::InlineSearch { direction, stop_short };
-    Some(match action {
+    match action {
         ViAction::ToggleNormalSelection => ViCommand::ToggleSelection(SelectionType::Simple),
         ViAction::ToggleLineSelection => ViCommand::ToggleSelection(SelectionType::Lines),
         ViAction::ToggleBlockSelection => ViCommand::ToggleSelection(SelectionType::Block),
@@ -259,8 +262,8 @@ fn vi_command(action: ViAction) -> Option<ViCommand> {
         ViAction::InlineSearchPrevious => ViCommand::InlineSearchPrevious,
         ViAction::SemanticSearchForward => ViCommand::SemanticSearch(SearchDirection::Forward),
         ViAction::SemanticSearchBackward => ViCommand::SemanticSearch(SearchDirection::Backward),
-        ViAction::Open => return None,
-    })
+        ViAction::Open => ViCommand::Open,
+    }
 }
 
 /// What a bound key does.
@@ -427,10 +430,15 @@ pub struct Leader {
 
 impl Hotkeys {
     /// Collect the bindings of the configuration the application handles: the default ones,
-    /// those of the selected preset and the user's.
+    /// those of the selected preset and the user's, and then the hints' bindings.
     pub fn from_config(config: &UiConfig) -> Self {
         let mut hotkeys =
             Self::from_bindings(&config.app_bindings(), Leader::from_config(config.leader()));
+        for (index, hint) in config.hints.enabled.iter().enumerate() {
+            if let Some(binding) = &hint.binding {
+                hotkeys.add(binding.key_binding(hint), Effect::Run(AppAction::Hint(index)));
+            }
+        }
         for (name, table) in config.key_tables() {
             hotkeys.tables.insert(name.clone(), Table::from_config(table));
         }
@@ -447,31 +455,37 @@ impl Hotkeys {
         let mut hotkeys = Self { leader, ..Self::default() };
 
         for binding in bindings {
-            let Some(effect) = Effect::from_config(&binding.action) else { continue };
-            let BindingKey::Keycode { key, location } = &binding.trigger else { continue };
-
-            let after_leader = binding.mode.contains(BindingMode::LEADER);
-            let bound = Bound {
-                key: normalize(&iced_winit::conversion::key(key.clone())),
-                modifiers: iced_winit::conversion::modifiers(binding.mods),
-                location: *location,
-                mode: binding.mode - BindingMode::LEADER,
-                notmode: binding.notmode - BindingMode::LEADER,
-                effect,
-            };
-
-            if !after_leader {
-                hotkeys.direct.push(bound);
-            } else if matches!(bound.effect, Effect::Run(_))
-                && !binding.notmode.contains(BindingMode::LEADER)
-            {
-                // Any other key after the leader key ends the sequence without reaching the
-                // terminal, so unbinding one needs no entry.
-                hotkeys.sequences.push(bound);
+            if let Some(effect) = Effect::from_config(&binding.action) {
+                hotkeys.add(binding, effect);
             }
         }
 
         hotkeys
+    }
+
+    /// Add the key of a binding, with what it does. Bindings to scancodes are left out.
+    fn add(&mut self, binding: &KeyBinding, effect: Effect) {
+        let BindingKey::Keycode { key, location } = &binding.trigger else { return };
+
+        let after_leader = binding.mode.contains(BindingMode::LEADER);
+        let bound = Bound {
+            key: normalize(&iced_winit::conversion::key(key.clone())),
+            modifiers: iced_winit::conversion::modifiers(binding.mods),
+            location: *location,
+            mode: binding.mode - BindingMode::LEADER,
+            notmode: binding.notmode - BindingMode::LEADER,
+            effect,
+        };
+
+        if !after_leader {
+            self.direct.push(bound);
+        } else if matches!(bound.effect, Effect::Run(_))
+            && !binding.notmode.contains(BindingMode::LEADER)
+        {
+            // Any other key after the leader key ends the sequence without reaching the
+            // terminal, so unbinding one needs no entry.
+            self.sequences.push(bound);
+        }
     }
 
     /// Add a key table with these bindings.
@@ -1739,9 +1753,36 @@ mod tests {
             runs(&[AppAction::Vi(ViCommand::Toggle), AppAction::Scroll(ScrollTo::Bottom)])
         );
 
-        // Opening what the vi cursor is on waits for hints: Enter has no binding in vi mode yet.
+        // Enter opens the hint under the vi cursor.
         let enter = keyboard::key::Named::Enter;
-        assert_eq!(pressed_named(&hotkeys, enter, Modifiers::empty(), vi), unbound());
+        assert_eq!(
+            pressed_named(&hotkeys, enter, Modifiers::empty(), vi),
+            runs(&[AppAction::Vi(ViCommand::Open)])
+        );
+    }
+
+    #[test]
+    fn hint_bindings_label_their_hint() {
+        let mut config = UiConfig::default();
+        let default = Hotkeys::from_config(&config);
+        let o = character("o");
+        assert_eq!(default.action(&o, CTRL_SHIFT), Some(AppAction::Hint(0)));
+
+        // Hints are numbered in the order of the configuration, and a hint without a binding
+        // has no key.
+        let hints: toml::Value = toml::from_str(
+            r#"
+            enabled = [
+                { regex = "x", action = "Copy" },
+                { regex = "y", action = "Select", binding = { key = "Y", mods = "Alt" } },
+            ]
+            "#,
+        )
+        .unwrap();
+        config.hints = serde::Deserialize::deserialize(hints).unwrap();
+        let hotkeys = Hotkeys::from_config(&config);
+        assert_eq!(hotkeys.action(&o, CTRL_SHIFT), None);
+        assert_eq!(hotkeys.action(&character("y"), Modifiers::ALT), Some(AppAction::Hint(1)));
     }
 
     #[test]

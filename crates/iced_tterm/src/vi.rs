@@ -57,6 +57,8 @@ pub enum ViCommand {
     /// Search for the selected text, or for the word under the vi cursor,
     /// and move to its next match in this direction.
     SemanticSearch(SearchDirection),
+    /// Choose the hint under the vi cursor, of those for the mouse.
+    Open,
 }
 
 /// The vi mode state the terminal doesn't keep itself.
@@ -170,6 +172,8 @@ impl Vi {
             ViCommand::SemanticSearch(direction) => {
                 seeded_search(term, search, direction.into())
             },
+            // The hints are the backend's.
+            ViCommand::Open => (),
         }
     }
 

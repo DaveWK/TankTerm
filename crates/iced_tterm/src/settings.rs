@@ -1,7 +1,7 @@
 use std::time::Duration;
 use std::{collections::HashMap, path::PathBuf};
 
-use crate::ColorPalette;
+use crate::{ColorPalette, HintSettings};
 use iced::{Font, Vector};
 use tankterm_terminal::term::SEMANTIC_ESCAPE_CHARS;
 use tankterm_terminal::vte::ansi::{CursorShape, CursorStyle};
@@ -25,6 +25,8 @@ pub struct Settings {
     /// by whole cells evenly between both sides, instead of leaving it all
     /// at the right and the bottom.
     pub dynamic_padding: bool,
+    /// Text found in the view to act on, and hyperlinks.
+    pub hints: HintSettings,
 }
 
 /// How text is selected with the mouse.

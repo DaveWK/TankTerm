@@ -726,6 +726,15 @@ pub struct HintMouse {
 pub struct LazyRegex(Rc<RefCell<LazyRegexVariant>>);
 
 impl LazyRegex {
+    /// The regex as it was written.
+    pub fn pattern(&self) -> String {
+        match &*self.0.borrow() {
+            LazyRegexVariant::Compiled(regex, _)
+            | LazyRegexVariant::Uncompilable(regex)
+            | LazyRegexVariant::Pattern(regex) => regex.clone(),
+        }
+    }
+
     /// Execute a function with the compiled regex DFAs as parameter.
     pub fn with_compiled<T, F>(&self, f: F) -> Option<T>
     where

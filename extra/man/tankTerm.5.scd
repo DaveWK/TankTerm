@@ -862,11 +862,12 @@ Each property of an element is taken from, in order:
 	. The matching *[colors]* setting, like _colors.selection.background_.
 	. TankTerm's default for the element.
 
-The iced front end draws _cursor_ and _selection_, _search_match_ and
-_search_focused_match_ with their text attributes, _footer_bar_ for the search
-bar, the tab bar elements, and their *[style.blurred]* blocks and
-*[style.blurred.text]*. The other elements belong to features it doesn't have
-yet.
+The iced front end draws _cursor_, _vi_mode_cursor_, _selection_,
+_search_match_, _search_focused_match_, _hint_start_ and _hint_end_ with their
+text attributes, _footer_bar_ for the search bar and the previews of
+hyperlinks, _line_indicator_, the tab bar elements, and their
+*[style.blurred]* blocks and *[style.blurred.text]*. The key help elements
+belong to a feature it doesn't have yet.
 
 *Elements*
 
@@ -1232,6 +1233,12 @@ This section documents the *[hints]* table of the configuration file.
 Terminal hints can be used to find text or hyperlinks in the visible part of the
 terminal and pipe it to other applications.
 
+A hint's _binding_ labels its matches. While the labels are shown, the keys
+typed choose a label, whatever they are bound to: _Escape_ and _Control+C_ take
+the labels away, and _Backspace_ takes the last key typed back. The URI of a
+hyperlink underlined under the mouse or the vi mode cursor is shown at the
+bottom of the terminal.
+
 *alphabet* = _"<string>"_
 
 	Keys used for the hint labels.
@@ -1422,8 +1429,8 @@ bindings = [++
 	_Paste_, _Copy_, _PasteSelection_, _CopySelection_, _ClearSelection_,
 	_IncreaseFontSize_, _DecreaseFontSize_, _ResetFontSize_, the _Scroll_
 	actions, _SelectCommandOutput_, _ClearHistory_, _SearchForward_,
-	_SearchBackward_, the search actions, _ToggleViMode_, the vi mode actions
-	but _Open_, _ToggleFullscreen_,
+	_SearchBackward_, the search actions, _ToggleViMode_, the vi mode actions,
+	_ToggleFullscreen_,
 	_ToggleMaximized_, _Minimize_,
 	_Hide_ and _Quit_. Bindings to the other actions and to scancodes are
 	ignored for now, and their keys are sent to the terminal. A character key
@@ -1634,8 +1641,7 @@ _https://docs.rs/winit/latest/winit/keyboard/enum.Key.html_
 		*SearchEnd*
 			Jump to the next end of a match to the right of the origin.
 		*Open*
-			Launch the URL below the vi mode cursor. Not supported by the iced
-			front end yet.
+			Launch the URL below the vi mode cursor.
 		*CenterAroundViCursor*
 			Centers the screen around the vi mode cursor.
 		*InlineSearchForward*

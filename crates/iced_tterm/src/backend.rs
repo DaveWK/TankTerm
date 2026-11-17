@@ -1,5 +1,6 @@
 use crate::actions::Action;
-use crate::search::{visible_regex_match_iter, Search, SearchCommand};
+use crate::hint::{HintAction, HintCommand, HintMatch, HintSettings, Hints};
+use crate::search::{Search, SearchCommand};
 use crate::settings::BackendSettings;
 use crate::theme::Theme;
 use crate::vi::{Vi, ViCommand};
@@ -8,7 +9,6 @@ use iced_core::Size;
 use std::borrow::Cow;
 use std::cmp::min;
 use std::io::Result;
-use std::ops::{Index, RangeInclusive};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tankterm_terminal::event::{
@@ -20,7 +20,7 @@ use tankterm_terminal::index::{Column, Direction, Line, Point, Side};
 use tankterm_terminal::selection::{Selection, SelectionRange, SelectionType};
 use tankterm_terminal::sync::FairMutex;
 use tankterm_terminal::term::cell::{Cell, Flags};
-use tankterm_terminal::term::search::{Match, RegexSearch};
+use tankterm_terminal::term::search::Match;
 use tankterm_terminal::term::{
     self, color::Colors, test::TermSize, viewport_to_point, Term, TermMode,
 };
@@ -53,8 +53,6 @@ pub(crate) fn paste_bytes(text: &str, bracketed: bool) -> Vec<u8> {
     out.extend_from_slice(b"\x1b[201~");
     out
 }
-
-const URL_REGEX: &str = r#"(ipfs:|ipns:|magnet:|mailto:|gemini://|gopher://|https://|http://|news:|file://|git://|ssh:|ftp://)[^\u{0000}-\u{001F}\u{007F}-\u{009F}<>"\s{-}\^⟨⟩`]+"#;
 
 #[derive(Debug, Clone)]
 pub enum Command {
@@ -102,7 +100,6 @@ pub enum Command {
     ExpandSelection(SelectionType, (f32, f32)),
     /// Drop the selection, if there is one.
     ClearSelection,
-    ProcessLink(LinkAction, Point),
     MouseReport(MouseButton, Modifiers, Point, bool),
     ProcessAlacrittyEvent(Event),
     /// Search the terminal's text. While the search bar is shown, it takes
@@ -110,6 +107,8 @@ pub enum Command {
     Search(SearchCommand),
     /// Enter or leave vi mode, or act in it.
     Vi(ViCommand),
+    /// Label hints, choose one, or tell the hints where the mouse is.
+    Hint(HintCommand),
 }
 
 #[derive(Debug, Clone)]
@@ -142,13 +141,6 @@ pub enum MouseButton {
     ScrollUp = 64,
     ScrollDown = 65,
     Other = 99,
-}
-
-#[derive(Debug, Clone)]
-pub enum LinkAction {
-    Clear,
-    Hover,
-    Open,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -245,9 +237,9 @@ pub struct Backend {
     /// The options the `Term` was last given.
     config: term::Config,
     last_content: RenderableContent,
-    pub(crate) url_regex: RegexSearch,
     search: Search,
     vi: Vi,
+    hints: Hints,
     /// The program started in the terminal and the PTY it talks to.
     #[cfg(unix)]
     process: Process,
@@ -314,13 +306,17 @@ impl Backend {
             terminal_size,
             cursor: cursor.clone(),
             cursor_style: term.cursor_style(),
-            hovered_hyperlink: None,
             colors: *term.colors(),
             search_matches: Vec::new(),
             focused_match: None,
             search_bar: None,
             vi_cursor: None,
             line_indicator: None,
+            hint_matches: Vec::new(),
+            hint_labels: Vec::new(),
+            hint_highlights: Vec::new(),
+            hint_hovered: false,
+            hyperlink_previews: Vec::new(),
         };
 
         let term = Arc::new(FairMutex::new(term));
@@ -344,9 +340,9 @@ impl Backend {
             notifier,
             config,
             last_content: initial_content,
-            url_regex: RegexSearch::new(URL_REGEX).expect("invalid url regexp"),
             search: Search::default(),
             vi: Vi::default(),
+            hints: Hints::default(),
             #[cfg(unix)]
             process,
         })
@@ -394,6 +390,21 @@ impl Backend {
 
         self.config.vi_mode_cursor_style = style;
         self.term.lock().set_options(self.config.clone());
+    }
+
+    /// Use these hints.
+    pub(crate) fn set_hints(&mut self, settings: HintSettings) {
+        self.hints.set(settings);
+    }
+
+    /// Whether hints are labeled, for keys to choose one.
+    pub fn hint_active(&self) -> bool {
+        self.hints.active()
+    }
+
+    /// Whether some hints are underlined under the mouse.
+    pub fn mouse_hints(&self) -> bool {
+        self.hints.for_mouse()
     }
 
     /// Whether the search bar is shown.
@@ -548,14 +559,16 @@ impl Backend {
                 self.update_selection(&mut term, x, y);
             },
             Command::ClearSelection => term.selection = None,
-            Command::ProcessLink(link_action, point) => {
-                self.process_link_action(&term, link_action, point);
-            },
             Command::MouseReport(button, modifiers, point, pressed) => {
                 self.process_mouse_report(button, modifiers, point, pressed);
             },
             Command::Search(command) => {
                 self.search.handle(&mut term, command);
+            },
+            Command::Vi(ViCommand::Open) => {
+                if let Some(found) = self.hints.under_vi_cursor(&term) {
+                    action = self.choose_hint(&mut term, found);
+                }
             },
             Command::Vi(command) => {
                 let offset = term.grid().display_offset();
@@ -564,6 +577,9 @@ impl Backend {
                 if center {
                     self.scrolled_from(&term, offset);
                 }
+            },
+            Command::Hint(command) => {
+                action = self.hint(&mut term, command);
             },
         };
 
@@ -620,46 +636,81 @@ impl Backend {
         self.search.scrolled(lines);
     }
 
-    fn process_link_action(
+    /// Act on a command for the hints.
+    fn hint(
         &mut self,
-        terminal: &Term<EventProxy>,
-        link_action: LinkAction,
-        point: Point,
-    ) {
-        match link_action {
-            LinkAction::Hover => {
-                self.last_content.hovered_hyperlink = self.regex_match_at(
-                    terminal,
-                    point,
-                    &mut self.url_regex.clone(),
-                );
+        terminal: &mut Term<EventProxy>,
+        command: HintCommand,
+    ) -> Action {
+        match command {
+            HintCommand::Start(index) => self.hints.start(terminal, index),
+            HintCommand::Input(text) => {
+                for c in text.chars() {
+                    if let Some(found) = self.hints.input(terminal, c) {
+                        return self.choose_hint(terminal, found);
+                    }
+                }
             },
-            LinkAction::Clear => {
-                self.last_content.hovered_hyperlink = None;
+            HintCommand::Backspace => self.hints.backspace(terminal),
+            HintCommand::Cancel => self.hints.stop(),
+            HintCommand::Pointer(pointer) => self.hints.set_pointer(pointer),
+            HintCommand::OpenHovered => {
+                if let Some(found) = self.hints.under_pointer(terminal) {
+                    return self.choose_hint(terminal, found);
+                }
             },
-            LinkAction::Open => {
-                self.open_link();
-            },
-        };
+        }
+
+        Action::Ignore
     }
 
-    fn open_link(&self) {
-        if let Some(range) = &self.last_content.hovered_hyperlink {
-            let start = range.start();
-            let end = range.end();
+    /// Do what a hint does with its text, as far as the terminal does it,
+    /// and tell the application the rest.
+    fn choose_hint(
+        &mut self,
+        terminal: &mut Term<EventProxy>,
+        found: HintMatch,
+    ) -> Action {
+        // The terminal may have changed since the hint was found.
+        let Some(text) = self.hints.text(terminal, &found) else {
+            return Action::Ignore;
+        };
+        let (start, end) = (*found.bounds().start(), *found.bounds().end());
 
-            let mut url = String::from(self.last_content.grid.index(*start).c);
-            for indexed in self.last_content.grid.iter_from(*start) {
-                url.push(indexed.c);
-                if indexed.point == *end {
-                    break;
+        let hint_action = self.hints.action(found.hint()).clone();
+        match &hint_action {
+            HintAction::Paste if self.search.active() => {
+                let text = text.replace(['\r', '\n'], "");
+                self.search.handle(terminal, SearchCommand::Input(text));
+            },
+            HintAction::Paste => {
+                let bracketed =
+                    terminal.mode().contains(TermMode::BRACKETED_PASTE);
+                self.write(paste_bytes(&text, bracketed));
+                terminal.scroll_display(Scroll::Bottom);
+            },
+            HintAction::Select => {
+                let mut selection =
+                    Selection::new(SelectionType::Simple, start, Side::Left);
+                selection.update(end, Side::Right);
+                terminal.selection = Some(selection);
+            },
+            HintAction::MoveViModeCursor => {
+                let offset = terminal.grid().display_offset();
+                if !terminal.mode().contains(TermMode::VI) {
+                    self.vi.handle(
+                        terminal,
+                        &mut self.search,
+                        ViCommand::Toggle,
+                    );
                 }
-            }
-
-            open::that(url).unwrap_or_else(|_| {
-                panic!("link opening is failed");
-            })
+                terminal.vi_goto_point(start);
+                self.scrolled_from(terminal, offset);
+            },
+            HintAction::Copy | HintAction::Command { .. } => (),
         }
+
+        Action::Hint(hint_action, text)
     }
 
     fn process_mouse_report(
@@ -1006,24 +1057,84 @@ impl Backend {
         self.last_content.focused_match = self.search.focused_match().cloned();
         self.last_content.search_bar =
             self.search.bar(self.size.num_cols as usize);
+
+        // The labels follow what the terminal shows.
+        self.hints.update(terminal);
+        let (matches, labels) = self.hints.labels();
+        self.last_content.hint_matches = matches.to_vec();
+        self.last_content.hint_labels = labels.to_vec();
+
+        let under_pointer = self.hints.under_pointer(terminal);
+        self.last_content.hint_hovered = under_pointer.is_some();
+        let under_vi_cursor = self.hints.under_vi_cursor(terminal);
+        self.last_content.hint_highlights =
+            under_pointer.into_iter().chain(under_vi_cursor).collect();
+        self.last_content.hyperlink_previews = hyperlink_previews(
+            terminal,
+            &self.last_content.hint_highlights,
+            self.hints.pointer_line(),
+        );
     }
 
     pub fn renderable_content(&self) -> &RenderableContent {
         &self.last_content
     }
+}
 
-    /// Based on alacritty/src/display/hint.rs > regex_match_at
-    /// Retrieve the match, if the specified point is inside the content matching the regex.
-    fn regex_match_at(
-        &self,
-        terminal: &Term<EventProxy>,
-        point: Point,
-        regex: &mut RegexSearch,
-    ) -> Option<Match> {
-        let x = visible_regex_match_iter(terminal, regex)
-            .find(|rm| rm.contains(&point));
-        x
+/// The URIs of the hyperlinks underlined under the mouse and the vi
+/// cursor, with the rows of the view they are shown on: from the bottom up,
+/// leaving out the rows of the mouse pointer and the vi cursor while there
+/// are rows enough. They are cut short to fit on a row.
+fn hyperlink_previews<T>(
+    terminal: &Term<T>,
+    highlights: &[HintMatch],
+    pointer_line: Option<usize>,
+) -> Vec<(usize, String)> {
+    let columns = terminal.columns();
+    let uris: Vec<String> = highlights
+        .iter()
+        .filter_map(HintMatch::uri)
+        .map(|uri| shorten(uri, columns))
+        .collect();
+    if uris.is_empty() {
+        return Vec::new();
     }
+
+    let screen_lines = terminal.screen_lines();
+    let mut taken = Vec::new();
+    if screen_lines > uris.len() * 2 {
+        let offset = terminal.grid().display_offset() as i32;
+        let vi_line = terminal
+            .mode()
+            .contains(TermMode::VI)
+            .then(|| terminal.vi_mode_cursor.point.line.0 + offset)
+            .and_then(|line| usize::try_from(line).ok());
+        taken.extend(pointer_line);
+        taken.extend(vi_line);
+    }
+
+    let rows = (0..screen_lines).rev().filter(|row| !taken.contains(row));
+    rows.zip(uris).collect()
+}
+
+/// `text`, cut short with an ellipsis to fit in `columns` cells.
+fn shorten(text: &str, columns: usize) -> String {
+    use unicode_width::UnicodeWidthChar;
+
+    if text.chars().map(|c| c.width().unwrap_or(0)).sum::<usize>() <= columns {
+        return text.to_owned();
+    }
+
+    let mut width = 0;
+    let mut short: String = text
+        .chars()
+        .take_while(|c| {
+            width += c.width().unwrap_or(0);
+            width < columns
+        })
+        .collect();
+    short.push('…');
+    short
 }
 
 /// The text of the line indicator: in vi mode, how many lines the vi cursor
@@ -1083,7 +1194,6 @@ pub(crate) fn color_request_reply(
 
 pub struct RenderableContent {
     pub grid: Grid<Cell>,
-    pub hovered_hyperlink: Option<RangeInclusive<Point>>,
     pub selectable_range: Option<SelectionRange>,
     pub cursor: Cell,
     /// The cursor's shape and whether it blinks, as the application in the
@@ -1107,13 +1217,24 @@ pub struct RenderableContent {
     /// Where the vi cursor or the view is in the buffer, for the top right
     /// corner of the view: in vi mode, and while the search bar is shown.
     pub line_indicator: Option<String>,
+    /// The labeled hints in the view, in order, while keys choose one.
+    pub hint_matches: Vec<Match>,
+    /// What is left of the label of each match in
+    /// [`Self::hint_matches`] after the keys typed.
+    pub hint_labels: Vec<Vec<char>>,
+    /// The hints underlined under the mouse and the vi cursor.
+    pub hint_highlights: Vec<HintMatch>,
+    /// Whether a hint is underlined under the mouse, for a click to choose.
+    pub hint_hovered: bool,
+    /// The URIs of the hyperlinks in [`Self::hint_highlights`], with the
+    /// rows of the view they are shown on.
+    pub hyperlink_previews: Vec<(usize, String)>,
 }
 
 impl Default for RenderableContent {
     fn default() -> Self {
         Self {
             grid: Grid::new(0, 0, 0),
-            hovered_hyperlink: None,
             selectable_range: None,
             cursor: Cell::default(),
             cursor_style: CursorStyle::default(),
@@ -1125,6 +1246,11 @@ impl Default for RenderableContent {
             search_bar: None,
             vi_cursor: None,
             line_indicator: None,
+            hint_matches: Vec::new(),
+            hint_labels: Vec::new(),
+            hint_highlights: Vec::new(),
+            hint_hovered: false,
+            hyperlink_previews: Vec::new(),
         }
     }
 }
@@ -1701,6 +1827,80 @@ mod tests {
         assert!(!backend.search_active());
         assert_eq!(lines(&backend), 20);
         assert_eq!(backend.selection().as_deref(), Some("needle"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn hints_are_chosen_by_label_mouse_and_vi_cursor() {
+        use crate::hint::{Hint, HintAction, HintCommand, HintSettings};
+        use crate::vi::ViCommand;
+
+        let mut backend = backend_running(
+            "printf 'go https://a.example and https://b.example\\n'; exec cat",
+        );
+        eventually("the program prints", || {
+            backend.text().concat().contains("b.example")
+        });
+        let hint = |action| Hint {
+            regex: Some("https://[a-z.]+".into()),
+            hyperlinks: false,
+            post_processing: false,
+            persist: false,
+            action,
+            mouse: Some(Modifiers::empty()),
+        };
+        backend.set_hints(HintSettings {
+            alphabet: "jf".into(),
+            hints: vec![
+                hint(HintAction::Copy),
+                hint(HintAction::Select),
+                hint(HintAction::MoveViModeCursor),
+            ],
+        });
+        let a = || Action::Hint(HintAction::Copy, "https://a.example".into());
+        let label = |backend: &mut Backend, label: &str| {
+            backend.handle(Command::Hint(HintCommand::Input(label.into())))
+        };
+
+        // The last match gets the shortest label.
+        backend.handle(Command::Hint(HintCommand::Start(0)));
+        backend.sync();
+        let labels = &backend.renderable_content().hint_labels;
+        assert_eq!(labels, &[vec!['f', 'j'], vec!['j']]);
+        assert_eq!(label(&mut backend, "f"), Action::Ignore);
+        assert_eq!(label(&mut backend, "j"), a());
+        assert!(!backend.hint_active());
+
+        backend.handle(Command::Hint(HintCommand::Start(1)));
+        let b = "https://b.example".to_owned();
+        let selected = Action::Hint(HintAction::Select, b.clone());
+        assert_eq!(label(&mut backend, "j"), selected);
+        assert_eq!(backend.selection(), Some(b.clone()));
+
+        // The mouse underlines the first hint for it, with nothing selected.
+        let pointer = (Point::new(0, Column(5)), Modifiers::empty());
+        backend.handle(Command::Hint(HintCommand::Pointer(Some(pointer))));
+        backend.sync();
+        assert!(!backend.renderable_content().hint_hovered);
+        backend.handle(Command::ClearSelection);
+        backend.sync();
+        assert!(backend.renderable_content().hint_hovered);
+        assert_eq!(
+            backend.handle(Command::Hint(HintCommand::OpenHovered)),
+            a()
+        );
+
+        backend.handle(Command::Hint(HintCommand::Pointer(None)));
+        backend.handle(Command::Hint(HintCommand::Start(2)));
+        let moved = Action::Hint(HintAction::MoveViModeCursor, b.clone());
+        assert_eq!(label(&mut backend, "j"), moved);
+        backend.sync();
+        let start = Point::new(Line(0), Column(25));
+        assert_eq!(backend.renderable_content().vi_cursor, Some(start));
+        assert_eq!(backend.renderable_content().hint_highlights.len(), 1);
+
+        let open = backend.handle(Command::Vi(ViCommand::Open));
+        assert_eq!(open, Action::Hint(HintAction::Copy, b));
     }
 
     #[cfg(unix)]

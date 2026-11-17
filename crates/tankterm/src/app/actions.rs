@@ -1,10 +1,11 @@
 //! Actions on the focused terminal and the window: copying and pasting, the font size,
-//! scrolling, typing text, running programs, and the window's state.
+//! scrolling, hints, typing text, running programs, and the window's state.
 
 use iced::{Task, window};
 use iced_core::clipboard::Kind;
+use iced_tterm::actions::Action;
 use iced_tterm::settings::FontSettings;
-use iced_tterm::{BackendCommand, Scroll, SearchCommand, ViCommand};
+use iced_tterm::{BackendCommand, HintAction, HintCommand, Scroll, SearchCommand, ViCommand};
 use log::warn;
 
 use super::{App, Message, Shell};
@@ -143,14 +144,49 @@ impl App {
             |app: &Self| app.focused_shell().and_then(|shell| shell.terminal.selection());
 
         let before = selection(self);
-        self.send_to_focused(BackendCommand::Vi(command));
+        let action = self.send_to_focused(BackendCommand::Vi(command));
         // Keys go to the terminal, also after the command palette toggled vi mode.
         let focus = self.focus();
+        if let Action::Hint(action, text) = action {
+            return Task::batch([self.hint_chosen(terminal, action, text), focus]);
+        }
         let after = selection(self);
         if after.is_none() || after == before {
             focus
         } else {
             Task::batch([self.copy_selection(terminal), focus])
+        }
+    }
+
+    /// Label the text in the focused terminal that the hint at `index` in the configuration
+    /// finds, to choose one by typing its label.
+    pub(super) fn hint(&mut self, index: usize) -> Task<Message> {
+        self.send_to_focused(BackendCommand::Hint(HintCommand::Start(index)));
+        // The keys typed next go to the terminal.
+        self.focus()
+    }
+
+    /// Do what a hint chosen in `terminal` does with its text, where the terminal didn't do it
+    /// itself: copy it, run a program with it, or put the hint it selected on the selection
+    /// clipboard as a selection made with the mouse is.
+    pub(super) fn hint_chosen(
+        &self,
+        terminal: u64,
+        action: HintAction,
+        text: String,
+    ) -> Task<Message> {
+        match action {
+            HintAction::Copy => iced::clipboard::write(text),
+            HintAction::Select => self.copy_selection(terminal),
+            HintAction::Command { program, mut args } => {
+                args.push(text);
+                let directory = self.terminals.get(&terminal).and_then(Shell::directory);
+                if let Err(err) = spawn_daemon(&program, &args, directory.as_deref()) {
+                    warn!("Unable to run the command {program:?}: {err}");
+                }
+                Task::none()
+            },
+            HintAction::Paste | HintAction::MoveViModeCursor => Task::none(),
         }
     }
 
@@ -188,10 +224,11 @@ impl App {
         }
     }
 
-    /// Hand a command to the focused terminal's backend.
-    fn send_to_focused(&mut self, command: BackendCommand) {
-        if let Some(shell) = self.focused_terminal().and_then(|id| self.terminals.get_mut(&id)) {
-            shell.terminal.handle(iced_tterm::Command::ProxyToBackend(command));
+    /// Hand a command to the focused terminal's backend, and give what it says is left to do.
+    fn send_to_focused(&mut self, command: BackendCommand) -> Action {
+        match self.focused_terminal().and_then(|id| self.terminals.get_mut(&id)) {
+            Some(shell) => shell.terminal.handle(iced_tterm::Command::ProxyToBackend(command)),
+            None => Action::Ignore,
         }
     }
 }

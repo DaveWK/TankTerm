@@ -1,9 +1,8 @@
-use crate::backend::{
-    Backend, Command, LinkAction, MouseButton, RenderableContent,
-};
+use crate::backend::{Backend, Command, MouseButton, RenderableContent};
 use crate::bindings::{BindingAction, BindingsLayout, InputKind};
 use crate::box_drawing;
 use crate::cursor::cursor_rectangles;
+use crate::hint::{HintCommand, LabelTracker};
 use crate::keyboard::{self, KeyInput, KeyState, KittyOutput};
 use crate::search::SearchCommand;
 use crate::terminal::{Event, Terminal};
@@ -150,13 +149,39 @@ impl<'a> TerminalView<'a> {
         column
     }
 
-    fn is_cursor_hovered_hyperlink(&self, state: &TerminalViewState) -> bool {
-        let content = self.term.backend.renderable_content();
-        if let Some(hyperlink_range) = &content.hovered_hyperlink {
-            return hyperlink_range.contains(&state.mouse_position_on_grid);
-        }
+    /// Tell the hints which cell the pointer is on now and which modifiers
+    /// are held, if that changed, so the hint under it is underlined. They
+    /// are told it isn't on the terminal while the pointer is elsewhere or
+    /// hidden, or the terminal doesn't have the keyboard focus.
+    fn hint_pointer(
+        &self,
+        state: &mut TerminalViewState,
+        layout: iced_graphics::core::Layout<'_>,
+        cursor: Cursor,
+    ) -> Option<Command> {
+        let shown = self.term.backend.mouse_hints()
+            && state.is_focused()
+            && !state.pointer_hidden
+            && self.is_cursor_in_layout(cursor, layout);
+        let pointer = cursor.position().filter(|_| shown).map(|position| {
+            let origin = self.grid_origin(layout);
+            let content = self.term.backend.renderable_content();
+            let point = Backend::selection_point(
+                position.x - origin.x,
+                position.y - origin.y,
+                &content.terminal_size,
+                0,
+            );
+            let point =
+                TerminalGridPoint::new(point.line.0 as usize, point.column);
+            (point, state.keyboard_modifiers)
+        });
 
-        false
+        if pointer == state.hint_pointer {
+            return None;
+        }
+        state.hint_pointer = pointer;
+        Some(Command::Hint(HintCommand::Pointer(pointer)))
     }
 
     fn handle_resize(
@@ -242,6 +267,10 @@ impl<'a> TerminalView<'a> {
                     grid_origin,
                     &mut commands,
                 );
+                // A click that drops a selection doesn't choose a hint.
+                if terminal_content.selectable_range.is_some() {
+                    state.hint_click = false;
+                }
             },
             iced_core::mouse::Event::CursorMoved { position } => {
                 if !state.is_focused() {
@@ -266,7 +295,6 @@ impl<'a> TerminalView<'a> {
                 Self::handle_button_released(
                     state,
                     &terminal_mode,
-                    &self.term.bindings,
                     &mut commands,
                 );
             },
@@ -292,6 +320,9 @@ impl<'a> TerminalView<'a> {
         grid_origin: Point,
         commands: &mut Vec<Command>,
     ) {
+        // A click chooses the hint under the mouse when the button is
+        // released, unless the mouse moved meanwhile.
+        state.hint_click = true;
         let cmd = if terminal_mode.intersects(TermMode::MOUSE_MODE) {
             Command::MouseReport(
                 MouseButton::LeftButton,
@@ -310,6 +341,7 @@ impl<'a> TerminalView<'a> {
                 mouse::click::Kind::Double => SelectionType::Semantic,
                 mouse::click::Kind::Triple => SelectionType::Lines,
             };
+            state.hint_click = selection_type == SelectionType::Simple;
             state.last_click = Some(current_click);
             Command::SelectStart(
                 selection_type,
@@ -361,12 +393,16 @@ impl<'a> TerminalView<'a> {
     ) {
         let cursor_x = position.x - grid_origin.x;
         let cursor_y = position.y - grid_origin.y;
-        state.mouse_position_on_grid = Backend::selection_point(
+        let point = Backend::selection_point(
             cursor_x,
             cursor_y,
             &terminal_content.terminal_size,
             terminal_content.grid.display_offset(),
         );
+        if point != state.mouse_position_on_grid {
+            state.hint_click = false;
+        }
+        state.mouse_position_on_grid = point;
 
         // Handle command or selection update based on terminal mode and modifiers
         if state.is_dragged {
@@ -390,20 +426,11 @@ impl<'a> TerminalView<'a> {
             };
             commands.push(cmd);
         }
-
-        // Handle link hover if applicable
-        if state.keyboard_modifiers == Modifiers::COMMAND {
-            commands.push(Command::ProcessLink(
-                LinkAction::Hover,
-                state.mouse_position_on_grid,
-            ));
-        }
     }
 
     fn handle_button_released(
         state: &mut TerminalViewState,
         terminal_mode: &TermMode,
-        bindings: &BindingsLayout, // Use the actual type of your bindings here
         commands: &mut Vec<Command>,
     ) {
         state.is_dragged = false;
@@ -417,16 +444,9 @@ impl<'a> TerminalView<'a> {
             ));
         }
 
-        if bindings.get_action(
-            InputKind::Mouse(iced_core::mouse::Button::Left),
-            state.keyboard_modifiers,
-            *terminal_mode,
-        ) == BindingAction::LinkOpen
-        {
-            commands.push(Command::ProcessLink(
-                LinkAction::Open,
-                state.mouse_position_on_grid,
-            ));
+        // The terminal knows whether there is a hint under the mouse.
+        if std::mem::take(&mut state.hint_click) {
+            commands.push(Command::Hint(HintCommand::OpenHovered));
         }
     }
 
@@ -469,15 +489,7 @@ impl<'a> TerminalView<'a> {
         let input = match event {
             iced::keyboard::Event::ModifiersChanged(m) => {
                 state.keyboard_modifiers = *m;
-                let action = if state.keyboard_modifiers == Modifiers::COMMAND {
-                    LinkAction::Hover
-                } else {
-                    LinkAction::Clear
-                };
-                return Some(Command::ProcessLink(
-                    action,
-                    state.mouse_position_on_grid,
-                ));
+                return None;
             },
             iced::keyboard::Event::KeyPressed {
                 key,
@@ -514,6 +526,11 @@ impl<'a> TerminalView<'a> {
                 state: KeyState::Released,
             },
         };
+
+        // While hints are labeled, keys type into the labels.
+        if self.term.backend.hint_active() {
+            return hint_input(&input).map(Command::Hint);
+        }
 
         // While the search bar is shown, keys type into it and the terminal
         // gets none.
@@ -563,6 +580,28 @@ fn mouse_modes(mode: TermMode) -> TermMode {
         mode - TermMode::MOUSE_MODE
     } else {
         mode
+    }
+}
+
+/// What a key typed while hints are labeled does: Escape and Control+C take
+/// the labels away, Backspace takes the last character typed back, and
+/// other keys type their text into the labels.
+fn hint_input(input: &KeyInput<'_>) -> Option<HintCommand> {
+    use iced_core::keyboard::key::Named;
+
+    if input.state == KeyState::Released {
+        return None;
+    }
+
+    match input.key {
+        Key::Named(Named::Escape) => Some(HintCommand::Cancel),
+        Key::Named(Named::Backspace) => Some(HintCommand::Backspace),
+        Key::Character(c)
+            if input.modifiers.control() && c.eq_ignore_ascii_case("c") =>
+        {
+            Some(HintCommand::Cancel)
+        },
+        _ => Some(HintCommand::Input(input.text?.to_owned())),
     }
 }
 
@@ -811,7 +850,7 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
 
     fn draw(
         &self,
-        tree: &Tree,
+        _tree: &Tree,
         renderer: &mut iced::Renderer,
         _theme: &Theme,
         _style: &iced::advanced::renderer::Style,
@@ -819,7 +858,6 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
         _cursor: Cursor,
         viewport: &Rectangle,
     ) {
-        let state = tree.state.downcast_ref::<TerminalViewState>();
         let content = self.term.backend.renderable_content();
         let term_size = content.terminal_size;
         let cell_width = term_size.cell_width as f32;
@@ -872,6 +910,12 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
             // Lines where a prompt starts, marked at the left edge.
             let mut prompts: Vec<(i32, cell::CommandStatus)> = Vec::new();
             let mut matches = MatchTracker::new(&content.search_matches);
+            let mut hint_labels = LabelTracker::new(
+                &content.hint_matches,
+                &content.hint_labels,
+                content.grid.display_offset(),
+                term_size.columns(),
+            );
 
             for indexed in content.grid.display_iter() {
                 // Compute per-cell geometry cheaply
@@ -892,7 +936,20 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                     .selectable_range
                     .is_some_and(|r| r.contains(indexed.point));
                 let in_match = matches.contains(indexed.point);
-                let highlight = if selected {
+                // A hint's label goes over its first cells, over everything
+                // else, and the rest of the hint is underlined.
+                let label = hint_labels.at(indexed.point);
+                let c = match label {
+                    Some((Some(c), _)) => c,
+                    _ => indexed.c,
+                };
+                let highlight = if let Some((Some(_), first)) = label {
+                    Some(if first {
+                        (elements.hint_start, elements.hint_start_attributes)
+                    } else {
+                        (elements.hint_end, elements.hint_end_attributes)
+                    })
+                } else if selected {
                     Some((elements.selection, elements.selection_attributes))
                 } else if in_match {
                     let focused = content
@@ -1018,11 +1075,18 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                         .with_layout_offset_y(layout_offset_y);
                 }
 
-                // Draw hovered hyperlink underline (rare; keep per-cell for correctness)
-                if content.hovered_hyperlink.as_ref().is_some_and(|range| {
-                    range.contains(&indexed.point)
-                        && range.contains(&state.mouse_position_on_grid)
-                }) || indexed.cell.flags.contains(cell::Flags::UNDERLINE)
+                // Hints under the mouse and the vi cursor are underlined,
+                // and so are labeled hints past their label.
+                let hint_underline = matches!(label, Some((None, _)))
+                    || (!content.hint_highlights.is_empty()
+                        && content.hint_highlights.iter().any(|hint| {
+                            hint.contains(
+                                indexed.point,
+                                indexed.cell.hyperlink().as_ref(),
+                            )
+                        }));
+                if hint_underline
+                    || indexed.cell.flags.contains(cell::Flags::UNDERLINE)
                     || attributes.underline
                 {
                     // Inside the cell, where the next line's background
@@ -1077,7 +1141,7 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                 }
 
                 // Draw text
-                if indexed.c != ' ' && indexed.c != '\t' {
+                if c != ' ' && c != '\t' {
                     // The glyph under the block cursor takes the theme's
                     // cursor text color, on the cell's own colors before
                     // INVERSE and the selection, so it contrasts with the
@@ -1090,17 +1154,16 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                         fg = cursor_colors.foreground.on(cell_fg, cell_bg);
                     }
                     if self.term.font.builtin_box_drawing
-                        && box_drawing::is_builtin(indexed.c)
+                        && box_drawing::is_builtin(c)
                     {
                         // On whole pixels, so the shapes of neighbouring
                         // cells meet without a seam.
                         let origin = Point::new(x.round(), y.round());
                         let mut opacity = 0.;
                         let glyph = Path::new(|path| {
-                            opacity = box_drawing::draw(
-                                indexed.c, cell_size, origin, path,
-                            )
-                            .unwrap_or(0.);
+                            opacity =
+                                box_drawing::draw(c, cell_size, origin, path)
+                                    .unwrap_or(0.);
                         });
                         builtin_glyphs.push((glyph, fg.scale_alpha(opacity)));
                         continue;
@@ -1114,7 +1177,7 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                     );
                     let glyph_offset = self.term.font.glyph_offset;
                     let text = Text {
-                        content: indexed.cell.c.to_string(),
+                        content: c.to_string(),
                         position: Point::new(
                             cell_center_x + glyph_offset.x,
                             cell_center_y + glyph_offset.y,
@@ -1225,6 +1288,25 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                 );
                 self.draw_cell_text(frame, indicator, origin, fg);
             }
+
+            // The URIs of the hyperlinks under the mouse and the vi cursor.
+            for (row, uri) in &content.hyperlink_previews {
+                let colors = elements.footer_bar;
+                let fg = colors.foreground.on(default_fg, default_bg);
+                let bg = colors.background.on(default_fg, default_bg);
+                let width: usize =
+                    uri.chars().map(|c| c.width().unwrap_or(0)).sum();
+                let origin = Point::new(
+                    layout_offset_x,
+                    layout_offset_y + *row as f32 * cell_height,
+                );
+                frame.fill_rectangle(
+                    origin,
+                    Size::new(width as f32 * cell_width, cell_height),
+                    bg,
+                );
+                self.draw_cell_text(frame, uri, origin, fg);
+            }
         });
 
         use iced::advanced::graphics::geometry::Renderer as _;
@@ -1314,7 +1396,9 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
             shell.capture_event();
         }
 
-        for cmd in commands {
+        // Where the pointer is doesn't take the event from other widgets.
+        let pointer = self.hint_pointer(state, layout, cursor);
+        for cmd in commands.into_iter().chain(pointer) {
             shell.publish(Event::BackendCall(self.term.id, cmd));
         }
 
@@ -1345,7 +1429,7 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
             cursor_mode = iced_core::mouse::Interaction::Text;
         }
 
-        if self.is_cursor_hovered_hyperlink(state) {
+        if self.term.backend.renderable_content().hint_hovered {
             cursor_mode = iced_core::mouse::Interaction::Pointer;
         }
 
@@ -1371,6 +1455,13 @@ struct TerminalViewState {
     terminal_id: u64,
     /// The pointer was hidden for typing and the mouse hasn't moved since.
     pointer_hidden: bool,
+    /// The cell of the view the hints were told the pointer is on, with the
+    /// modifiers held.
+    hint_pointer: Option<(TerminalGridPoint<usize>, Modifiers)>,
+    /// Whether releasing the left button chooses the hint under the mouse:
+    /// the press was a single click that didn't drop a selection, and the
+    /// mouse stayed on its cell.
+    hint_click: bool,
 }
 
 impl TerminalViewState {
@@ -1385,6 +1476,8 @@ impl TerminalViewState {
             mouse_position_on_grid: TerminalGridPoint::default(),
             terminal_id,
             pointer_hidden: false,
+            hint_pointer: None,
+            hint_click: false,
         }
     }
 }
@@ -2309,41 +2402,37 @@ mod tests {
         }
 
         #[test]
-        fn generates_drag_update_and_link_open() {
+        fn moving_off_the_clicked_cell_keeps_the_click_from_hints() {
             let mut state = TerminalViewState::new(0);
-            state.keyboard_modifiers = Modifiers::COMMAND;
-            state.is_dragged = true; // Simulate an ongoing drag operation
-            let terminal_content = RenderableContent {
-                terminal_mode: TermMode::SGR_MOUSE,
-                ..Default::default()
-            };
+            state.is_dragged = true;
+            state.hint_click = true;
+            let terminal_content = RenderableContent::default();
             let layout_position = Point { x: 5.0, y: 5.0 };
-            let cursor_position = Point { x: 100.0, y: 150.0 };
             let mut commands = Vec::new();
 
+            // Within the cell the click was on, it still counts.
+            let on_cell = Point { x: 5.5, y: 5.5 };
             TerminalView::handle_cursor_moved(
                 &mut state,
                 &terminal_content,
-                &cursor_position,
+                &on_cell,
                 layout_position,
                 &mut commands,
             );
+            assert!(state.hint_click);
 
-            assert_eq!(commands.len(), 2);
-            assert!(matches!(
-                commands[0],
-                Command::SelectUpdate((95.0, 145.0))
-            ));
-            assert!(matches!(
-                commands[1],
-                Command::ProcessLink(
-                    LinkAction::Hover,
-                    TerminalGridPoint {
-                        line: Line(49),
-                        column: Column(79),
-                    },
-                )
-            ));
+            let elsewhere = Point { x: 100.0, y: 150.0 };
+            TerminalView::handle_cursor_moved(
+                &mut state,
+                &terminal_content,
+                &elsewhere,
+                layout_position,
+                &mut commands,
+            );
+            assert!(!state.hint_click);
+            assert!(commands
+                .iter()
+                .all(|command| matches!(command, Command::SelectUpdate(_))));
         }
     }
 
@@ -2355,14 +2444,12 @@ mod tests {
         fn mouse_mode_activated() {
             let mut state = TerminalViewState::new(0);
             let terminal_mode = TermMode::MOUSE_MODE;
-            let bindings = BindingsLayout::new();
             let mut commands = Vec::new();
             let _modifiers = Modifiers::empty();
 
             TerminalView::handle_button_released(
                 &mut state,
                 &terminal_mode,
-                &bindings,
                 &mut commands,
             );
 
@@ -2382,75 +2469,50 @@ mod tests {
         }
 
         #[test]
-        fn link_open_on_button_release() {
+        fn a_click_chooses_the_hint_under_the_mouse() {
             let mut state = TerminalViewState::new(0);
-            state.keyboard_modifiers = Modifiers::COMMAND;
-            let terminal_mode = TermMode::MOUSE_MODE;
-            let bindings = BindingsLayout::new();
+            state.hint_click = true;
             let mut commands = Vec::new();
-            let _modifiers = Modifiers::empty();
 
             TerminalView::handle_button_released(
                 &mut state,
-                &terminal_mode,
-                &bindings,
+                &TermMode::empty(),
                 &mut commands,
             );
+            assert!(matches!(
+                &commands[..],
+                [Command::Hint(HintCommand::OpenHovered)]
+            ));
 
-            assert_eq!(commands.len(), 2);
-            assert!(matches!(
-                commands[0],
-                Command::MouseReport(
-                    MouseButton::LeftButton,
-                    _modifiers,
-                    TerminalGridPoint {
-                        line: Line(0),
-                        column: Column(0)
-                    },
-                    false
-                )
-            ));
-            assert!(matches!(
-                commands[1],
-                Command::ProcessLink(
-                    LinkAction::Open,
-                    TerminalGridPoint {
-                        line: Line(0),
-                        column: Column(0)
-                    }
-                ),
-            ));
+            // Releasing the button once more isn't another click.
+            commands.clear();
+            TerminalView::handle_button_released(
+                &mut state,
+                &TermMode::empty(),
+                &mut commands,
+            );
+            assert!(commands.is_empty());
         }
 
         #[test]
-        fn link_open_on_button_release_in_non_mouse_mode() {
+        fn a_reported_click_chooses_a_hint_too() {
             let mut state = TerminalViewState::new(0);
-            state.keyboard_modifiers = Modifiers::COMMAND;
-            state.mouse_position_on_grid = TerminalGridPoint {
-                line: Line(4),
-                column: Column(10),
-            };
-            let terminal_mode = TermMode::empty(); // Assume SGR_MOUSE mode doesn't affect link opening
-            let bindings = BindingsLayout::new();
+            state.hint_click = true;
             let mut commands = Vec::new();
 
+            // The terminal underlines hints in mouse mode only while Shift
+            // is held, and knows whether there is one.
             TerminalView::handle_button_released(
                 &mut state,
-                &terminal_mode,
-                &bindings,
+                &TermMode::MOUSE_MODE,
                 &mut commands,
             );
-
-            assert_eq!(commands.len(), 1);
             assert!(matches!(
-                commands[0],
-                Command::ProcessLink(
-                    LinkAction::Open,
-                    TerminalGridPoint {
-                        line: Line(4),
-                        column: Column(10)
-                    }
-                ),
+                &commands[..],
+                [
+                    Command::MouseReport(MouseButton::LeftButton, ..),
+                    Command::Hint(HintCommand::OpenHovered)
+                ]
             ));
         }
     }

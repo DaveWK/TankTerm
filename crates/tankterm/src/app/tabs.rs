@@ -266,6 +266,7 @@ impl App {
             AppAction::CopySelection => return self.copy_to_selection(),
             AppAction::Search(command) => return self.search(command),
             AppAction::Vi(command) => return self.vi(command),
+            AppAction::Hint(index) => return self.hint(index),
             AppAction::ClearSelection => {
                 self.clear_selection();
                 return Task::none();

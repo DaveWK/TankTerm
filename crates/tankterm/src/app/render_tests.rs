@@ -219,6 +219,46 @@ fn vi_mode() {
 
 #[test]
 #[ignore = "writes screenshots for manual inspection"]
+fn hints() {
+    use iced_tterm::{AlacrittyPoint, HintCommand};
+    use tankterm_terminal::index::Column;
+
+    let Some(dir) = env::var_os("TANKTERM_SNAPSHOT_DIR").map(PathBuf::from) else { return };
+    let window = Size::new(600., 160.);
+
+    // URLs with punctuation after them, and a hyperlink.
+    let config = r#"
+        [terminal]
+        shell = { program = "sh", args = ["-c", 'printf "see https://one.example/a, https://two.example.\nand (https://three.example/x)\nread the \033]8;;https://docs.example/a/long/path\007docs\033]8;;\007 here\n"; exec cat'] }
+
+        [[hints.enabled]]
+        regex = "https://[^ ]+"
+        hyperlinks = true
+        post_processing = true
+        action = "Copy"
+        mouse = { enabled = true }
+    "#;
+    let mut app = super::tab_tests::app_with(config, Hotkeys::default());
+    settle(&mut app, window);
+
+    let mut send = |command| {
+        let _ = app.update(Message::Terminal(iced_tterm::Event::BackendCall(0, command)));
+    };
+    send(BackendCommand::Hint(HintCommand::Start(0)));
+    snapshot(&app, window, &dir, "hints");
+
+    // The hyperlink under the mouse is underlined, and its URI shown at the bottom.
+    let mut send = |command| {
+        let _ = app.update(Message::Terminal(iced_tterm::Event::BackendCall(0, command)));
+    };
+    send(BackendCommand::Hint(HintCommand::Cancel));
+    let pointer = (AlacrittyPoint::new(2, Column(10)), iced::keyboard::Modifiers::empty());
+    send(BackendCommand::Hint(HintCommand::Pointer(Some(pointer))));
+    snapshot(&app, window, &dir, "hint-hovered");
+}
+
+#[test]
+#[ignore = "writes screenshots for manual inspection"]
 fn prompt_marks() {
     let Some(dir) = env::var_os("TANKTERM_SNAPSHOT_DIR").map(PathBuf::from) else { return };
     let window = Size::new(600., 200.);

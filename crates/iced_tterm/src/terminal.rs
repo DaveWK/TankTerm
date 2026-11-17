@@ -3,6 +3,7 @@ use crate::backend;
 use crate::bindings::{Binding, BindingAction, BindingsLayout, InputKind};
 use crate::cursor::Cursor;
 use crate::font::TermFont;
+use crate::hint::{HintCommand, HintSettings};
 use crate::search::SearchCommand;
 use crate::settings::{
     CursorSettings, FontSettings, MouseSettings, ScrollSettings,
@@ -54,6 +55,8 @@ pub enum Command {
     /// Change whether the grid is centred in the widget; see
     /// [`Settings::dynamic_padding`].
     ChangeDynamicPadding(bool),
+    /// Change the hints. Labels shown for the old ones are taken away.
+    ChangeHints(HintSettings),
     /// Tell the terminal whether it has the keyboard focus. Without it the
     /// cursor doesn't blink and is drawn hollow, if the settings say so. A
     /// new terminal has the focus.
@@ -107,6 +110,7 @@ impl Terminal {
             &settings.selection.semantic_escape_chars,
         );
         backend.set_vi_cursor_style(cursor.settings.vi_mode_style);
+        backend.set_hints(settings.hints);
 
         Ok(Self {
             id,
@@ -168,6 +172,12 @@ impl Terminal {
     /// The next key typed is that character, whatever it is bound to.
     pub fn inline_search_pending(&self) -> bool {
         self.backend.inline_search_pending()
+    }
+
+    /// Whether hints are labeled. The keys typed meanwhile choose one by
+    /// its label, whatever they are bound to.
+    pub fn hint_active(&self) -> bool {
+        self.backend.hint_active()
     }
 
     /// The shape the cursor is drawn with right now:
@@ -312,6 +322,7 @@ impl Terminal {
             Command::ChangeDynamicPadding(dynamic) => {
                 self.dynamic_padding = dynamic;
             },
+            Command::ChangeHints(hints) => self.backend.set_hints(hints),
             Command::WindowFocus(focused) => self.window_focused = focused,
             Command::Focus(focused) => {
                 self.cursor.set_focused(focused, Instant::now());
@@ -350,7 +361,13 @@ impl Terminal {
                 match &cmd {
                     backend::Command::Write(_)
                     | backend::Command::Paste(_)
-                    | backend::Command::Vi(_) => {
+                    | backend::Command::Vi(_)
+                    | backend::Command::Hint(
+                        HintCommand::Start(_)
+                        | HintCommand::Input(_)
+                        | HintCommand::Backspace
+                        | HintCommand::Cancel,
+                    ) => {
                         self.cursor.typed(Instant::now());
                     },
                     // The application changed whether the cursor blinks.

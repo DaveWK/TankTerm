@@ -147,6 +147,7 @@ impl App {
                 iced_tterm::Command::ChangeSelection(settings.selection.clone()),
                 iced_tterm::Command::ChangeMouse(settings.mouse),
                 iced_tterm::Command::ChangeDynamicPadding(settings.dynamic_padding),
+                iced_tterm::Command::ChangeHints(settings.hints.clone()),
                 iced_tterm::Command::AddBindings(bindings.clone()),
             ] {
                 shell.terminal.handle(command);
@@ -437,6 +438,7 @@ impl App {
                     Action::Shutdown if shell.hold => (),
                     Action::Shutdown => return self.close_terminal(id),
                     Action::ChangeTitle(title) => shell.title = Some(title),
+                    Action::Hint(action, text) => return self.hint_chosen(id, action, text),
                     Action::Ignore => (),
                 }
 

@@ -5,7 +5,7 @@ use iced::Size;
 use iced::keyboard::key::{Named, NativeCode, Physical};
 use iced::keyboard::{Event, Key, Location, Modifiers};
 use iced_test::simulator::{self, Simulator};
-use iced_tterm::{BackendCommand, SearchCommand, SearchDirection};
+use iced_tterm::{BackendCommand, HintCommand, SearchCommand, SearchDirection};
 
 use super::tab_tests::{app_with, perform, wait_for_text};
 use super::*;
@@ -57,6 +57,11 @@ pub(super) fn press(app: &App, keys: &[(Key, Modifiers)]) -> Vec<Message> {
                         BackendCommand::Write(_)
                             | BackendCommand::Search(_)
                             | BackendCommand::Vi(_)
+                            | BackendCommand::Hint(
+                                HintCommand::Input(_)
+                                    | HintCommand::Backspace
+                                    | HintCommand::Cancel
+                            )
                     ))
             )
         })
