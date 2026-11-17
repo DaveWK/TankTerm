@@ -94,6 +94,20 @@ Notable changes to the `tankterm_terminal` crate are documented in its
     failed command; `ScrollToPreviousPrompt`, `ScrollToNextPrompt` and `SelectCommandOutput` move
     between prompts and select a command's output. Finished commands are noticed from the marks,
     and new tabs and panes start in the reported directory, on every platform
+- Scrollback search in the iced front end: `SearchForward` and `SearchBackward` open a bar on the
+    terminal's last row, and the search actions, its history and the `search_match`,
+    `search_focused_match` and `footer_bar` styles work as they did in the OpenGL front end.
+    The command palette offers both searches
+- Vi mode in the iced front end: `ToggleViMode`, the motions, selections, copying, searching from
+    vi mode and the vi mode actions. The `vi_mode_cursor` and `line_indicator` styles and
+    `cursor.vi_mode_style` apply, and the command palette offers "Toggle Vi Mode"
+- Hints in the iced front end: a hint's `binding` labels its matches to choose one by typing its
+    label, a hint for the mouse is underlined under the pointer with its `mouse.mods` held and
+    chosen with a click, and the vi mode `Open` action chooses the one under the vi cursor.
+    `Copy`, `Paste`, `Select`, `MoveViModeCursor` and `command` hints work, the `hint_start` and
+    `hint_end` styles apply, and the URIs of hyperlinks under the mouse or the vi cursor are shown
+    at the bottom of the terminal. URLs open with a plain click and with `Control+Shift+O`, as the
+    default URL hint says, instead of with `Control`+click
 
 ### Changed
 

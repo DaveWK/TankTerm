@@ -1,12 +1,14 @@
 use crate::actions::Action;
+use crate::hint::{HintAction, HintCommand, HintMatch, HintSettings, Hints};
+use crate::search::{Search, SearchCommand};
 use crate::settings::BackendSettings;
 use crate::theme::Theme;
+use crate::vi::{Vi, ViCommand};
 use iced::keyboard::Modifiers;
 use iced_core::Size;
 use std::borrow::Cow;
 use std::cmp::min;
 use std::io::Result;
-use std::ops::{Index, RangeInclusive};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tankterm_terminal::event::{
@@ -17,11 +19,12 @@ use tankterm_terminal::grid::{Dimensions, Scroll};
 use tankterm_terminal::index::{Column, Direction, Line, Point, Side};
 use tankterm_terminal::selection::{Selection, SelectionRange, SelectionType};
 use tankterm_terminal::sync::FairMutex;
-use tankterm_terminal::term::search::{Match, RegexIter, RegexSearch};
+use tankterm_terminal::term::cell::{Cell, Flags};
+use tankterm_terminal::term::search::Match;
 use tankterm_terminal::term::{
-    self, cell::Cell, color::Colors, test::TermSize, viewport_to_point, Term,
-    TermMode,
+    self, color::Colors, test::TermSize, viewport_to_point, Term, TermMode,
 };
+use tankterm_terminal::vi_mode::ViMotion;
 use tankterm_terminal::vte::ansi::{ClearMode, CursorStyle, Handler, Rgb};
 use tankterm_terminal::{tty, Grid};
 use tokio::sync::mpsc;
@@ -51,8 +54,6 @@ pub(crate) fn paste_bytes(text: &str, bracketed: bool) -> Vec<u8> {
     out
 }
 
-const URL_REGEX: &str = r#"(ipfs:|ipns:|magnet:|mailto:|gemini://|gopher://|https://|http://|news:|file://|git://|ssh:|ftp://)[^\u{0000}-\u{001F}\u{007F}-\u{009F}<>"\s{-}\^⟨⟩`]+"#;
-
 #[derive(Debug, Clone)]
 pub enum Command {
     Write(Vec<u8>),
@@ -69,8 +70,13 @@ pub enum Command {
     /// alternate screen, applications that asked for it get arrow keys
     /// instead.
     Scroll(i32),
-    /// Move the view through the scrollback buffer.
+    /// Move the view through the scrollback buffer. In vi mode, scrolling
+    /// by pages or to the top or bottom takes the vi cursor along.
     ScrollDisplay(Scroll),
+    /// Scroll up half a screen, taking the vi cursor along in vi mode.
+    ScrollHalfPageUp,
+    /// Scroll down half a screen, taking the vi cursor along in vi mode.
+    ScrollHalfPageDown,
     /// Drop the scrollback buffer, keeping what is on the screen.
     ClearHistory,
     /// Scroll the view to put the prompt before the top of the view at
@@ -94,9 +100,15 @@ pub enum Command {
     ExpandSelection(SelectionType, (f32, f32)),
     /// Drop the selection, if there is one.
     ClearSelection,
-    ProcessLink(LinkAction, Point),
     MouseReport(MouseButton, Modifiers, Point, bool),
     ProcessAlacrittyEvent(Event),
+    /// Search the terminal's text. While the search bar is shown, it takes
+    /// the terminal's last row.
+    Search(SearchCommand),
+    /// Enter or leave vi mode, or act in it.
+    Vi(ViCommand),
+    /// Label hints, choose one, or tell the hints where the mouse is.
+    Hint(HintCommand),
 }
 
 #[derive(Debug, Clone)]
@@ -131,19 +143,14 @@ pub enum MouseButton {
     Other = 99,
 }
 
-#[derive(Debug, Clone)]
-pub enum LinkAction {
-    Clear,
-    Hover,
-    Open,
-}
-
 #[derive(Clone, Copy, Debug)]
 pub struct TerminalSize {
     pub cell_width: u16,
     pub cell_height: u16,
     num_cols: u16,
     num_lines: u16,
+    /// Rows below the grid that the search bar takes.
+    bar_lines: u16,
     layout_width: f32,
     layout_height: f32,
 }
@@ -155,6 +162,7 @@ impl Default for TerminalSize {
             cell_height: 1,
             num_cols: 80,
             num_lines: 50,
+            bar_lines: 0,
             layout_width: 80.0,
             layout_height: 50.0,
         }
@@ -165,8 +173,9 @@ impl TerminalSize {
     /// How far the grid is moved into `space` to centre it: half of what
     /// whole cells leave over on each axis, in whole pixels.
     ///
-    /// A grid bigger than `space`, which it is for a moment while the
-    /// terminal hasn't been resized yet, isn't moved.
+    /// The search bar below the grid is centred along with it. A grid
+    /// bigger than `space`, which it is for a moment while the terminal
+    /// hasn't been resized yet, isn't moved.
     pub fn centring_offset(&self, space: Size<f32>) -> iced_core::Vector {
         let half_left_over = |space: f32, cell: u16, cells: u16| {
             ((space - f32::from(cell) * f32::from(cells)) / 2.)
@@ -176,7 +185,11 @@ impl TerminalSize {
 
         iced_core::Vector::new(
             half_left_over(space.width, self.cell_width, self.num_cols),
-            half_left_over(space.height, self.cell_height, self.num_lines),
+            half_left_over(
+                space.height,
+                self.cell_height,
+                self.num_lines + self.bar_lines,
+            ),
         )
     }
 }
@@ -224,7 +237,9 @@ pub struct Backend {
     /// The options the `Term` was last given.
     config: term::Config,
     last_content: RenderableContent,
-    pub(crate) url_regex: RegexSearch,
+    search: Search,
+    vi: Vi,
+    hints: Hints,
     /// The program started in the terminal and the PTY it talks to.
     #[cfg(unix)]
     process: Process,
@@ -291,8 +306,17 @@ impl Backend {
             terminal_size,
             cursor: cursor.clone(),
             cursor_style: term.cursor_style(),
-            hovered_hyperlink: None,
             colors: *term.colors(),
+            search_matches: Vec::new(),
+            focused_match: None,
+            search_bar: None,
+            vi_cursor: None,
+            line_indicator: None,
+            hint_matches: Vec::new(),
+            hint_labels: Vec::new(),
+            hint_highlights: Vec::new(),
+            hint_hovered: false,
+            hyperlink_previews: Vec::new(),
         };
 
         let term = Arc::new(FairMutex::new(term));
@@ -316,7 +340,9 @@ impl Backend {
             notifier,
             config,
             last_content: initial_content,
-            url_regex: RegexSearch::new(URL_REGEX).expect("invalid url regexp"),
+            search: Search::default(),
+            vi: Vi::default(),
+            hints: Hints::default(),
             #[cfg(unix)]
             process,
         })
@@ -353,6 +379,49 @@ impl Backend {
 
         self.config.default_cursor_style = style;
         self.term.lock().set_options(self.config.clone());
+    }
+
+    /// Change the style the cursor has in vi mode; without one, it is the
+    /// cursor's style outside vi mode.
+    pub(crate) fn set_vi_cursor_style(&mut self, style: Option<CursorStyle>) {
+        if self.config.vi_mode_cursor_style == style {
+            return;
+        }
+
+        self.config.vi_mode_cursor_style = style;
+        self.term.lock().set_options(self.config.clone());
+    }
+
+    /// Use these hints.
+    pub(crate) fn set_hints(&mut self, settings: HintSettings) {
+        self.hints.set(settings);
+    }
+
+    /// Whether hints are labeled, for keys to choose one.
+    pub fn hint_active(&self) -> bool {
+        self.hints.active()
+    }
+
+    /// Whether some hints are underlined under the mouse.
+    pub fn mouse_hints(&self) -> bool {
+        self.hints.for_mouse()
+    }
+
+    /// Whether the search bar is shown.
+    pub fn search_active(&self) -> bool {
+        self.search.active()
+    }
+
+    /// Whether a vi mode inline search waits for the character to move to.
+    pub fn inline_search_pending(&self) -> bool {
+        self.vi.inline_search_pending()
+    }
+
+    /// While the search while typing found no match in the lines it looked
+    /// at, a number that changes with the regex. The whole buffer is
+    /// searched on [`SearchCommand::Resume`].
+    pub fn search_pending(&self) -> Option<u64> {
+        self.search.pending()
     }
 
     /// The terminal's modes as they are right now, not as of the last sync.
@@ -408,6 +477,7 @@ impl Backend {
         let mut action = Action::default();
         let term = self.term.clone();
         let mut term = term.lock();
+        let search_shown = self.search.active();
         match cmd {
             Command::ProcessAlacrittyEvent(event) => {
                 match event {
@@ -436,16 +506,34 @@ impl Backend {
                 self.scroll(&mut term, delta);
             },
             Command::ScrollDisplay(scroll) => {
-                term.scroll_display(scroll);
+                let screen = term.screen_lines() as i32;
+                let cursor_lines = match scroll {
+                    Scroll::PageUp => screen,
+                    Scroll::PageDown => -screen,
+                    _ => 0,
+                };
+                self.scroll_display(&mut term, scroll, cursor_lines);
+            },
+            Command::ScrollHalfPageUp => {
+                let lines = term.screen_lines() as i32 / 2;
+                self.scroll_display(&mut term, Scroll::Delta(lines), lines);
+            },
+            Command::ScrollHalfPageDown => {
+                let lines = -(term.screen_lines() as i32 / 2);
+                self.scroll_display(&mut term, Scroll::Delta(lines), lines);
             },
             Command::ClearHistory => {
                 term.clear_screen(ClearMode::Saved);
             },
             Command::ScrollToPreviousPrompt => {
+                let offset = term.grid().display_offset();
                 term.scroll_to_prompt(Direction::Left);
+                self.scrolled_from(&term, offset);
             },
             Command::ScrollToNextPrompt => {
+                let offset = term.grid().display_offset();
                 term.scroll_to_prompt(Direction::Right);
+                self.scrolled_from(&term, offset);
             },
             Command::SelectCommandOutput => {
                 term.select_command_output();
@@ -471,57 +559,158 @@ impl Backend {
                 self.update_selection(&mut term, x, y);
             },
             Command::ClearSelection => term.selection = None,
-            Command::ProcessLink(link_action, point) => {
-                self.process_link_action(&term, link_action, point);
-            },
             Command::MouseReport(button, modifiers, point, pressed) => {
                 self.process_mouse_report(button, modifiers, point, pressed);
             },
+            Command::Search(command) => {
+                self.search.handle(&mut term, command);
+            },
+            Command::Vi(ViCommand::Open) => {
+                if let Some(found) = self.hints.under_vi_cursor(&term) {
+                    action = self.choose_hint(&mut term, found);
+                }
+            },
+            Command::Vi(command) => {
+                let offset = term.grid().display_offset();
+                let center = command == ViCommand::CenterAroundCursor;
+                self.vi.handle(&mut term, &mut self.search, command);
+                if center {
+                    self.scrolled_from(&term, offset);
+                }
+            },
+            Command::Hint(command) => {
+                action = self.hint(&mut term, command);
+            },
         };
+
+        // The search bar takes a row from the terminal or gives it back.
+        if self.search.active() != search_shown {
+            self.resize(&mut term, None, None);
+        }
 
         action
     }
 
-    fn process_link_action(
+    /// Scroll the view. In vi mode, the vi cursor moves `cursor_lines` up
+    /// with it, to the first character on its line, and scrolling to the
+    /// top or bottom takes it to the first or last line, as in Alacritty.
+    fn scroll_display(
         &mut self,
-        terminal: &Term<EventProxy>,
-        link_action: LinkAction,
-        point: Point,
+        terminal: &mut Term<EventProxy>,
+        scroll: Scroll,
+        cursor_lines: i32,
     ) {
-        match link_action {
-            LinkAction::Hover => {
-                self.last_content.hovered_hyperlink = self.regex_match_at(
-                    terminal,
-                    point,
-                    &mut self.url_regex.clone(),
-                );
-            },
-            LinkAction::Clear => {
-                self.last_content.hovered_hyperlink = None;
-            },
-            LinkAction::Open => {
-                self.open_link();
-            },
-        };
+        let offset = terminal.grid().display_offset();
+        if terminal.mode().contains(TermMode::VI) && cursor_lines != 0 {
+            let cursor = terminal.vi_mode_cursor;
+            terminal.vi_mode_cursor = cursor.scroll(terminal, cursor_lines);
+        }
+
+        terminal.scroll_display(scroll);
+
+        if terminal.mode().contains(TermMode::VI) {
+            match scroll {
+                Scroll::Top => {
+                    terminal.vi_mode_cursor.point.line =
+                        terminal.topmost_line();
+                    terminal.vi_motion(ViMotion::FirstOccupied);
+                },
+                Scroll::Bottom => {
+                    terminal.vi_mode_cursor.point.line =
+                        terminal.bottommost_line();
+                    // Twice, to get past a line that wraps.
+                    terminal.vi_motion(ViMotion::FirstOccupied);
+                    terminal.vi_motion(ViMotion::FirstOccupied);
+                },
+                _ => (),
+            }
+        }
+
+        self.scrolled_from(terminal, offset);
     }
 
-    fn open_link(&self) {
-        if let Some(range) = &self.last_content.hovered_hyperlink {
-            let start = range.start();
-            let end = range.end();
+    /// Tell the search the view was scrolled from `offset` other than by
+    /// the search.
+    fn scrolled_from(&mut self, terminal: &Term<EventProxy>, offset: usize) {
+        let lines = offset as i32 - terminal.grid().display_offset() as i32;
+        self.search.scrolled(lines);
+    }
 
-            let mut url = String::from(self.last_content.grid.index(*start).c);
-            for indexed in self.last_content.grid.iter_from(*start) {
-                url.push(indexed.c);
-                if indexed.point == *end {
-                    break;
+    /// Act on a command for the hints.
+    fn hint(
+        &mut self,
+        terminal: &mut Term<EventProxy>,
+        command: HintCommand,
+    ) -> Action {
+        match command {
+            HintCommand::Start(index) => self.hints.start(terminal, index),
+            HintCommand::Input(text) => {
+                for c in text.chars() {
+                    if let Some(found) = self.hints.input(terminal, c) {
+                        return self.choose_hint(terminal, found);
+                    }
                 }
-            }
-
-            open::that(url).unwrap_or_else(|_| {
-                panic!("link opening is failed");
-            })
+            },
+            HintCommand::Backspace => self.hints.backspace(terminal),
+            HintCommand::Cancel => self.hints.stop(),
+            HintCommand::Pointer(pointer) => self.hints.set_pointer(pointer),
+            HintCommand::OpenHovered => {
+                if let Some(found) = self.hints.under_pointer(terminal) {
+                    return self.choose_hint(terminal, found);
+                }
+            },
         }
+
+        Action::Ignore
+    }
+
+    /// Do what a hint does with its text, as far as the terminal does it,
+    /// and tell the application the rest.
+    fn choose_hint(
+        &mut self,
+        terminal: &mut Term<EventProxy>,
+        found: HintMatch,
+    ) -> Action {
+        // The terminal may have changed since the hint was found.
+        let Some(text) = self.hints.text(terminal, &found) else {
+            return Action::Ignore;
+        };
+        let (start, end) = (*found.bounds().start(), *found.bounds().end());
+
+        let hint_action = self.hints.action(found.hint()).clone();
+        match &hint_action {
+            HintAction::Paste if self.search.active() => {
+                let text = text.replace(['\r', '\n'], "");
+                self.search.handle(terminal, SearchCommand::Input(text));
+            },
+            HintAction::Paste => {
+                let bracketed =
+                    terminal.mode().contains(TermMode::BRACKETED_PASTE);
+                self.write(paste_bytes(&text, bracketed));
+                terminal.scroll_display(Scroll::Bottom);
+            },
+            HintAction::Select => {
+                let mut selection =
+                    Selection::new(SelectionType::Simple, start, Side::Left);
+                selection.update(end, Side::Right);
+                terminal.selection = Some(selection);
+            },
+            HintAction::MoveViModeCursor => {
+                let offset = terminal.grid().display_offset();
+                if !terminal.mode().contains(TermMode::VI) {
+                    self.vi.handle(
+                        terminal,
+                        &mut self.search,
+                        ViCommand::Toggle,
+                    );
+                }
+                terminal.vi_goto_point(start);
+                self.scrolled_from(terminal, offset);
+            },
+            HintAction::Copy | HintAction::Command { .. } => (),
+        }
+
+        Action::Hint(hint_action, text)
     }
 
     fn process_mouse_report(
@@ -624,6 +813,11 @@ impl Backend {
             location,
             self.selection_side(x),
         ));
+
+        // In vi mode, the vi cursor goes where the mouse is.
+        if terminal.mode().contains(TermMode::VI) && !self.search.active() {
+            terminal.vi_mode_cursor.point = location;
+        }
     }
 
     fn update_selection(
@@ -633,10 +827,20 @@ impl Backend {
         y: f32,
     ) {
         let display_offset = terminal.grid().display_offset();
-        if let Some(ref mut selection) = terminal.selection {
-            let location =
-                Self::selection_point(x, y, &self.size, display_offset);
-            selection.update(location, self.selection_side(x));
+        let vi_mode =
+            terminal.mode().contains(TermMode::VI) && !self.search.active();
+        let location = Self::selection_point(x, y, &self.size, display_offset);
+        let side = self.selection_side(x);
+        let Some(selection) = &mut terminal.selection else {
+            return;
+        };
+        selection.update(location, side);
+
+        // In vi mode, the vi cursor goes where the mouse is, and the cell
+        // under it is selected.
+        if vi_mode {
+            selection.include_all();
+            terminal.vi_mode_cursor.point = location;
         }
     }
 
@@ -692,12 +896,20 @@ impl Backend {
             return;
         }
 
+        // The search bar takes the last row.
         let lines = (self.size.layout_height / self.size.cell_height as f32)
             .floor() as u16;
+        let bar_lines = u16::from(self.search.active());
+        let lines = lines.saturating_sub(bar_lines);
         let cols = (self.size.layout_width / self.size.cell_width as f32)
             .floor() as u16;
         if lines > 0 && cols > 0 {
+            if (lines, cols) != (self.size.num_lines, self.size.num_cols) {
+                // The focused match isn't where it was in a resized grid.
+                self.search.clear_focused_match();
+            }
             self.size.num_lines = lines;
+            self.size.bar_lines = bar_lines;
             self.size.num_cols = cols;
             self.notifier.on_resize(self.size.into());
             terminal.resize(TermSize::new(
@@ -729,7 +941,10 @@ impl Backend {
 
                 self.notifier.notify(content);
             } else {
-                terminal.grid_mut().scroll_display(scroll);
+                let offset = terminal.grid().display_offset();
+                // The terminal keeps the vi cursor in the view.
+                terminal.scroll_display(scroll);
+                self.scrolled_from(terminal, offset);
             }
         }
     }
@@ -812,32 +1027,140 @@ impl Backend {
             None => None,
         };
 
-        let cursor = terminal.grid_mut().cursor_cell().clone();
+        // In vi mode, the vi cursor is the one shown.
+        let vi_cursor = terminal.mode().contains(TermMode::VI).then(|| {
+            let mut point = terminal.vi_mode_cursor.point;
+            if terminal.grid()[point]
+                .flags
+                .contains(Flags::WIDE_CHAR_SPACER)
+            {
+                point.column -= 1;
+            }
+            point
+        });
+        let cursor = match vi_cursor {
+            Some(point) => terminal.grid()[point].clone(),
+            None => terminal.grid_mut().cursor_cell().clone(),
+        };
         self.last_content.grid = terminal.grid().clone();
         self.last_content.selectable_range = selectable_range;
-        self.last_content.cursor = cursor.clone();
+        self.last_content.cursor = cursor;
+        self.last_content.vi_cursor = vi_cursor;
+        self.last_content.line_indicator =
+            line_indicator(terminal, vi_cursor, self.search.active());
         self.last_content.cursor_style = terminal.cursor_style();
         self.last_content.terminal_mode = *terminal.mode();
         self.last_content.terminal_size = self.size;
         self.last_content.colors = *terminal.colors();
+        self.last_content.search_matches =
+            self.search.visible_matches(terminal);
+        self.last_content.focused_match = self.search.focused_match().cloned();
+        self.last_content.search_bar =
+            self.search.bar(self.size.num_cols as usize);
+
+        // The labels follow what the terminal shows.
+        self.hints.update(terminal);
+        let (matches, labels) = self.hints.labels();
+        self.last_content.hint_matches = matches.to_vec();
+        self.last_content.hint_labels = labels.to_vec();
+
+        let under_pointer = self.hints.under_pointer(terminal);
+        self.last_content.hint_hovered = under_pointer.is_some();
+        let under_vi_cursor = self.hints.under_vi_cursor(terminal);
+        self.last_content.hint_highlights =
+            under_pointer.into_iter().chain(under_vi_cursor).collect();
+        self.last_content.hyperlink_previews = hyperlink_previews(
+            terminal,
+            &self.last_content.hint_highlights,
+            self.hints.pointer_line(),
+        );
     }
 
     pub fn renderable_content(&self) -> &RenderableContent {
         &self.last_content
     }
+}
 
-    /// Based on alacritty/src/display/hint.rs > regex_match_at
-    /// Retrieve the match, if the specified point is inside the content matching the regex.
-    fn regex_match_at(
-        &self,
-        terminal: &Term<EventProxy>,
-        point: Point,
-        regex: &mut RegexSearch,
-    ) -> Option<Match> {
-        let x = visible_regex_match_iter(terminal, regex)
-            .find(|rm| rm.contains(&point));
-        x
+/// The URIs of the hyperlinks underlined under the mouse and the vi
+/// cursor, with the rows of the view they are shown on: from the bottom up,
+/// leaving out the rows of the mouse pointer and the vi cursor while there
+/// are rows enough. They are cut short to fit on a row.
+fn hyperlink_previews<T>(
+    terminal: &Term<T>,
+    highlights: &[HintMatch],
+    pointer_line: Option<usize>,
+) -> Vec<(usize, String)> {
+    let columns = terminal.columns();
+    let uris: Vec<String> = highlights
+        .iter()
+        .filter_map(HintMatch::uri)
+        .map(|uri| shorten(uri, columns))
+        .collect();
+    if uris.is_empty() {
+        return Vec::new();
     }
+
+    let screen_lines = terminal.screen_lines();
+    let mut taken = Vec::new();
+    if screen_lines > uris.len() * 2 {
+        let offset = terminal.grid().display_offset() as i32;
+        let vi_line = terminal
+            .mode()
+            .contains(TermMode::VI)
+            .then(|| terminal.vi_mode_cursor.point.line.0 + offset)
+            .and_then(|line| usize::try_from(line).ok());
+        taken.extend(pointer_line);
+        taken.extend(vi_line);
+    }
+
+    let rows = (0..screen_lines).rev().filter(|row| !taken.contains(row));
+    rows.zip(uris).collect()
+}
+
+/// `text`, cut short with an ellipsis to fit in `columns` cells.
+fn shorten(text: &str, columns: usize) -> String {
+    use unicode_width::UnicodeWidthChar;
+
+    if text.chars().map(|c| c.width().unwrap_or(0)).sum::<usize>() <= columns {
+        return text.to_owned();
+    }
+
+    let mut width = 0;
+    let mut short: String = text
+        .chars()
+        .take_while(|c| {
+            width += c.width().unwrap_or(0);
+            width < columns
+        })
+        .collect();
+    short.push('…');
+    short
+}
+
+/// The text of the line indicator: in vi mode, how many lines the vi cursor
+/// is above the last line, and otherwise while searching, how far the view
+/// is scrolled; out of the buffer's lines.
+///
+/// In vi mode it is left out while it would cover the vi cursor.
+fn line_indicator<T>(
+    terminal: &Term<T>,
+    vi_cursor: Option<Point>,
+    searching: bool,
+) -> Option<String> {
+    let offset = terminal.grid().display_offset();
+    let line = match vi_cursor {
+        Some(point) => (terminal.bottommost_line() - point.line).0 as usize,
+        None if searching => offset,
+        None => return None,
+    };
+
+    let text = format!("[{}/{}]", line, terminal.total_lines() - 1);
+    let column = terminal.columns().saturating_sub(text.len());
+    let covers_cursor = vi_cursor.is_some_and(|point| {
+        point.line.0 == -(offset as i32) && point.column.0 >= column
+    });
+
+    (!covers_cursor).then_some(text)
 }
 
 /// The configuration of the widget's `Term`, keeping at most `scrollback`
@@ -869,28 +1192,8 @@ pub(crate) fn color_request_reply(
     theme.rgb_for_index(index, overrides).map(formatter)
 }
 
-/// Copied from alacritty/src/display/hint.rs:
-/// Iterate over all visible regex matches.
-fn visible_regex_match_iter<'a>(
-    term: &'a Term<EventProxy>,
-    regex: &'a mut RegexSearch,
-) -> impl Iterator<Item = Match> + 'a {
-    let viewport_start = Line(-(term.grid().display_offset() as i32));
-    let viewport_end = viewport_start + term.bottommost_line();
-    let mut start =
-        term.line_search_left(Point::new(viewport_start, Column(0)));
-    let mut end = term.line_search_right(Point::new(viewport_end, Column(0)));
-    start.line = start.line.max(viewport_start - 100);
-    end.line = end.line.min(viewport_end + 100);
-
-    RegexIter::new(start, end, Direction::Right, term, regex)
-        .skip_while(move |rm| rm.end().line < viewport_start)
-        .take_while(move |rm| rm.start().line <= viewport_end)
-}
-
 pub struct RenderableContent {
     pub grid: Grid<Cell>,
-    pub hovered_hyperlink: Option<RangeInclusive<Point>>,
     pub selectable_range: Option<SelectionRange>,
     pub cursor: Cell,
     /// The cursor's shape and whether it blinks, as the application in the
@@ -901,19 +1204,53 @@ pub struct RenderableContent {
     /// Colors the application changed at runtime (OSC 4/10/11/12); `None`
     /// entries use the theme's palette.
     pub colors: Colors,
+    /// The search's matches in the view, and in the lines next to it for
+    /// those that reach into it, in order.
+    pub search_matches: Vec<Match>,
+    /// The search match the view was scrolled to.
+    pub focused_match: Option<Match>,
+    /// The search bar's text, while it is shown on the row below the grid.
+    pub search_bar: Option<String>,
+    /// Where the vi cursor is, in vi mode. It is drawn instead of the
+    /// terminal's cursor, with the vi cursor's colors.
+    pub vi_cursor: Option<Point>,
+    /// Where the vi cursor or the view is in the buffer, for the top right
+    /// corner of the view: in vi mode, and while the search bar is shown.
+    pub line_indicator: Option<String>,
+    /// The labeled hints in the view, in order, while keys choose one.
+    pub hint_matches: Vec<Match>,
+    /// What is left of the label of each match in
+    /// [`Self::hint_matches`] after the keys typed.
+    pub hint_labels: Vec<Vec<char>>,
+    /// The hints underlined under the mouse and the vi cursor.
+    pub hint_highlights: Vec<HintMatch>,
+    /// Whether a hint is underlined under the mouse, for a click to choose.
+    pub hint_hovered: bool,
+    /// The URIs of the hyperlinks in [`Self::hint_highlights`], with the
+    /// rows of the view they are shown on.
+    pub hyperlink_previews: Vec<(usize, String)>,
 }
 
 impl Default for RenderableContent {
     fn default() -> Self {
         Self {
             grid: Grid::new(0, 0, 0),
-            hovered_hyperlink: None,
             selectable_range: None,
             cursor: Cell::default(),
             cursor_style: CursorStyle::default(),
             terminal_mode: TermMode::empty(),
             terminal_size: TerminalSize::default(),
             colors: Colors::default(),
+            search_matches: Vec::new(),
+            focused_match: None,
+            search_bar: None,
+            vi_cursor: None,
+            line_indicator: None,
+            hint_matches: Vec::new(),
+            hint_labels: Vec::new(),
+            hint_highlights: Vec::new(),
+            hint_hovered: false,
+            hyperlink_previews: Vec::new(),
         }
     }
 }
@@ -1451,6 +1788,203 @@ mod tests {
         assert_eq!(size(&backend), (100, 20));
         backend.handle(Command::Resize(None, Some(Size::new(10., 32.))));
         assert_eq!(size(&backend), (80, 10));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn search_bar_takes_a_row_and_shows_the_matches() {
+        use crate::search::SearchDirection;
+        use tankterm_terminal::grid::Dimensions;
+
+        let mut backend = backend_running("printf needle; exec cat");
+        let lines = |backend: &Backend| backend.term.lock().screen_lines();
+        backend.handle(Command::Resize(
+            Some(Size::new(800., 320.)),
+            Some(Size::new(8., 16.)),
+        ));
+        assert_eq!(lines(&backend), 20);
+
+        let forward = SearchCommand::Start(SearchDirection::Forward);
+        backend.handle(Command::Search(forward));
+        assert!(backend.search_active());
+        assert_eq!(lines(&backend), 19);
+
+        eventually("the program prints its needle", || {
+            backend.sync();
+            backend.text().concat().contains("needle")
+        });
+        backend.handle(Command::Search(SearchCommand::Input("needle".into())));
+        backend.sync();
+        let content = backend.renderable_content();
+        assert_eq!(content.search_bar.as_deref(), Some("Search: needle"));
+        assert_eq!(content.search_matches.len(), 1);
+        assert_eq!(
+            content.focused_match,
+            Some(content.search_matches[0].clone())
+        );
+
+        backend.handle(Command::Search(SearchCommand::Cancel));
+        assert!(!backend.search_active());
+        assert_eq!(lines(&backend), 20);
+        assert_eq!(backend.selection().as_deref(), Some("needle"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn hints_are_chosen_by_label_mouse_and_vi_cursor() {
+        use crate::hint::{Hint, HintAction, HintCommand, HintSettings};
+        use crate::vi::ViCommand;
+
+        let mut backend = backend_running(
+            "printf 'go https://a.example and https://b.example\\n'; exec cat",
+        );
+        eventually("the program prints", || {
+            backend.text().concat().contains("b.example")
+        });
+        let hint = |action| Hint {
+            regex: Some("https://[a-z.]+".into()),
+            hyperlinks: false,
+            post_processing: false,
+            persist: false,
+            action,
+            mouse: Some(Modifiers::empty()),
+        };
+        backend.set_hints(HintSettings {
+            alphabet: "jf".into(),
+            hints: vec![
+                hint(HintAction::Copy),
+                hint(HintAction::Select),
+                hint(HintAction::MoveViModeCursor),
+            ],
+        });
+        let a = || Action::Hint(HintAction::Copy, "https://a.example".into());
+        let label = |backend: &mut Backend, label: &str| {
+            backend.handle(Command::Hint(HintCommand::Input(label.into())))
+        };
+
+        // The last match gets the shortest label.
+        backend.handle(Command::Hint(HintCommand::Start(0)));
+        backend.sync();
+        let labels = &backend.renderable_content().hint_labels;
+        assert_eq!(labels, &[vec!['f', 'j'], vec!['j']]);
+        assert_eq!(label(&mut backend, "f"), Action::Ignore);
+        assert_eq!(label(&mut backend, "j"), a());
+        assert!(!backend.hint_active());
+
+        backend.handle(Command::Hint(HintCommand::Start(1)));
+        let b = "https://b.example".to_owned();
+        let selected = Action::Hint(HintAction::Select, b.clone());
+        assert_eq!(label(&mut backend, "j"), selected);
+        assert_eq!(backend.selection(), Some(b.clone()));
+
+        // The mouse underlines the first hint for it, with nothing selected.
+        let pointer = (Point::new(0, Column(5)), Modifiers::empty());
+        backend.handle(Command::Hint(HintCommand::Pointer(Some(pointer))));
+        backend.sync();
+        assert!(!backend.renderable_content().hint_hovered);
+        backend.handle(Command::ClearSelection);
+        backend.sync();
+        assert!(backend.renderable_content().hint_hovered);
+        assert_eq!(
+            backend.handle(Command::Hint(HintCommand::OpenHovered)),
+            a()
+        );
+
+        backend.handle(Command::Hint(HintCommand::Pointer(None)));
+        backend.handle(Command::Hint(HintCommand::Start(2)));
+        let moved = Action::Hint(HintAction::MoveViModeCursor, b.clone());
+        assert_eq!(label(&mut backend, "j"), moved);
+        backend.sync();
+        let start = Point::new(Line(0), Column(25));
+        assert_eq!(backend.renderable_content().vi_cursor, Some(start));
+        assert_eq!(backend.renderable_content().hint_highlights.len(), 1);
+
+        let open = backend.handle(Command::Vi(ViCommand::Open));
+        assert_eq!(open, Action::Hint(HintAction::Copy, b));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn vi_mode_shows_its_cursor_and_where_it_is() {
+        use crate::search::SearchDirection;
+        use crate::vi::ViCommand;
+        use tankterm_terminal::grid::Dimensions;
+
+        // 30 lines and the cursor's on a screen of 10 lines, printed once it
+        // has its size: 21 lines of scrollback.
+        let mut backend = backend_running(
+            "stty -echo; printf ready; read x; printf '\\r\\033[K'; \
+             seq 1 30; exec cat",
+        );
+        eventually("the program waits", || {
+            backend.text().concat().contains("ready")
+        });
+        backend.handle(Command::Resize(
+            Some(Size::new(800., 160.)),
+            Some(Size::new(8., 16.)),
+        ));
+        backend.handle(Command::Write(b"\n".to_vec()));
+        eventually("the program prints its lines", || {
+            backend.term.lock().total_lines() == 31
+        });
+        let last = 30;
+        let content = |backend: &mut Backend| {
+            backend.sync();
+            let content = backend.renderable_content();
+            (content.vi_cursor, content.line_indicator.clone())
+        };
+        assert_eq!(content(&mut backend), (None, None));
+
+        // The vi cursor starts at the terminal's, on the last line.
+        backend.handle(Command::Vi(ViCommand::Toggle));
+        let cursor = backend.term.lock().grid().cursor.point;
+        let indicator = |line: usize| Some(format!("[{line}/{last}]"));
+        assert_eq!(content(&mut backend), (Some(cursor), indicator(0)));
+
+        // Paging takes the vi cursor along, to the start of its line.
+        backend.handle(Command::ScrollDisplay(Scroll::PageUp));
+        let (vi_cursor, line) = content(&mut backend);
+        assert_eq!(vi_cursor, Some(Point::new(cursor.line - 10, Column(0))));
+        assert_eq!(line, indicator(10));
+        assert_eq!(backend.renderable_content().grid.display_offset(), 10);
+
+        backend.handle(Command::ScrollHalfPageDown);
+        assert_eq!(content(&mut backend).1, indicator(5));
+        backend.handle(Command::ScrollDisplay(Scroll::Top));
+        assert_eq!(content(&mut backend).1, indicator(last));
+
+        // A click moves the vi cursor too; cells are 8 by 16 pixels.
+        backend.handle(Command::SelectStart(SelectionType::Simple, (20., 40.)));
+        let top = Line(-(backend.term.lock().grid().display_offset() as i32));
+        let (vi_cursor, _) = content(&mut backend);
+        assert_eq!(vi_cursor, Some(Point::new(top + 2, Column(2))));
+
+        // Leaving vi mode takes the cursor and the indicator away; a search
+        // outside vi mode shows how far the view is scrolled.
+        backend.handle(Command::Vi(ViCommand::Toggle));
+        assert_eq!(content(&mut backend), (None, None));
+        backend.handle(Command::ScrollDisplay(Scroll::Bottom));
+        let backward = SearchCommand::Start(SearchDirection::Backward);
+        backend.handle(Command::Search(backward));
+        assert_eq!(content(&mut backend), (None, indicator(0)));
+    }
+
+    #[test]
+    fn line_indicator_makes_way_for_the_vi_cursor() {
+        use tankterm_terminal::event::VoidListener;
+        use tankterm_terminal::term::Config;
+
+        let size = TermSize::new(20, 5);
+        let term = Term::new(Config::default(), &size, VoidListener);
+
+        let corner = Point::new(Line(0), Column(19));
+        assert_eq!(line_indicator(&term, Some(corner), false), None);
+        let next_line = Point::new(Line(1), Column(19));
+        let indicator = line_indicator(&term, Some(next_line), false);
+        assert_eq!(indicator.as_deref(), Some("[3/4]"));
+        let left = Point::new(Line(0), Column(14));
+        let indicator = line_indicator(&term, Some(left), false);
+        assert_eq!(indicator.as_deref(), Some("[4/4]"));
     }
 
     #[cfg(unix)]

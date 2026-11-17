@@ -13,7 +13,6 @@ pub enum BindingAction {
     PasteSelection,
     Char(char),
     Esc(String),
-    LinkOpen,
     /// Extend the selection to the pointer, or start one there. With
     /// Control the selection becomes a block.
     ExpandSelection,
@@ -382,7 +381,6 @@ fn platform_keyboard_bindings() -> Vec<(Binding<InputKind>, BindingAction)> {
 fn mouse_default_bindings() -> Vec<(Binding<InputKind>, BindingAction)> {
     generate_bindings!(
         MouseBinding;
-        Left, Modifiers::COMMAND; BindingAction::LinkOpen;
         Middle; BindingAction::PasteSelection;
     )
 }
@@ -457,7 +455,7 @@ mod tests {
         let mut current_layout: BindingsLayout = BindingsLayout::default();
         let custom_bindings = generate_bindings!(
             KeyboardBinding;
-            ArrowDown, Modifiers::ALT, +TermMode::SGR_MOUSE; BindingAction::LinkOpen;
+            ArrowDown, Modifiers::ALT, +TermMode::SGR_MOUSE; BindingAction::Paste;
             "c",       Modifiers::SHIFT, +TermMode::ALT_SCREEN;             BindingAction::Paste;
             "c",       Modifiers::SHIFT | Modifiers::ALT;                   BindingAction::Copy;
             "w",       Modifiers::ALT;                                      BindingAction::Char('W');

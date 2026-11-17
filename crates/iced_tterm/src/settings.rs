@@ -1,10 +1,10 @@
 use std::time::Duration;
 use std::{collections::HashMap, path::PathBuf};
 
-use crate::ColorPalette;
+use crate::{ColorPalette, HintSettings};
 use iced::{Font, Vector};
 use tankterm_terminal::term::SEMANTIC_ESCAPE_CHARS;
-use tankterm_terminal::vte::ansi::CursorShape;
+use tankterm_terminal::vte::ansi::{CursorShape, CursorStyle};
 
 #[cfg(target_os = "windows")]
 const DEFAULT_SHELL: &str = "wsl.exe";
@@ -25,6 +25,8 @@ pub struct Settings {
     /// by whole cells evenly between both sides, instead of leaving it all
     /// at the right and the bottom.
     pub dynamic_padding: bool,
+    /// Text found in the view to act on, and hyperlinks.
+    pub hints: HintSettings,
 }
 
 /// How text is selected with the mouse.
@@ -69,6 +71,9 @@ pub struct CursorSettings {
     /// Thickness of the beam, underline and hollow block cursors, relative
     /// to the width of a cell.
     pub thickness: f32,
+    /// The cursor's style in vi mode. Without one, it is the same as outside
+    /// vi mode.
+    pub vi_mode_style: Option<CursorStyle>,
 }
 
 impl Default for CursorSettings {
@@ -80,6 +85,7 @@ impl Default for CursorSettings {
             blink_timeout: Some(Duration::from_secs(5)),
             unfocused_hollow: true,
             thickness: 0.15,
+            vi_mode_style: None,
         }
     }
 }

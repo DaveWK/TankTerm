@@ -198,6 +198,10 @@ fn text_is_pasted_or_sent_as_it_is() {
     wait_for_text(&app, 1, "typed");
     assert!(!app.terminals[&1].terminal.text().concat().contains("~typed"));
 
+    // A search bar that is open doesn't take the text.
+    let search = iced_tterm::SearchCommand::Start(iced_tterm::SearchDirection::Forward);
+    perform(&mut app, &[AppAction::Search(search)]);
+    assert!(app.terminals[&1].terminal.search_active());
     assert_eq!(send(&mut app, Some(1), "pasted", false), SocketReply::Done);
     wait_for_text(&app, 1, "^[[200~pasted^[[201~");
 

@@ -5,6 +5,8 @@ use iced::widget::{button, column, container, opaque, row, text, text_input};
 use iced::{Border, Color, Element, Font, Length, Padding, widget};
 
 use crate::app::Message;
+use iced_tterm::{SearchCommand, SearchDirection, ViCommand};
+
 use crate::hotkeys::{AppAction, Hotkeys, PaneSelectMode, ScrollTo};
 
 /// Most items shown at once; the list scrolls with the selection.
@@ -49,6 +51,9 @@ const COMMANDS: &[(&str, AppAction)] = {
         ("Scroll to Previous Prompt", AppAction::Scroll(ScrollTo::PreviousPrompt)),
         ("Scroll to Next Prompt", AppAction::Scroll(ScrollTo::NextPrompt)),
         ("Select Command Output", AppAction::SelectCommandOutput),
+        ("Search Forward", AppAction::Search(SearchCommand::Start(SearchDirection::Forward))),
+        ("Search Backward", AppAction::Search(SearchCommand::Start(SearchDirection::Backward))),
+        ("Toggle Vi Mode", AppAction::Vi(ViCommand::Toggle)),
     ]
 };
 

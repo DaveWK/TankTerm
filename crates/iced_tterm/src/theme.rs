@@ -129,6 +129,30 @@ pub struct Elements {
     pub selection: CellColors,
     /// Attributes selected text is drawn with, besides its own.
     pub selection_attributes: TextAttributes,
+    /// Matches of the search.
+    pub search_match: CellColors,
+    /// Attributes matches of the search are drawn with, besides their own.
+    pub search_match_attributes: TextAttributes,
+    /// The search match the view was scrolled to.
+    pub search_focused_match: CellColors,
+    /// Attributes the focused search match is drawn with, besides its own.
+    pub search_focused_match_attributes: TextAttributes,
+    /// The first character of a hint's label.
+    pub hint_start: CellColors,
+    /// Attributes the first character of a hint's label is drawn with.
+    pub hint_start_attributes: TextAttributes,
+    /// The other characters of a hint's label.
+    pub hint_end: CellColors,
+    /// Attributes the other characters of a hint's label are drawn with.
+    pub hint_end_attributes: TextAttributes,
+    /// The cursor in vi mode and the text under it. A cursor color an
+    /// application sets wins.
+    pub vi_mode_cursor: CellColors,
+    /// The search bar, on the terminal's default colors.
+    pub footer_bar: CellColors,
+    /// The line indicator in vi mode and while searching, on the
+    /// terminal's default colors.
+    pub line_indicator: CellColors,
 }
 
 impl Default for ColorPalette {

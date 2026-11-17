@@ -73,21 +73,30 @@ impl App {
             .push(self.pending_paste.as_ref().map(|paste| paste_warning(&paste.text, appearance)));
 
         // The paste warning and the pane labels are answered with a key; nothing typed meanwhile
-        // reaches a terminal. Key tables only apply to the regular bindings.
+        // reaches a terminal. The key a vi mode inline search waits for is the character it
+        // moves to, and keys typed while hints are labeled choose one, whatever they are bound
+        // to. Key tables only apply to the regular bindings.
+        let focused = self.focused_shell();
+        let inline_search = focused.is_some_and(|shell| {
+            shell.terminal.inline_search_pending() || shell.terminal.hint_active()
+        });
         let (hotkeys, tables): (_, &[_]) =
             match (&self.pending_paste, &self.palette, &self.pane_select) {
                 (Some(_), ..) => (&self.paste_keys, &[]),
                 (None, Some(_), _) => (&self.palette_keys, &[]),
                 (None, None, Some(_)) => (&self.pane_keys, &[]),
+                (None, None, None) if inline_search => (&self.no_keys, &[]),
                 (None, None, None) => (&self.options.hotkeys, &self.key_tables),
             };
 
-        // Bindings can be limited to modes of the terminal the keys are typed into.
-        let mode = self.focused_shell().map(|shell| shell.terminal.mode()).unwrap_or_default();
+        // Bindings can be limited to modes of the terminal the keys are typed into, and to its
+        // search.
+        let mode = focused.map(|shell| shell.terminal.mode()).unwrap_or_default();
+        let search = focused.is_some_and(|shell| shell.terminal.search_active());
 
         KeyFilter::new(layers, hotkeys, Message::Action)
             .exclusive(self.pending_paste.is_some() || self.pane_select.is_some())
-            .mode(BindingMode::new(&mode, false))
+            .mode(BindingMode::new(&mode, search))
             .tables(tables)
             .into()
     }

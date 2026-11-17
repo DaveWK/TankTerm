@@ -15,13 +15,13 @@ use iced::{Element, Event, Length, Rectangle, Renderer, Size, Theme, Vector};
 use iced_core::widget::{Operation, Tree, tree};
 use iced_core::{Clipboard, Layout, Shell, Widget, layout, mouse, overlay, renderer};
 
-use iced_tterm::TermMode;
 use iced_tterm::bindings::{Binding as WidgetBinding, BindingAction, InputKind};
+use iced_tterm::{SearchCommand, SearchDirection, SelectionType, TermMode, ViCommand};
 
 use crate::config::ui_config::{KeyTable, Program};
 use crate::config::{
     Action, BindingKey, BindingMode, KeyBinding, KeyLocation, LeaderKey, MouseAction, MouseBinding,
-    MouseEvent, UiConfig,
+    MouseEvent, SearchAction, UiConfig, ViAction,
 };
 
 /// Where a scrolling action moves the view of the focused terminal.
@@ -128,6 +128,13 @@ pub enum AppAction {
     CopySelection,
     /// Drop the selection of the focused terminal.
     ClearSelection,
+    /// Open, change or close the search of the focused terminal.
+    Search(SearchCommand),
+    /// Enter or leave vi mode in the focused terminal, or act in it.
+    Vi(ViCommand),
+    /// Label the text the hint at this position in the configuration finds in the focused
+    /// terminal, to choose one by typing its label.
+    Hint(usize),
     /// Write text to the focused terminal, as if it was typed (`chars`).
     Chars(Arc<str>),
     /// Start a program (`command`), in the directory of the focused terminal's shell where that
@@ -209,6 +216,21 @@ impl AppAction {
             Action::ToggleMaximized => Self::ToggleMaximized,
             Action::CopySelection => Self::CopySelection,
             Action::ClearSelection => Self::ClearSelection,
+            Action::SearchForward => Self::Search(SearchCommand::Start(SearchDirection::Forward)),
+            Action::SearchBackward => Self::Search(SearchCommand::Start(SearchDirection::Backward)),
+            Action::Search(action) => Self::Search(match action {
+                SearchAction::SearchFocusNext => SearchCommand::FocusNext,
+                SearchAction::SearchFocusPrevious => SearchCommand::FocusPrevious,
+                SearchAction::SearchConfirm => SearchCommand::Confirm,
+                SearchAction::SearchCancel => SearchCommand::Cancel,
+                SearchAction::SearchClear => SearchCommand::Clear,
+                SearchAction::SearchDeleteWord => SearchCommand::DeleteWord,
+                SearchAction::SearchHistoryPrevious => SearchCommand::HistoryPrevious,
+                SearchAction::SearchHistoryNext => SearchCommand::HistoryNext,
+            }),
+            Action::ToggleViMode => Self::Vi(ViCommand::Toggle),
+            Action::ViMotion(motion) => Self::Vi(ViCommand::Motion(*motion)),
+            Action::Vi(action) => Self::Vi(vi_command(*action)),
             Action::Esc(chars) => Self::Chars(chars.as_str().into()),
             Action::Command(program) => Self::RunCommand(program.clone()),
             Action::Minimize => Self::Minimize,
@@ -216,6 +238,31 @@ impl AppAction {
             Action::Quit => Self::Quit,
             _ => return None,
         })
+    }
+}
+
+/// The widget's command for a vi mode action.
+fn vi_command(action: ViAction) -> ViCommand {
+    let inline = |direction, stop_short| ViCommand::InlineSearch { direction, stop_short };
+    match action {
+        ViAction::ToggleNormalSelection => ViCommand::ToggleSelection(SelectionType::Simple),
+        ViAction::ToggleLineSelection => ViCommand::ToggleSelection(SelectionType::Lines),
+        ViAction::ToggleBlockSelection => ViCommand::ToggleSelection(SelectionType::Block),
+        ViAction::ToggleSemanticSelection => ViCommand::ToggleSelection(SelectionType::Semantic),
+        ViAction::SearchNext => ViCommand::SearchNext,
+        ViAction::SearchPrevious => ViCommand::SearchPrevious,
+        ViAction::SearchStart => ViCommand::SearchStart,
+        ViAction::SearchEnd => ViCommand::SearchEnd,
+        ViAction::CenterAroundViCursor => ViCommand::CenterAroundCursor,
+        ViAction::InlineSearchForward => inline(SearchDirection::Forward, false),
+        ViAction::InlineSearchBackward => inline(SearchDirection::Backward, false),
+        ViAction::InlineSearchForwardShort => inline(SearchDirection::Forward, true),
+        ViAction::InlineSearchBackwardShort => inline(SearchDirection::Backward, true),
+        ViAction::InlineSearchNext => ViCommand::InlineSearchNext,
+        ViAction::InlineSearchPrevious => ViCommand::InlineSearchPrevious,
+        ViAction::SemanticSearchForward => ViCommand::SemanticSearch(SearchDirection::Forward),
+        ViAction::SemanticSearchBackward => ViCommand::SemanticSearch(SearchDirection::Backward),
+        ViAction::Open => ViCommand::Open,
     }
 }
 
@@ -239,9 +286,6 @@ impl Effect {
         }
     }
 }
-
-/// Binding modes that are never active: the iced front end has no vi mode and no search yet.
-const MISSING_MODES: BindingMode = BindingMode::VI.union(BindingMode::SEARCH);
 
 /// A key with its modifiers, the terminal modes it is limited to, and what it does.
 #[derive(Debug, Clone, PartialEq)]
@@ -386,10 +430,15 @@ pub struct Leader {
 
 impl Hotkeys {
     /// Collect the bindings of the configuration the application handles: the default ones,
-    /// those of the selected preset and the user's.
+    /// those of the selected preset and the user's, and then the hints' bindings.
     pub fn from_config(config: &UiConfig) -> Self {
         let mut hotkeys =
             Self::from_bindings(&config.app_bindings(), Leader::from_config(config.leader()));
+        for (index, hint) in config.hints.enabled.iter().enumerate() {
+            if let Some(binding) = &hint.binding {
+                hotkeys.add(binding.key_binding(hint), Effect::Run(AppAction::Hint(index)));
+            }
+        }
         for (name, table) in config.key_tables() {
             hotkeys.tables.insert(name.clone(), Table::from_config(table));
         }
@@ -399,42 +448,44 @@ impl Hotkeys {
 
     /// Collect the bindings the application handles from key bindings.
     ///
-    /// Bindings with the `Leader` mode are reached through `leader`. Bindings that need vi mode
-    /// or search are never active, since neither exists yet. Bindings to actions the
+    /// Bindings with the `Leader` mode are reached through `leader`. Bindings to actions the
     /// application doesn't know and bindings to scancodes aren't supported; their keys are left
     /// to the terminal.
     pub fn from_bindings(bindings: &[KeyBinding], leader: Option<Leader>) -> Self {
         let mut hotkeys = Self { leader, ..Self::default() };
 
         for binding in bindings {
-            let Some(effect) = Effect::from_config(&binding.action) else { continue };
-            let BindingKey::Keycode { key, location } = &binding.trigger else { continue };
-            if binding.mode.intersects(MISSING_MODES) {
-                continue;
-            }
-
-            let after_leader = binding.mode.contains(BindingMode::LEADER);
-            let bound = Bound {
-                key: normalize(&iced_winit::conversion::key(key.clone())),
-                modifiers: iced_winit::conversion::modifiers(binding.mods),
-                location: *location,
-                mode: binding.mode - BindingMode::LEADER,
-                notmode: binding.notmode - MISSING_MODES - BindingMode::LEADER,
-                effect,
-            };
-
-            if !after_leader {
-                hotkeys.direct.push(bound);
-            } else if matches!(bound.effect, Effect::Run(_))
-                && !binding.notmode.contains(BindingMode::LEADER)
-            {
-                // Any other key after the leader key ends the sequence without reaching the
-                // terminal, so unbinding one needs no entry.
-                hotkeys.sequences.push(bound);
+            if let Some(effect) = Effect::from_config(&binding.action) {
+                hotkeys.add(binding, effect);
             }
         }
 
         hotkeys
+    }
+
+    /// Add the key of a binding, with what it does. Bindings to scancodes are left out.
+    fn add(&mut self, binding: &KeyBinding, effect: Effect) {
+        let BindingKey::Keycode { key, location } = &binding.trigger else { return };
+
+        let after_leader = binding.mode.contains(BindingMode::LEADER);
+        let bound = Bound {
+            key: normalize(&iced_winit::conversion::key(key.clone())),
+            modifiers: iced_winit::conversion::modifiers(binding.mods),
+            location: *location,
+            mode: binding.mode - BindingMode::LEADER,
+            notmode: binding.notmode - BindingMode::LEADER,
+            effect,
+        };
+
+        if !after_leader {
+            self.direct.push(bound);
+        } else if matches!(bound.effect, Effect::Run(_))
+            && !binding.notmode.contains(BindingMode::LEADER)
+        {
+            // Any other key after the leader key ends the sequence without reaching the
+            // terminal, so unbinding one needs no entry.
+            self.sequences.push(bound);
+        }
     }
 
     /// Add a key table with these bindings.
@@ -1021,6 +1072,7 @@ mod tests {
 
     use super::*;
     use crate::config::{Binding, BindingMode, KeyLocation};
+    use iced_tterm::ViMotion;
 
     fn binding(key: &str, mods: ModifiersState, action: Action) -> KeyBinding {
         Binding {
@@ -1062,7 +1114,6 @@ mod tests {
         let mods = ModifiersState::CONTROL | ModifiersState::SHIFT;
         let hotkeys = Hotkeys::from_bindings(
             &[
-                binding("f", mods, Action::SearchForward),
                 binding("h", mods, Action::ToggleHelp),
                 binding("n", mods, Action::SpawnNewInstance),
                 binding("o", mods, Action::HideOtherApplications),
@@ -1071,7 +1122,7 @@ mod tests {
         );
 
         assert_eq!(hotkeys, Hotkeys::default());
-        assert_eq!(pressed(&hotkeys, "f", CTRL_SHIFT, BindingMode::empty()), Triggered::default());
+        assert_eq!(pressed(&hotkeys, "h", CTRL_SHIFT, BindingMode::empty()), Triggered::default());
     }
 
     #[test]
@@ -1086,11 +1137,14 @@ mod tests {
     }
 
     #[test]
-    fn mode_specific_bindings_are_skipped() {
+    fn mode_specific_bindings_need_their_mode() {
         let mut vi_only = binding("t", ModifiersState::CONTROL, Action::CreateNewTab);
         vi_only.mode = BindingMode::VI;
+        let hotkeys = Hotkeys::from_bindings(&[vi_only], None);
 
-        assert_eq!(Hotkeys::from_bindings(&[vi_only], None), Hotkeys::default());
+        let t = |mode| pressed(&hotkeys, "t", Modifiers::CTRL, mode);
+        assert_eq!(t(BindingMode::empty()), unbound());
+        assert_eq!(t(BindingMode::VI), runs(&[AppAction::NewTab]));
     }
     /// The hotkeys of a configuration, with the macOS or the other platforms' preset keys.
     fn hotkeys(config: &str, macos: bool) -> Hotkeys {
@@ -1584,8 +1638,46 @@ mod tests {
         assert_eq!(after_leader(BindingMode::ALT_SCREEN), [AppAction::Scroll(ScrollTo::PageDown)]);
     }
 
+    #[cfg(not(target_os = "macos"))]
     #[test]
-    fn vi_and_search_bindings_are_inactive() {
+    fn search_keys_open_the_search_and_work_in_it() {
+        use keyboard::key::Named;
+
+        let hotkeys = configured("");
+        let (none, search) = (BindingMode::empty(), BindingMode::SEARCH);
+        let search_runs = |command| runs(&[AppAction::Search(command)]);
+
+        let forward = SearchCommand::Start(SearchDirection::Forward);
+        let backward = SearchCommand::Start(SearchDirection::Backward);
+        assert_eq!(pressed(&hotkeys, "f", CTRL_SHIFT, none), search_runs(forward));
+        assert_eq!(pressed(&hotkeys, "b", CTRL_SHIFT, none), search_runs(backward));
+        // A search that is open isn't opened again.
+        assert_eq!(pressed(&hotkeys, "f", CTRL_SHIFT, search), unbound());
+
+        // Keys of the search reach the terminal while there is none.
+        assert_eq!(pressed_named(&hotkeys, Named::Escape, Modifiers::empty(), none), unbound());
+        assert_eq!(pressed(&hotkeys, "u", Modifiers::CTRL, none), unbound());
+
+        let named = |key, modifiers| pressed_named(&hotkeys, key, modifiers, search);
+        let empty = Modifiers::empty();
+        assert_eq!(named(Named::Escape, empty), search_runs(SearchCommand::Cancel));
+        assert_eq!(named(Named::Enter, empty), search_runs(SearchCommand::FocusNext));
+        assert_eq!(
+            named(Named::Enter, Modifiers::SHIFT),
+            search_runs(SearchCommand::FocusPrevious)
+        );
+        assert_eq!(named(Named::ArrowUp, empty), search_runs(SearchCommand::HistoryPrevious));
+        assert_eq!(named(Named::ArrowDown, empty), search_runs(SearchCommand::HistoryNext));
+        let ctrl = |key| pressed(&hotkeys, key, Modifiers::CTRL, search);
+        assert_eq!(ctrl("c"), search_runs(SearchCommand::Cancel));
+        assert_eq!(ctrl("u"), search_runs(SearchCommand::Clear));
+        assert_eq!(ctrl("w"), search_runs(SearchCommand::DeleteWord));
+        assert_eq!(ctrl("p"), search_runs(SearchCommand::HistoryPrevious));
+        assert_eq!(ctrl("n"), search_runs(SearchCommand::HistoryNext));
+    }
+
+    #[test]
+    fn vi_and_search_bindings_need_their_modes() {
         let hotkeys = configured(
             r#"
             [keyboard]
@@ -1596,20 +1688,101 @@ mod tests {
             ]
             "#,
         );
-        let none = BindingMode::empty();
+        let (none, vi, search) = (BindingMode::empty(), BindingMode::VI, BindingMode::SEARCH);
 
         assert_eq!(pressed(&hotkeys, "j", Modifiers::ALT, none), unbound());
+        assert_eq!(
+            pressed(&hotkeys, "j", Modifiers::ALT, vi),
+            runs(&[AppAction::Scroll(ScrollTo::LineDown)])
+        );
         assert_eq!(pressed(&hotkeys, "k", Modifiers::ALT, none), unbound());
-        // Not being in a mode that doesn't exist is no condition at all.
+        assert_eq!(
+            pressed(&hotkeys, "k", Modifiers::ALT, search),
+            runs(&[AppAction::Scroll(ScrollTo::LineUp)])
+        );
         assert_eq!(
             pressed(&hotkeys, "u", Modifiers::ALT, none),
             runs(&[AppAction::Scroll(ScrollTo::HalfPageUp)])
         );
+        assert_eq!(pressed(&hotkeys, "u", Modifiers::ALT, vi), unbound());
+        assert_eq!(pressed(&hotkeys, "u", Modifiers::ALT, search), unbound());
 
-        // The default vi mode keys are ordinary keys: `y` copies in vi mode only.
+        // The default vi mode keys are ordinary keys outside vi mode.
         for key in ["y", "g", "v", "i"] {
             assert_eq!(pressed(&hotkeys, key, Modifiers::empty(), none), unbound(), "{key}");
         }
+    }
+
+    #[test]
+    fn vi_keys_move_select_copy_and_leave() {
+        let hotkeys = configured("");
+        let vi = BindingMode::VI;
+        let key = |key, modifiers| pressed(&hotkeys, key, modifiers, vi);
+        let none = Modifiers::empty();
+
+        assert_eq!(key("k", none), runs(&[AppAction::Vi(ViCommand::Motion(ViMotion::Up))]));
+        assert_eq!(
+            key("v", Modifiers::SHIFT),
+            runs(&[AppAction::Vi(ViCommand::ToggleSelection(SelectionType::Lines))])
+        );
+        assert_eq!(key("y", none), runs(&[AppAction::Copy, AppAction::ClearSelection]));
+        assert_eq!(
+            key("i", none),
+            runs(&[AppAction::Vi(ViCommand::Toggle), AppAction::Scroll(ScrollTo::Bottom)])
+        );
+        assert_eq!(
+            key("t", Modifiers::SHIFT),
+            runs(&[AppAction::Vi(ViCommand::InlineSearch {
+                direction: SearchDirection::Backward,
+                stop_short: true,
+            })])
+        );
+        assert_eq!(
+            key("/", none),
+            runs(&[AppAction::Search(SearchCommand::Start(SearchDirection::Forward))])
+        );
+
+        // Control+Shift+Space enters vi mode, and leaves it for the bottom of the scrollback.
+        let space = keyboard::key::Named::Space;
+        assert_eq!(
+            pressed_named(&hotkeys, space, CTRL_SHIFT, BindingMode::empty()),
+            runs(&[AppAction::Vi(ViCommand::Toggle)])
+        );
+        assert_eq!(
+            pressed_named(&hotkeys, space, CTRL_SHIFT, vi),
+            runs(&[AppAction::Vi(ViCommand::Toggle), AppAction::Scroll(ScrollTo::Bottom)])
+        );
+
+        // Enter opens the hint under the vi cursor.
+        let enter = keyboard::key::Named::Enter;
+        assert_eq!(
+            pressed_named(&hotkeys, enter, Modifiers::empty(), vi),
+            runs(&[AppAction::Vi(ViCommand::Open)])
+        );
+    }
+
+    #[test]
+    fn hint_bindings_label_their_hint() {
+        let mut config = UiConfig::default();
+        let default = Hotkeys::from_config(&config);
+        let o = character("o");
+        assert_eq!(default.action(&o, CTRL_SHIFT), Some(AppAction::Hint(0)));
+
+        // Hints are numbered in the order of the configuration, and a hint without a binding
+        // has no key.
+        let hints: toml::Value = toml::from_str(
+            r#"
+            enabled = [
+                { regex = "x", action = "Copy" },
+                { regex = "y", action = "Select", binding = { key = "Y", mods = "Alt" } },
+            ]
+            "#,
+        )
+        .unwrap();
+        config.hints = serde::Deserialize::deserialize(hints).unwrap();
+        let hotkeys = Hotkeys::from_config(&config);
+        assert_eq!(hotkeys.action(&o, CTRL_SHIFT), None);
+        assert_eq!(hotkeys.action(&character("y"), Modifiers::ALT), Some(AppAction::Hint(1)));
     }
 
     #[test]

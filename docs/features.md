@@ -19,6 +19,10 @@ The cursor motions are setup by default to mimic vi, however they are fully
 configurable. If you don't like vi's bindings, take a look at the configuration
 file to change the various movements.
 
+The top right corner shows how many lines the vi cursor is above the last line,
+and the vi cursor takes the `[style.vi_mode_cursor]` colors and the
+`cursor.vi_mode_style` shape.
+
 ### Selection
 
 One useful feature of vi mode is the ability to make selections and copy text to
@@ -27,7 +31,8 @@ it using <kbd>y</kbd>. All selection modes that are available with the mouse can
 be accessed from vi mode, including the semantic (<kbd>Alt</kbd> <kbd>v</kbd>),
 line (<kbd>Shift</kbd> <kbd>v</kbd>) and block selection (<kbd>Ctrl</kbd>
 <kbd>v</kbd>). You can also toggle between them while the selection is still
-active.
+active. A selection made in vi mode goes on the selection clipboard, like one
+made with the mouse.
 
 ## Search
 
@@ -44,10 +49,19 @@ you're looking for a way to jump to the start or the end of a match.
 
 ### Normal Search
 
-During normal search you don't have the opportunity to move around freely, but
-you can still jump between matches using <kbd>Enter</kbd> and <kbd>Shift</kbd>
-<kbd>Enter</kbd>. After leaving search with <kbd>Escape</kbd> your active match
-stays selected, allowing you to easily copy it.
+The regex you type goes into a bar on the terminal's last row, and the view
+scrolls to the first match while you type. Matches are drawn in the
+`[style.search_match]` style and the focused one in
+`[style.search_focused_match]`. During normal search you don't have the
+opportunity to move around freely, but you can still jump between matches using
+<kbd>Enter</kbd> and <kbd>Shift</kbd> <kbd>Enter</kbd>. After leaving search
+with <kbd>Escape</kbd> your active match stays selected, allowing you to easily
+copy it. The top right corner shows how many lines the view is scrolled back.
+
+<kbd>Up</kbd> and <kbd>Down</kbd> go through the regexes you searched for
+before, <kbd>Ctrl</kbd> <kbd>w</kbd> deletes the last word and <kbd>Ctrl</kbd>
+<kbd>u</kbd> the whole regex. Pasted text goes into the bar, without its line
+breaks. The command palette offers the search too.
 
 ## Hints
 
@@ -56,10 +70,17 @@ start vi mode. They consist of a regex that detects these text elements and then
 either feeds them to an external application or triggers one of TankTerm's
 built-in actions.
 
+A hint's key binding labels its matches, in the `[style.hint_start]` and
+`[style.hint_end]` styles, and typing a label triggers the hint for that match.
+<kbd>Escape</kbd> takes the labels away and <kbd>Backspace</kbd> takes back the
+last key typed. By default <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>o</kbd> labels
+the URLs.
+
 Hints can also be triggered using the mouse or vi mode cursor. If a hint is
 enabled for mouse interaction and recognized as such, it will be underlined when
 the mouse or vi mode cursor is on top of it. Using the left mouse button or
-<kbd>Enter</kbd> key in vi mode will then trigger the hint.
+<kbd>Enter</kbd> key in vi mode will then trigger the hint. The URI of a
+hyperlink underlined this way is shown at the bottom of the terminal.
 
 Hints can be configured in the `hints` and `colors.hints` sections in the
 TankTerm configuration file.

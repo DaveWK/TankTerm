@@ -7,8 +7,7 @@ Approved and waiting their turn, in this order.
 1. Delete the `xitely/iced_term` repository on Forgejo (web UI; `forgejo-repos` can't).
 2. Config options the iced front end ignores:
    - Port later, low priority: `window.resize_increments` and `window.option_as_alt`.
-3. Vi mode, scrollback search and hints in the iced front end.
-4. `tankTerm ssh` with terminfo negotiation; design and decisions are in the section below
+3. `tankTerm ssh` with terminfo negotiation; design and decisions are in the section below
    the deferred list.
 
 ## Deferred

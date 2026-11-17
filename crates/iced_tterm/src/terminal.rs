@@ -3,12 +3,14 @@ use crate::backend;
 use crate::bindings::{Binding, BindingAction, BindingsLayout, InputKind};
 use crate::cursor::Cursor;
 use crate::font::TermFont;
+use crate::hint::{HintCommand, HintSettings};
+use crate::search::SearchCommand;
 use crate::settings::{
     CursorSettings, FontSettings, MouseSettings, ScrollSettings,
     SelectionSettings, Settings, ThemeSettings,
 };
 use crate::theme::{ColorPalette, Theme};
-use crate::{AlacrittyEvent, CursorShape, TermMode};
+use crate::{AlacrittyEvent, AlacrittyPoint, CursorShape, TermMode};
 use iced::futures::stream::BoxStream;
 use iced::futures::{SinkExt, StreamExt};
 use iced::widget::canvas::Cache;
@@ -19,6 +21,10 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tankterm_terminal::vte::ansi::NamedColor;
 use tokio::sync::Mutex;
+
+/// How long typing has to pause before the whole buffer is searched, when
+/// the search while typing found no match in the lines it looked at.
+const SEARCH_DELAY: Duration = Duration::from_millis(500);
 
 #[derive(Debug, Clone)]
 pub enum Event {
@@ -49,6 +55,8 @@ pub enum Command {
     /// Change whether the grid is centred in the widget; see
     /// [`Settings::dynamic_padding`].
     ChangeDynamicPadding(bool),
+    /// Change the hints. Labels shown for the old ones are taken away.
+    ChangeHints(HintSettings),
     /// Tell the terminal whether it has the keyboard focus. Without it the
     /// cursor doesn't blink and is drawn hollow, if the settings say so. A
     /// new terminal has the focus.
@@ -101,6 +109,8 @@ impl Terminal {
         backend.set_semantic_escape_chars(
             &settings.selection.semantic_escape_chars,
         );
+        backend.set_vi_cursor_style(cursor.settings.vi_mode_style);
+        backend.set_hints(settings.hints);
 
         Ok(Self {
             id,
@@ -130,30 +140,57 @@ impl Terminal {
         };
         let events = Subscription::run_with(data, terminal_subscription_stream);
 
-        if !self.cursor_blinks() {
-            return events;
-        }
-
         // The timer only runs while the cursor blinks, so a terminal with a
         // steady cursor is never woken up for it.
-        let blink = BlinkSubscriptionData {
-            id: self.id,
-            interval: self.cursor.settings.blink_interval,
-        };
-        Subscription::batch([
-            events,
-            Subscription::run_with(blink, blink_subscription_stream),
-        ])
+        let blink = self.cursor_blinks().then(|| {
+            let blink = BlinkSubscriptionData {
+                id: self.id,
+                interval: self.cursor.settings.blink_interval,
+            };
+            Subscription::run_with(blink, blink_subscription_stream)
+        });
+
+        // A new regex replaces the timer, so it only goes off once typing
+        // pauses.
+        let search = self.backend.search_pending().map(|generation| {
+            let search = SearchDelayData {
+                id: self.id,
+                generation,
+            };
+            Subscription::run_with(search, search_delay_stream)
+        });
+
+        Subscription::batch([Some(events), blink, search].into_iter().flatten())
+    }
+
+    /// Whether the search bar is shown. Keys typed meanwhile go into it.
+    pub fn search_active(&self) -> bool {
+        self.backend.search_active()
+    }
+
+    /// Whether a vi mode inline search waits for the character to move to.
+    /// The next key typed is that character, whatever it is bound to.
+    pub fn inline_search_pending(&self) -> bool {
+        self.backend.inline_search_pending()
+    }
+
+    /// Whether hints are labeled. The keys typed meanwhile choose one by
+    /// its label, whatever they are bound to.
+    pub fn hint_active(&self) -> bool {
+        self.backend.hint_active()
     }
 
     /// The shape the cursor is drawn with right now:
     /// [`CursorShape::Hidden`] while the application in the terminal hides
-    /// it and in the dark half of a blink, [`CursorShape::HollowBlock`]
-    /// without the keyboard focus, and otherwise the shape the application
-    /// asked for or the one from the settings.
+    /// it outside vi mode and in the dark half of a blink,
+    /// [`CursorShape::HollowBlock`] without the keyboard focus, and
+    /// otherwise the shape the application asked for or the one from the
+    /// settings.
     pub fn cursor_shape(&self) -> CursorShape {
         let content = self.backend.renderable_content();
-        let shown = content.terminal_mode.contains(TermMode::SHOW_CURSOR);
+        let shown = content
+            .terminal_mode
+            .intersects(TermMode::SHOW_CURSOR | TermMode::VI);
         self.cursor.shape(content.cursor_style, shown)
     }
 
@@ -219,6 +256,12 @@ impl Terminal {
         self.backend.columns()
     }
 
+    /// Where the vi cursor is, in vi mode. Line 0 is the top of the screen
+    /// and negative lines are scrollback.
+    pub fn vi_cursor(&self) -> Option<AlacrittyPoint> {
+        self.backend.renderable_content().vi_cursor
+    }
+
     /// How many lines the view is scrolled back into the scrollback buffer;
     /// `0` while it shows the screen.
     pub fn display_offset(&self) -> usize {
@@ -267,6 +310,8 @@ impl Terminal {
                 self.cursor.restart(Instant::now());
                 self.backend
                     .set_default_cursor_style(self.cursor.default_style());
+                self.backend
+                    .set_vi_cursor_style(self.cursor.settings.vi_mode_style);
             },
             Command::ChangeSelection(selection) => {
                 self.backend.set_semantic_escape_chars(
@@ -277,6 +322,7 @@ impl Terminal {
             Command::ChangeDynamicPadding(dynamic) => {
                 self.dynamic_padding = dynamic;
             },
+            Command::ChangeHints(hints) => self.backend.set_hints(hints),
             Command::WindowFocus(focused) => self.window_focused = focused,
             Command::Focus(focused) => {
                 self.cursor.set_focused(focused, Instant::now());
@@ -313,7 +359,15 @@ impl Terminal {
             },
             Command::ProxyToBackend(cmd) => {
                 match &cmd {
-                    backend::Command::Write(_) | backend::Command::Paste(_) => {
+                    backend::Command::Write(_)
+                    | backend::Command::Paste(_)
+                    | backend::Command::Vi(_)
+                    | backend::Command::Hint(
+                        HintCommand::Start(_)
+                        | HintCommand::Input(_)
+                        | HintCommand::Backspace
+                        | HintCommand::Cancel,
+                    ) => {
                         self.cursor.typed(Instant::now());
                     },
                     // The application changed whether the cursor blinks.
@@ -375,6 +429,28 @@ fn blink_subscription_stream(
         {
             break;
         }
+    });
+
+    receiver.boxed()
+}
+
+/// Identifies the search of a terminal's whole buffer for a regex.
+#[derive(Clone, Hash)]
+struct SearchDelayData {
+    id: u64,
+    generation: u64,
+}
+
+/// One search of the whole buffer, a moment after the regex last changed.
+fn search_delay_stream(data: &SearchDelayData) -> BoxStream<'static, Event> {
+    let id = data.id;
+    let (mut sender, receiver) = iced::futures::channel::mpsc::channel(1);
+
+    std::thread::spawn(move || {
+        std::thread::sleep(SEARCH_DELAY);
+        let resume = backend::Command::Search(SearchCommand::Resume);
+        // A closed channel means the regex changed meanwhile.
+        let _ = sender.try_send(Event::BackendCall(id, resume));
     });
 
     receiver.boxed()

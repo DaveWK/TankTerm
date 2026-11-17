@@ -9,7 +9,9 @@ use iced_tterm::settings::{
     BackendSettings, CursorBlinking, CursorSettings, FontSettings, MouseSettings, ScrollSettings,
     SelectionSettings, Settings, ThemeSettings,
 };
-use iced_tterm::{CellColor, CellColors, ColorPalette, Elements, TextAttributes};
+use iced_tterm::{
+    CellColor, CellColors, ColorPalette, Elements, Hint, HintAction, HintSettings, TextAttributes,
+};
 use log::warn;
 
 use crate::cli::Options;
@@ -18,8 +20,8 @@ use crate::config::UiConfig;
 use crate::config::color::Colors;
 use crate::config::font::FontDescription;
 use crate::config::profile::Profile;
-use crate::config::style::{self, CellStyle, ElementStyles, TabBarStyles};
-use crate::config::ui_config::{Delta, Program};
+use crate::config::style::{self, BarStyle, CellStyle, ElementStyles, Styles, TabBarStyles};
+use crate::config::ui_config::{self, Delta, HintInternalAction, Program};
 
 /// Logical pixels per typographic point.
 ///
@@ -50,6 +52,38 @@ pub fn settings(config: &UiConfig, options: &Options) -> Settings {
         },
         mouse: MouseSettings { hide_when_typing: config.mouse.hide_when_typing },
         dynamic_padding: config.window.dynamic_padding,
+        hints: hint_settings(&config.hints),
+    }
+}
+
+/// The hints, with the label characters.
+fn hint_settings(hints: &ui_config::Hints) -> HintSettings {
+    let hint = |hint: &ui_config::Hint| Hint {
+        regex: hint.content.regex.as_ref().map(ui_config::LazyRegex::pattern),
+        hyperlinks: hint.content.hyperlinks,
+        post_processing: hint.post_processing,
+        persist: hint.persist,
+        action: match &hint.action {
+            ui_config::HintAction::Action(HintInternalAction::Copy) => HintAction::Copy,
+            ui_config::HintAction::Action(HintInternalAction::Paste) => HintAction::Paste,
+            ui_config::HintAction::Action(HintInternalAction::Select) => HintAction::Select,
+            ui_config::HintAction::Action(HintInternalAction::MoveViModeCursor) => {
+                HintAction::MoveViModeCursor
+            },
+            ui_config::HintAction::Command(program) => HintAction::Command {
+                program: program.program().to_owned(),
+                args: program.args().to_vec(),
+            },
+        },
+        mouse: hint
+            .mouse
+            .filter(|mouse| mouse.enabled)
+            .map(|mouse| iced_winit::conversion::modifiers(mouse.mods.0)),
+    };
+
+    HintSettings {
+        alphabet: hints.alphabet().to_owned(),
+        hints: hints.enabled.iter().map(|enabled| hint(enabled)).collect(),
     }
 }
 
@@ -75,6 +109,7 @@ fn cursor_settings(config: &UiConfig) -> CursorSettings {
         blink_timeout: (!timeout.is_zero()).then_some(timeout),
         unfocused_hollow: cursor.unfocused_hollow,
         thickness: cursor.thickness(),
+        vi_mode_style: cursor.vi_mode_style(),
     }
 }
 
@@ -335,20 +370,38 @@ pub fn tab_bar_styles(config: &UiConfig) -> [TabBarStyles; 2] {
 fn theme_palette(config: &UiConfig) -> ColorPalette {
     let styles = config.style.resolved();
     ColorPalette {
-        focused: elements(&styles.elements(true)),
-        blurred: elements(&styles.elements(false)),
+        focused: elements(&styles.elements(true), styles),
+        blurred: elements(&styles.elements(false), styles),
         ..palette(&config.colors)
     }
 }
 
-/// How the cursor, the selection and the text are drawn with these styles.
-fn elements(styles: &ElementStyles) -> Elements {
+/// How the cursors, the selection, search matches, the search bar, the line indicator and the
+/// text are drawn with these styles, and the bars' styles from `bars`.
+fn elements(styles: &ElementStyles, bars: &Styles) -> Elements {
+    let rgb = |rgb: Rgb| CellColor::Color(Color::from_rgb8(rgb.r, rgb.g, rgb.b));
+    let bar = |bar: &BarStyle| CellColors {
+        foreground: rgb(bar.foreground),
+        background: rgb(bar.background),
+    };
+
     Elements {
         text: text_attributes(&styles.text),
         // Only colors apply to the cursor.
         cursor: cell_colors(&styles.cursor),
         selection: cell_colors(&styles.selection),
         selection_attributes: text_attributes(&styles.selection.attributes),
+        search_match: cell_colors(&styles.search_match),
+        search_match_attributes: text_attributes(&styles.search_match.attributes),
+        search_focused_match: cell_colors(&styles.search_focused_match),
+        search_focused_match_attributes: text_attributes(&styles.search_focused_match.attributes),
+        hint_start: cell_colors(&styles.hint_start),
+        hint_start_attributes: text_attributes(&styles.hint_start.attributes),
+        hint_end: cell_colors(&styles.hint_end),
+        hint_end_attributes: text_attributes(&styles.hint_end.attributes),
+        vi_mode_cursor: cell_colors(&styles.vi_mode_cursor),
+        footer_bar: bar(&bars.footer_bar),
+        line_indicator: bar(&bars.line_indicator),
     }
 }
 
@@ -781,6 +834,7 @@ mod tests {
     #[test]
     fn cursor_follows_the_config() {
         use iced_tterm::CursorShape;
+        use tankterm_terminal::vte::ansi::CursorStyle;
 
         assert_eq!(cursor_settings(&UiConfig::default()), CursorSettings {
             shape: CursorShape::Block,
@@ -789,6 +843,7 @@ mod tests {
             blink_timeout: Some(Duration::from_secs(5)),
             unfocused_hollow: true,
             thickness: 0.15,
+            vi_mode_style: None,
         });
 
         let config = config(concat!(
@@ -798,6 +853,7 @@ mod tests {
             "blink_timeout = 0\n",
             "unfocused_hollow = false\n",
             "thickness = 0.5\n",
+            "vi_mode_style = \"Underline\"\n",
         ));
         let cursor = cursor_settings(&config);
         assert_eq!(cursor, CursorSettings {
@@ -807,6 +863,7 @@ mod tests {
             blink_timeout: None,
             unfocused_hollow: false,
             thickness: 0.5,
+            vi_mode_style: Some(CursorStyle { shape: CursorShape::Underline, blinking: false }),
         });
         assert_eq!(settings(&config, &options(&[])).cursor, cursor);
 

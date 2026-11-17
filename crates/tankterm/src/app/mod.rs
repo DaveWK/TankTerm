@@ -23,6 +23,8 @@ use crate::session::Session;
 use crate::setup::ConfigSource;
 
 mod actions;
+#[cfg(all(test, unix))]
+mod hint_tests;
 #[cfg(unix)]
 mod ipc;
 #[cfg(all(test, unix))]
@@ -37,12 +39,16 @@ mod option_tests;
 mod reload_tests;
 #[cfg(all(test, unix))]
 mod render_tests;
+#[cfg(all(test, unix))]
+mod search_tests;
 pub mod status;
 mod tab_strip;
 #[cfg(all(test, unix))]
 mod tab_tests;
 mod tabs;
 mod update;
+#[cfg(all(test, unix))]
+mod vi_tests;
 mod view;
 
 /// Environment variable with the ID of the pane a shell runs in, for `tankTerm msg`.
@@ -178,6 +184,9 @@ pub struct App {
     pane_select: Option<PaneSelect>,
     /// The keys of the pane labels, and `Escape`.
     pane_keys: Hotkeys,
+    /// No keys: while a vi mode inline search waits for its character, every key goes to the
+    /// terminal.
+    no_keys: Hotkeys,
     /// Where the configuration comes from, while its files are watched for changes.
     config: Option<ConfigSource>,
     /// Whether the window was opened transparent, which it is for the rest of its life.
