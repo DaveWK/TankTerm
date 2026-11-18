@@ -20,6 +20,7 @@ pub mod profile;
 pub mod scrolling;
 pub mod selection;
 pub mod serde_utils;
+pub mod ssh;
 pub mod style;
 pub mod tabs;
 pub mod terminal;

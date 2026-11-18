@@ -4,6 +4,7 @@ ASSETS_DIR = extra
 RELEASE_DIR = target/release
 MANPAGE = $(ASSETS_DIR)/man/tankTerm.1.scd
 MANPAGE-MSG = $(ASSETS_DIR)/man/tankTerm-msg.1.scd
+MANPAGE-SSH = $(ASSETS_DIR)/man/tankTerm-ssh.1.scd
 MANPAGE-CONFIG = $(ASSETS_DIR)/man/tankTerm.5.scd
 MANPAGE-CONFIG-BINDINGS = $(ASSETS_DIR)/man/tankTerm-bindings.5.scd
 MANPAGE-ESCAPES = $(ASSETS_DIR)/man/tankTerm-escapes.7.scd
@@ -50,6 +51,7 @@ $(APP_NAME)-%: $(TARGET)-%
 	@mkdir -p $(APP_COMPLETIONS_DIR)
 	@extra/man/scdoc.sh $(MANPAGE) | gzip -c > $(APP_EXTRAS_DIR)/tankTerm.1.gz
 	@extra/man/scdoc.sh $(MANPAGE-MSG) | gzip -c > $(APP_EXTRAS_DIR)/tankTerm-msg.1.gz
+	@extra/man/scdoc.sh $(MANPAGE-SSH) | gzip -c > $(APP_EXTRAS_DIR)/tankTerm-ssh.1.gz
 	@extra/man/scdoc.sh $(MANPAGE-CONFIG) | gzip -c > $(APP_EXTRAS_DIR)/tankTerm.5.gz
 	@extra/man/scdoc.sh $(MANPAGE-CONFIG-BINDINGS) | gzip -c > $(APP_EXTRAS_DIR)/tankTerm-bindings.5.gz
 	@extra/man/scdoc.sh $(MANPAGE-ESCAPES) | gzip -c > $(APP_EXTRAS_DIR)/tankTerm-escapes.7.gz

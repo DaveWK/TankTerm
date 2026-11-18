@@ -34,6 +34,7 @@ use crate::config::mouse::Mouse;
 use crate::config::profile::Profile;
 use crate::config::scrolling::Scrolling;
 use crate::config::selection::Selection;
+use crate::config::ssh::Ssh;
 use crate::config::style::StyleConfig;
 use crate::config::tabs::Tabs;
 use crate::config::terminal::Terminal;
@@ -72,6 +73,9 @@ pub struct UiConfig {
 
     /// Shell profiles offered by the profile selector.
     pub profiles: Vec<Profile>,
+
+    /// Terminfo negotiation of `tankTerm ssh`.
+    pub ssh: Ssh,
 
     /// Mouse configuration.
     pub mouse: Mouse,

@@ -311,9 +311,15 @@ repository.
 ### Terminfo
 
 TankTerm uses the `alacritty` or `alacritty-direct` terminfo, which TankTerm
-inherited from Alacritty. It ships with ncurses, so programs on other machines,
-such as over SSH, already know it. The `alacritty` terminfo will be picked up
-automatically if it is installed.
+inherited from Alacritty. The entry comes with ncurses, but not every
+distribution installs it: Fedora and Rocky always have it, while Debian and
+Ubuntu put it in the `ncurses-term` package, which minimal and container
+installs leave out. The `alacritty` terminfo will be picked up automatically if
+it is installed.
+
+Over SSH, a server without the entry can't run full-screen programs properly.
+`tankTerm ssh` sends such servers a `TERM` they have; see
+[SSH](./docs/features.md#ssh) and `man tankTerm-ssh`.
 
 If the following command returns without any errors, the `alacritty` terminfo is
 already installed:
@@ -322,8 +328,9 @@ already installed:
 infocmp alacritty
 ```
 
-If it is not present already, you can install it globally with the following
-command:
+If it is not present already, install `ncurses-term` on Debian and Ubuntu
+(`sudo apt install ncurses-term`), or install the entry from TankTerm's source
+globally with the following command:
 
 ```sh
 sudo tic -xe alacritty,alacritty-direct extra/tankterm.info
@@ -377,6 +384,7 @@ sudo mkdir -p /usr/local/share/man/man5
 sudo mkdir -p /usr/local/share/man/man7
 extra/man/scdoc.sh extra/man/tankTerm.1.scd | gzip -c | sudo tee /usr/local/share/man/man1/tankTerm.1.gz > /dev/null
 extra/man/scdoc.sh extra/man/tankTerm-msg.1.scd | gzip -c | sudo tee /usr/local/share/man/man1/tankTerm-msg.1.gz > /dev/null
+extra/man/scdoc.sh extra/man/tankTerm-ssh.1.scd | gzip -c | sudo tee /usr/local/share/man/man1/tankTerm-ssh.1.gz > /dev/null
 extra/man/scdoc.sh extra/man/tankTerm.5.scd | gzip -c | sudo tee /usr/local/share/man/man5/tankTerm.5.gz > /dev/null
 extra/man/scdoc.sh extra/man/tankTerm-bindings.5.scd | gzip -c | sudo tee /usr/local/share/man/man5/tankTerm-bindings.5.gz > /dev/null
 extra/man/scdoc.sh extra/man/tankTerm-escapes.7.scd | gzip -c | sudo tee /usr/local/share/man/man7/tankTerm-escapes.7.gz > /dev/null

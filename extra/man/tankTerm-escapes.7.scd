@@ -276,7 +276,7 @@ brevity.
 
 # SEE ALSO
 
-*tankTerm*(1), *tankTerm-msg*(1), *tankTerm*(5), *tankTerm-bindings*(5)
+*tankTerm*(1), *tankTerm-msg*(1), *tankTerm-ssh*(1), *tankTerm*(5), *tankTerm-bindings*(5)
 
 # BUGS
 

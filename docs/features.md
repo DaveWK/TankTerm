@@ -403,6 +403,38 @@ theme = "dracula"
 <kbd>Shift</kbd> <kbd>E</kbd> on macOS) opens the profile selector, which works
 like the command palette and opens the chosen profile in a new tab.
 
+## SSH
+
+`tankTerm ssh` runs `ssh` with a `TERM` the server has a terminfo entry for. A
+server without an entry for `TERM` can't run full-screen programs properly, and
+minimal Debian and Ubuntu installs lack `alacritty`, the entry TankTerm uses.
+The arguments go to `ssh` unchanged:
+
+```sh
+tankTerm ssh -p 2222 build.lan
+```
+
+Hosts matching the `probe` patterns of the `[ssh]` table are checked once, over
+the connection the session then uses, for the entries in `order`; the first
+one the server has becomes `TERM`. Other hosts get `fallback`:
+
+```toml
+[ssh]
+probe = ["*.lan", "build-*", "pi@10.0.0.*", "!nas.lan"]
+order = ["alacritty", "xterm-256color", "xterm"]  # the default
+fallback = "xterm-256color"                       # the default
+```
+
+Patterns match the host as typed or the host name `ssh -G` resolves it to,
+and `user@host` when they contain `@`. The answer is cached per user, host and
+port in `$XDG_STATE_HOME/tankterm/ssh-terms.json`. `--reprobe` checks a host
+again, and `--probe` and `--no-probe` override the patterns for one connection.
+The check only tests which terminfo files the server has and never installs
+anything; on a Debian or Ubuntu server without `alacritty` it suggests
+installing `ncurses-term`. A profile gets the same with
+`shell = { program = "tankTerm", args = ["ssh", "build.lan"] }`. Not available
+on Windows; see `man tankTerm-ssh`.
+
 ## Scripting
 
 `tankTerm msg` controls a running TankTerm from scripts and other programs,
