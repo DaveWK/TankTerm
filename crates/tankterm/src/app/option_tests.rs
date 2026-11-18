@@ -1091,6 +1091,27 @@ fn the_gear_sits_apart_from_the_window_buttons() {
 }
 
 #[test]
+fn the_title_bar_icons_are_bigger_than_the_text_without_making_the_bar_higher() {
+    use super::icons::{Icon, app_icon_id, id};
+
+    let app = app_with(FRAMELESS, Hotkeys::default());
+    let size = app.settings.font.size;
+    let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
+    let bounds = |found| iced_test::selector::Bounded::visible_bounds(&found).unwrap();
+    let icons = [Icon::Plus, Icon::Gear, Icon::Minimize, Icon::Maximize, Icon::Close];
+    for icon in icons {
+        let icon = bounds(ui.find(id(icon)).unwrap());
+        assert!(icon.width > size && icon.height > size, "{icon:?} {size}");
+    }
+    let logo = bounds(ui.find(app_icon_id()).unwrap());
+    assert!(logo.height >= 1.5 * size, "{logo:?} {size}");
+
+    // The bar is as high as with the system's title bar, where it has no app icon.
+    let tabs = app_with("[tabs]\nshow = \"Always\"\n", Hotkeys::default());
+    assert!((tab_bar_middle(&app) - tab_bar_middle(&tabs)).abs() < 0.5);
+}
+
+#[test]
 fn the_tab_bar_is_the_title_bar_only_without_the_system_one() {
     let shown = |config: &str| {
         let app = app_with(config, Hotkeys::default());

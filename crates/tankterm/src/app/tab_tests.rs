@@ -1852,11 +1852,9 @@ fn tab_widths_are_in_cells() {
     let mut app = app_with(config, Hotkeys::default());
     let cell = app.settings.font.cell_size().width;
 
-    // The shown tab is 20 cells wide, then a pixel, then the new tab button's padding, and its
-    // icon is centered in a square as wide as the font is high.
-    let size = app.settings.font.size;
-    let centered = (size - (size * 0.75).round()) / 2.;
-    let plus = text_x(&app, icons::id(Icon::Plus)) - centered;
+    // The shown tab is 20 cells wide, then a pixel, then the new tab button's padding and its
+    // icon.
+    let plus = text_x(&app, icons::id(Icon::Plus));
     assert!((plus - (20. * cell).floor() - 1. - 14.).abs() < 1., "{plus} {cell}");
 
     // The second tab is shown, and the first is 10 cells wide.
@@ -1873,12 +1871,21 @@ fn tabs_with_a_width_keep_it_in_a_crowded_bar() {
     perform(&mut app, &[AppAction::SelectTab(0)]);
     let cell = app.settings.font.cell_size().width;
 
-    let shown = text_x(&app, tab_text(&app, 1)) - text_x(&app, tab_text(&app, 0));
+    // Where things start, also those squeezed out of sight. The other tabs have the same
+    // title, so they are told apart by their close buttons.
+    let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
+    let mut x =
+        |selector: String| iced_test::selector::Bounded::bounds(&ui.find(selector).unwrap()).x;
+    let shown = x(tab_text(&app, 1)) - x(tab_text(&app, 0));
     assert!((shown - (30. * cell).floor() - 1.).abs() < 1., "{shown} {cell}");
 
     // The other tabs share what is left.
-    let other = text_x(&app, tab_text(&app, 2)) - text_x(&app, tab_text(&app, 1));
-    assert!(other < shown / 2., "{other} {shown}");
+    let mut x = |index| {
+        let close = ui.find(icons::close_tab_id(index)).unwrap();
+        iced_test::selector::Bounded::bounds(&close).x
+    };
+    let other = x(2) - x(1);
+    assert!(0. < other && other < shown / 2., "{other} {shown}");
 }
 
 /// Whether two applications draw the same picture with the mouse at `at`, if anywhere.

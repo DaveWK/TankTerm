@@ -331,8 +331,17 @@ impl App {
                 // The app's icon opens the window menu, and isn't a button: the bar doesn't
                 // take the press, so the window doesn't move.
                 if button == TitleButton::Menu {
-                    let icon = container(icons::app_icon((size * LINE_HEIGHT).round()))
-                        .padding(padding(styles.button.padding));
+                    // As big as the bar leaves room for, so the bar keeps its height.
+                    let padding = styles.button.padding;
+                    let room = size * LINE_HEIGHT + f32::from(padding.top + padding.bottom);
+                    let side = (size * APP_ICON).round().min(room).max(0.);
+                    let vertical = (room - side) / 2.;
+                    let icon = container(icons::app_icon(side)).padding(Padding {
+                        top: vertical,
+                        right: padding.right.into(),
+                        bottom: vertical,
+                        left: padding.left.into(),
+                    });
                     return mouse_area(icon).on_press(Message::TitleBarMenu).into();
                 }
                 let action = match button {
@@ -352,7 +361,7 @@ impl App {
             // The gear keeps apart from the window buttons after it, by about two buttons.
             if !right.is_empty() {
                 let padding = styles.button.padding;
-                let button = size + f32::from(padding.left + padding.right);
+                let button = bar_icon_size(size) + f32::from(padding.left + padding.right);
                 parts.push(Space::new().width(2. * button).into());
             }
             parts.extend(group(right));
@@ -436,6 +445,10 @@ const CLOSE_PADDING: f32 = 8.;
 /// How high a line of text is, in font sizes: iced's default line height.
 const LINE_HEIGHT: f32 = 1.3;
 
+/// How wide the app's icon at the end of the title bar is, in font sizes, at most: as high as
+/// the bar allows.
+const APP_ICON: f32 = 1.8;
+
 /// How far from the window's border its edges can be dragged.
 const EDGE: f32 = 5.;
 
@@ -501,10 +514,16 @@ fn window_icon(
     bar_icon(icon, style, size)
 }
 
-/// An icon of a button on the bar, in the button's text color, as high as a line of text.
+/// An icon of a button on the bar, in the button's text color, centered in a line of text.
 fn bar_icon(icon: Icon, style: &TabStyle, size: f32) -> Element<'static, Message> {
-    let drawn = icons::icon(icon, (size * 0.75).round(), color(style.colors().0), icons::id(icon));
-    container(drawn).center_x(size).center_y(size * LINE_HEIGHT).into()
+    let drawn = icons::icon(icon, bar_icon_size(size), color(style.colors().0), icons::id(icon));
+    container(drawn).center_y(size * LINE_HEIGHT).into()
+}
+
+/// How wide the icon of a button on the bar is, for a font `size`: a little more than the
+/// font is high, so the buttons are easy to see and hit.
+pub(super) fn bar_icon_size(size: f32) -> f32 {
+    (size * 1.1).round()
 }
 
 /// How wide a tab's close icon is, for a font `size`.
