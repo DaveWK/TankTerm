@@ -371,8 +371,9 @@ fn is_local_host(host: &str) -> bool {
     local_host_name().is_some_and(|local| short(local) == short(host))
 }
 
-/// This computer's host name.
-fn local_host_name() -> Option<&'static str> {
+/// This computer's host name, as the system gives it, with or without its domain. It is read
+/// once.
+pub fn local_host_name() -> Option<&'static str> {
     static NAME: OnceLock<Option<String>> = OnceLock::new();
     NAME.get_or_init(host_name).as_deref()
 }

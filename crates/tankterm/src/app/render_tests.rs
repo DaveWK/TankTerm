@@ -653,6 +653,87 @@ fn status_segments() {
         r##"foreground = "#000000", background = "#00aa00""##,
         r##"foreground = "#000000", background = "#00ff00", border = "Rounded", margin = [0, 4]"##,
     ]);
+
+    // Segments before the tabs, after the window buttons on the left, and after the tabs. The
+    // second tab is split and zoomed; the load is made up.
+    let config = r#"
+        [window]
+        decorations = "None"
+        buttons = "Left"
+
+        [[tabs.status]]
+        segment = "Host"
+        format = "{user}@{host}"
+        side = "Left"
+
+        [[tabs.status]]
+        segment = "Count"
+        format = "{tab}/{tabs} [{panes}]"
+        side = "Left"
+
+        [[tabs.status]]
+        segment = "Zoom"
+
+        [[tabs.status]]
+        segment = "Load"
+        format = "load {load1}"
+    "#;
+    let mut app = super::tab_tests::app_with(config, Hotkeys::default());
+    let _ = app.update(Message::Action(AppAction::NewTab));
+    let _ = app.update(Message::Action(AppAction::Split(Axis::Vertical)));
+    let _ = app.update(Message::Action(AppAction::ToggleZoom));
+    settle(&mut app, window);
+    app.load = Some([0.42, 0.37, 0.3]);
+    snapshot(&app, window, &dir, "status-segments-left");
+
+    // Powerline arrows from the font, as `Text` segments colored to join the segments around
+    // them, at both ends.
+    let config = r##"
+        [tabs]
+        show = "Always"
+
+        [style.tab_status]
+        foreground = "#000000"
+        padding = [0, 6]
+
+        [[tabs.status]]
+        segment = "Host"
+        side = "Left"
+        style = { background = "#5fafff" }
+
+        [[tabs.status]]
+        segment = "Text"
+        format = "\ue0b0"
+        side = "Left"
+        style = { foreground = "#5fafff", padding = 0 }
+
+        [[tabs.status]]
+        segment = "Text"
+        format = "\ue0b2"
+        style = { foreground = "#f4d35e", padding = 0 }
+
+        [[tabs.status]]
+        segment = "Cwd"
+        style = { background = "#f4d35e" }
+
+        [[tabs.status]]
+        segment = "Text"
+        format = "\ue0b2"
+        style = { foreground = "#00ff00", background = "#f4d35e", padding = 0 }
+
+        [[tabs.status]]
+        segment = "Clock"
+        format = "%H:%M"
+        style = { background = "#00ff00" }
+    "##;
+    let mut app = super::tab_tests::app_with(config, Hotkeys::default());
+    let _ = app.update(Message::Action(AppAction::NewTab));
+    settle(&mut app, window);
+    app.now = Some("2026-11-12T09:41:00[UTC]".parse().unwrap());
+    let focused = app.focused_terminal().unwrap();
+    let home = home::home_dir().unwrap_or_default();
+    app.terminals.get_mut(&focused).unwrap().working_directory = Some(home.join("src/tankterm"));
+    snapshot(&app, window, &dir, "status-segments-powerline");
 }
 
 #[test]

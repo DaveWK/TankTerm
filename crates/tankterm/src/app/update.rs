@@ -65,6 +65,7 @@ impl App {
             socket: None,
             now: None,
             battery: None,
+            load: None,
         };
         app.sample_status();
 
@@ -790,10 +791,10 @@ impl App {
 }
 
 impl App {
-    /// Look up the names of the programs that have the terminals, while the tab titles show
-    /// them.
+    /// Look up the names of the programs that have the terminals, while the tab titles or a
+    /// status segment show them.
     fn poll_process_names(&mut self) {
-        if !self.options.tabs.title.uses("process") {
+        if !self.options.tabs.title.uses("process") && !self.shows(SegmentKind::Process) {
             return;
         }
 

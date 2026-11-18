@@ -428,14 +428,15 @@ Unix, for shells with job control, and within about a second.
 
 	Default: _"{index}: {title}{zoom}{marker}"_
 
-*status* = [{ segment = _"<kind>"_, format = _"<format>"_, style = { _<style>_ } }, ...]
+*status* = [{ segment = _"<kind>"_, format = _"<format>"_, side = _"<side>"_, style = { _<style>_ } }, ...]
 
-	Segments at the right end of the tab bar, before the gear, in order. Each
-	is drawn while it has something to show, and those that change on their
-	own are looked at again every second. They are usually written as
+	Segments at the ends of the tab bar, in order. Each is drawn while it has
+	something to show and its text isn't empty, and those that change on their
+	own are looked at again every second. Segments touch, so _Text_ segments
+	can join them with separators. They are usually written as
 	*[[tabs.status]]* tables.
 
-	*segment* = _"KeyTable"_ | _"Clock"_ | _"Cwd"_ | _"Battery"_
+	*segment* = _"KeyTable"_ | _"Clock"_ | _"Cwd"_ | _"Battery"_ | _"Zoom"_ | _"Count"_ | _"Text"_ | _"Host"_ | _"Process"_ | _"Load"_
 
 		*KeyTable*
 			The key table that was activated last, while one is active.
@@ -456,12 +457,45 @@ Unix, for shells with job control, and within about a second.
 			_"{percent}%"_. Batteries are read from _/sys/class/power\_supply_,
 			so this only shows on Linux; batteries of devices like mice are left
 			out, and without a battery the segment isn't drawn.
+		*Zoom*
+			The format, while a pane of the shown tab is zoomed. No
+			placeholders. Default format: _"ZOOM"_.
+		*Count*
+			Placeholders: _{tabs}_, the number of tabs; _{panes}_, the number of
+			panes in the shown tab; _{tab}_, the position of the shown tab, from
+			1. Default format: _"{tab}/{tabs}"_.
+		*Text*
+			The format, always. No placeholders. For separators, like powerline
+			arrows from a font that has them, and labels.
+		*Host*
+			Placeholders: _{user}_, the user TankTerm runs as, from _$USER_ or
+			_$LOGNAME_ (_%USERNAME%_ on Windows); _{host}_, the host name without
+			its domain; _{fqdn}_, the host name with its domain. The domain is
+			looked up in the background when the configuration is read; until
+			then, and without one, _{fqdn}_ is the host name as the system gives
+			it. Default format: _"{user}@{host}"_.
+		*Process*
+			The name of the program running in the focused pane, like _vim_,
+			while a command runs; at the prompt the segment isn't drawn.
+			Placeholder: _{name}_. Default format: _"{name}"_. The program is read
+			from _/proc_, so this only shows on Linux.
+		*Load*
+			The load average over 1, 5 and 15 minutes, with two decimals.
+			Placeholders: _{load1}_, _{load5}_, _{load15}_. Default format:
+			_"{load1}"_. Not drawn on Windows.
 
 	*format* = _"<format>"_
 
 		Text with placeholders in braces, like _"{percent}% {status}"_. _{{_ and
 		_}}_ are literal braces. Placeholders the segment doesn't know are
 		reported and drawn as they are written.
+
+	*side* = _"Left"_ | _"Right"_
+
+		The end of the tab bar the segment is at: before the tabs, after the
+		window buttons on the left, or after the tabs, before the gear.
+
+		Default: _"Right"_
 
 	*style* = { _<style>_ }
 
@@ -476,6 +510,10 @@ show = _"Always"_++
 position = _"Bottom"_++
 restore = _true_++
 title = _"{index} {process} in {cwd}{zoom}{marker}"_
+
+	*[[tabs.status]]*++
+segment = _"Host"_++
+side = _"Left"_
 
 	*[[tabs.status]]*++
 segment = _"KeyTable"_++

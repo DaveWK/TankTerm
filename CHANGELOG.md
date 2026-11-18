@@ -70,6 +70,9 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 - Status segments at the end of the tab bar, as `[[tabs.status]]` tables: the active key table,
     a clock with a strftime format, the focused pane's directory and the battery charge, each
     with a `{placeholder}` format and a style on top of `[style.tab_status]`
+- `Zoom`, `Count`, `Text`, `Host`, `Process` and `Load` status segments, and `side = "Left"` to
+    put a segment before the tabs. Segments with an empty text aren't drawn, and segments touch,
+    so `Text` segments can join them with separators
 - With `window.decorations = "None"` the tab bar is the title bar: it is always shown, has
     minimize, maximize and close buttons where `window.buttons` says (`Desktop`, the default,
     follows KDE's and GNOME's button layout; `Right`, `Left`, `None`), moves the window when

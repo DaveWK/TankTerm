@@ -219,6 +219,8 @@ pub struct App {
     now: Option<jiff::Zoned>,
     /// The batteries at the last tick, while a battery segment shows them.
     battery: Option<status::Battery>,
+    /// The load average at the last tick, while a load segment shows it.
+    load: Option<[f64; 3]>,
 }
 
 /// Dragging the window by the tab bar. The window moves once the mouse has moved a few
@@ -282,7 +284,7 @@ struct Shell {
     /// it in or a status segment to show it.
     working_directory: Option<PathBuf>,
     /// Name of the program that had the terminal at the last tick, where that can be told.
-    /// Only kept up to date while the tab title shows it.
+    /// Only kept up to date while the tab title or a status segment shows it.
     process: Option<String>,
     /// The terminal rang the bell or finished a command while nobody was looking at it.
     attention: bool,

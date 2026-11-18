@@ -27,7 +27,7 @@ pub struct Tabs {
     /// What every tab shows in the tab bar.
     pub title: TabTitle,
 
-    /// Segments at the end of the tab bar, in order.
+    /// Segments at the ends of the tab bar, in order.
     pub status: Vec<StatusSegment>,
 }
 
@@ -121,7 +121,7 @@ impl<'de> Deserialize<'de> for TabTitle {
     }
 }
 
-/// A segment at the end of the tab bar.
+/// A segment at an end of the tab bar.
 #[derive(ConfigDeserialize, Serialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct StatusSegment {
     /// What the segment shows.
@@ -131,8 +131,22 @@ pub struct StatusSegment {
     /// kind has its default.
     pub format: Option<String>,
 
+    /// The end of the tab bar the segment is at.
+    pub side: Side,
+
     /// Changes to `[style.tab_status]` for this segment.
     pub style: Style,
+}
+
+/// An end of the tab bar.
+#[derive(ConfigDeserialize, Serialize, Default, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Side {
+    /// Before the tabs, after the window buttons on that side.
+    Left,
+
+    /// After the tabs, before the gear.
+    #[default]
+    Right,
 }
 
 /// What a status segment shows.
@@ -151,6 +165,25 @@ pub enum SegmentKind {
 
     /// The charge of the batteries: `{percent}` and `{status}`.
     Battery,
+
+    /// The format, while the shown tab has a zoomed pane.
+    Zoom,
+
+    /// How many tabs and panes there are: `{tabs}`, `{panes}` in the shown tab, and `{tab}`,
+    /// the position of the shown tab.
+    Count,
+
+    /// The format, always: separators or a label.
+    Text,
+
+    /// Who and where: `{user}`, `{host}` and `{fqdn}`.
+    Host,
+
+    /// The program running in the focused pane, while a command runs: `{name}`.
+    Process,
+
+    /// The load average over 1, 5 and 15 minutes: `{load1}`, `{load5}` and `{load15}`.
+    Load,
 }
 
 impl SegmentKind {
@@ -161,6 +194,12 @@ impl SegmentKind {
             Self::Clock => "%H:%M",
             Self::Cwd => "{path}",
             Self::Battery => "{percent}%",
+            Self::Zoom => "ZOOM",
+            Self::Count => "{tab}/{tabs}",
+            Self::Text => "",
+            Self::Host => "{user}@{host}",
+            Self::Process => "{name}",
+            Self::Load => "{load1}",
         }
     }
 
@@ -168,9 +207,13 @@ impl SegmentKind {
     pub fn fields(self) -> &'static [&'static str] {
         match self {
             Self::KeyTable => &["name"],
-            Self::Clock => &[],
+            Self::Clock | Self::Zoom | Self::Text => &[],
             Self::Cwd => &["path", "basename"],
             Self::Battery => &["percent", "status"],
+            Self::Count => &["tabs", "panes", "tab"],
+            Self::Host => &["user", "host", "fqdn"],
+            Self::Process => &["name"],
+            Self::Load => &["load1", "load5", "load15"],
         }
     }
 }
@@ -200,5 +243,31 @@ mod tests {
         overrides.override_config(&mut config);
 
         assert!(config.tabs.title.uses("process"));
+    }
+
+    #[test]
+    fn status_segments_take_a_side_and_default_formats() {
+        let config: UiConfig = toml::from_str(
+            "[[tabs.status]]\nsegment = \"Host\"\nside = \"Left\"\n\n[[tabs.status]]\nsegment = \
+             \"Load\"\nformat = \"{load5}\"\n",
+        )
+        .unwrap();
+        let [host, load] = &config.tabs.status[..] else { panic!("{:?}", config.tabs.status) };
+
+        assert_eq!(
+            (host.segment, host.side, host.format.as_deref()),
+            (SegmentKind::Host, Side::Left, None)
+        );
+        assert_eq!(
+            (load.segment, load.side, load.format.as_deref()),
+            (SegmentKind::Load, Side::Right, Some("{load5}"))
+        );
+
+        // Every default format has only placeholders its segment knows.
+        use SegmentKind::*;
+        for kind in [KeyTable, Cwd, Battery, Zoom, Count, Text, Host, Process, Load] {
+            let template = Template::parse(kind.default_format());
+            assert!(template.fields().all(|field| kind.fields().contains(&field)), "{kind:?}");
+        }
     }
 }
