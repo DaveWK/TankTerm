@@ -564,8 +564,9 @@ tankTerm migrate --from wezterm --dry-run
 
 See `man tankTerm` for the sources and their options.
 
-## Multi-Window
+## Windows
 
-TankTerm supports running multiple terminal emulators from the same TankTerm
-instance. New windows can be created either by using the `CreateNewWindow`
-keybinding action, or by executing the `tankTerm msg create-window` subcommand.
+A TankTerm process has one window, with tabs and split panes in it. New windows
+aren't supported yet: bindings to `CreateNewWindow` and `SpawnNewInstance` are
+logged as doing nothing, and `tankTerm msg` has no `create-window`. To open
+another window, start `tankTerm` again.

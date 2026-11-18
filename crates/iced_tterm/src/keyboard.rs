@@ -8,9 +8,8 @@
 //! [`TermMode::KITTY_KEYBOARD_PROTOCOL`] is active.
 //!
 //! The encoder is ported from Alacritty's `alacritty/src/input/keyboard.rs`
-//! (Copyright 2020 The Alacritty Project, Apache-2.0), as carried in TankTerm's
-//! `tankterm/src/input/keyboard.rs`, adapted from winit's `KeyEvent` to iced's
-//! keyboard events. The mapping between the two is:
+//! (Copyright 2020 The Alacritty Project, Apache-2.0), adapted from winit's
+//! `KeyEvent` to iced's keyboard events. The mapping between the two is:
 //!
 //! | winit                                  | iced                       |
 //! | -------------------------------------- | -------------------------- |
