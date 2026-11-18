@@ -53,6 +53,7 @@ winit = { version = "0.30.13", default-features = false, features = ["rwh_06", "
 [dev-dependencies]
 clap_complete = "4.6.11"
 iced_test = "0.14.0"
+iced_tterm = { path = "../iced_tterm", features = ["testing"] }
 
 [target.'cfg(not(windows))'.dependencies]
 xdg = "3.0.0"

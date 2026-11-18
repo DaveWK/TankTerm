@@ -112,6 +112,8 @@ where
     {
         let mut unprocessed = 0;
         let mut processed = 0;
+        // A read failed after bytes were read that aren't parsed yet: they are parsed first.
+        let mut error = None;
 
         // Reserve the next terminal lock for PTY reading.
         let _terminal_lease = Some(self.terminal.lease());
@@ -130,7 +132,9 @@ where
                             break;
                         }
                     },
-                    _ => return Err(err),
+                    _ if unprocessed == 0 => return Err(err),
+                    // The other side hung up after writing, which the next read reports.
+                    _ => error = Some(err),
                 },
             }
 
@@ -138,8 +142,11 @@ where
             let terminal = match &mut terminal {
                 Some(terminal) => terminal,
                 None => terminal.insert(match self.terminal.try_lock_unfair() {
-                    // Force block if we are at the buffer size limit.
-                    None if unprocessed >= READ_BUFFER_SIZE => self.terminal.lock_unfair(),
+                    // Force block if we are at the buffer size limit, or nothing more can be
+                    // read.
+                    None if unprocessed >= READ_BUFFER_SIZE || error.is_some() => {
+                        self.terminal.lock_unfair()
+                    },
                     None => continue,
                     Some(terminal) => terminal,
                 }),
@@ -162,7 +169,7 @@ where
             unprocessed = 0;
 
             // Assure we're not blocking the terminal too long unnecessarily.
-            if processed >= MAX_LOCKED_READ {
+            if error.is_some() || processed >= MAX_LOCKED_READ {
                 break;
             }
         }
@@ -172,7 +179,10 @@ where
             self.event_proxy.send_event(Event::Wakeup);
         }
 
-        Ok(())
+        match error {
+            Some(err) => Err(err),
+            None => Ok(()),
+        }
     }
 
     #[inline]
@@ -555,5 +565,156 @@ mod tests {
     fn ignores_other_sequences() {
         let mut scanner = ColorSchemeQueryScanner::default();
         assert_eq!(scanner.scan(b"\x1b[?997;1n\x1b[6n\x1b[?996h"), 0);
+    }
+}
+
+/// Reading the PTY, with a fake one.
+#[cfg(test)]
+mod pty_read_tests {
+    use std::sync::Arc;
+
+    use super::*;
+    use crate::event::{OnResize, VoidListener};
+    use crate::grid::Dimensions;
+    use crate::index::{Column, Line, Point};
+    use crate::term::test::TermSize;
+    use crate::term::{Config, Term};
+    use crate::tty::{ChildEvent, EventedPty, EventedReadWrite};
+
+    type Terminal = Arc<FairMutex<Term<VoidListener>>>;
+
+    /// What a PTY's reader does on each read.
+    enum Read {
+        /// Return these bytes.
+        Bytes(&'static [u8]),
+        /// Return these bytes while someone else holds the terminal's lock, as when the window
+        /// draws it at that moment.
+        BytesWhileLocked(&'static [u8]),
+        /// Fail like a Linux PTY whose other side hung up.
+        HangUp,
+    }
+
+    /// A reader that plays back `reads`, one per call.
+    struct Reader {
+        reads: VecDeque<Read>,
+        terminal: Terminal,
+        /// Locks the terminal from another thread until it is told to let go.
+        holder: Option<(mpsc::Sender<()>, JoinHandle<()>)>,
+    }
+
+    impl Reader {
+        fn release(&mut self) {
+            if let Some((release, holder)) = self.holder.take() {
+                release.send(()).unwrap();
+                holder.join().unwrap();
+            }
+        }
+    }
+
+    impl io::Read for Reader {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            self.release();
+            let bytes = match self.reads.pop_front() {
+                Some(Read::Bytes(bytes)) => bytes,
+                Some(Read::BytesWhileLocked(bytes)) => {
+                    let (locked, wait) = mpsc::channel();
+                    let (release, released) = mpsc::channel();
+                    let terminal = self.terminal.clone();
+                    let holder = std::thread::spawn(move || {
+                        let _guard = terminal.lock_unfair();
+                        locked.send(()).unwrap();
+                        released.recv().unwrap();
+                    });
+                    wait.recv().unwrap();
+                    self.holder = Some((release, holder));
+                    bytes
+                },
+                Some(Read::HangUp) => return Err(io::Error::from_raw_os_error(5)),
+                None => return Err(ErrorKind::WouldBlock.into()),
+            };
+            buf[..bytes.len()].copy_from_slice(bytes);
+            Ok(bytes.len())
+        }
+    }
+
+    /// A PTY whose reader plays back reads, with nothing to poll.
+    struct Pty(Reader, io::Sink);
+
+    impl EventedReadWrite for Pty {
+        type Reader = Reader;
+        type Writer = io::Sink;
+
+        unsafe fn register(
+            &mut self,
+            _: &Arc<Poller>,
+            _: PollingEvent,
+            _: PollMode,
+        ) -> io::Result<()> {
+            Ok(())
+        }
+
+        fn reregister(&mut self, _: &Arc<Poller>, _: PollingEvent, _: PollMode) -> io::Result<()> {
+            Ok(())
+        }
+
+        fn deregister(&mut self, _: &Arc<Poller>) -> io::Result<()> {
+            Ok(())
+        }
+
+        fn reader(&mut self) -> &mut Reader {
+            &mut self.0
+        }
+
+        fn writer(&mut self) -> &mut io::Sink {
+            &mut self.1
+        }
+    }
+
+    impl EventedPty for Pty {
+        fn next_child_event(&mut self) -> Option<ChildEvent> {
+            None
+        }
+    }
+
+    impl OnResize for Pty {
+        fn on_resize(&mut self, _: WindowSize) {}
+    }
+
+    /// The first line of the screen after one `pty_read` of `reads`, and whether it failed.
+    fn read_once(reads: Vec<Read>) -> (String, bool) {
+        let size = TermSize::new(10, 2);
+        let terminal = Arc::new(FairMutex::new(Term::new(Config::default(), &size, VoidListener)));
+        let reader = Reader { reads: reads.into(), terminal: terminal.clone(), holder: None };
+        let mut event_loop =
+            EventLoop::new(terminal.clone(), VoidListener, Pty(reader, io::sink()), false, false)
+                .unwrap();
+
+        let mut buf = vec![0; READ_BUFFER_SIZE];
+        let result = event_loop.pty_read(&mut State::default(), &mut buf, None::<&mut io::Sink>);
+        event_loop.pty.0.release();
+
+        let terminal = terminal.lock();
+        let line: String = (0..terminal.columns())
+            .map(|column| terminal.grid()[Point::new(Line(0), Column(column))].c)
+            .collect();
+        (line.trim_end().to_owned(), result.is_err())
+    }
+
+    #[test]
+    fn output_before_a_hang_up_is_parsed() {
+        assert_eq!(read_once(vec![Read::Bytes(b"held"), Read::HangUp]), ("held".into(), true));
+    }
+
+    #[test]
+    fn output_before_a_hang_up_is_parsed_while_the_terminal_is_locked() {
+        // The lock is busy when the bytes arrive, so they wait while the PTY is read again,
+        // and that read reports the hang-up.
+        let reads = vec![Read::BytesWhileLocked(b"held"), Read::HangUp];
+        assert_eq!(read_once(reads), ("held".into(), true));
+    }
+
+    #[test]
+    fn a_hang_up_with_nothing_read_is_reported() {
+        assert_eq!(read_once(vec![Read::HangUp]), (String::new(), true));
     }
 }

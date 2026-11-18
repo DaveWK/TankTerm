@@ -13,7 +13,10 @@ use iced_tterm::{BackendCommand, CursorShape, SelectionType, TermMode};
 use iced_winit::runtime;
 
 use super::reload_tests::same_picture;
-use super::tab_tests::{app_with, key, perform, type_keys, wait_for_text, wait_until, wakeup};
+use super::tab_tests::{
+    app_with, handle_until, key, perform, type_keys, wait_for_terminal, wait_for_text, wait_until,
+    wakeup,
+};
 use super::*;
 use crate::config::UiConfig;
 use crate::hotkeys::ScrollTo;
@@ -163,7 +166,7 @@ fn scrolling_keys_are_the_applications_on_the_alternate_screen() {
     let config = "[terminal]\nshell = { program = \"sh\", args = [\"-c\", \"printf \
                   '\\\\033[?1049h'; exec cat\"] }\n";
     let mut app = app_configured(config);
-    wait_until("the alternate screen was never entered", || {
+    wait_for_terminal(&app, 0, "the alternate screen was never entered", || {
         app.terminals[&0].terminal.mode().contains(TermMode::ALT_SCREEN)
     });
     let _ = app.update(wakeup(0));
@@ -792,10 +795,7 @@ fn shell_sending(sequence: &str) -> String {
 
 /// Let the first terminal show what its shell printed until `condition` holds.
 fn shown_until(app: &mut App, what: &str, condition: impl Fn(&App) -> bool) {
-    wait_until(what, || {
-        let _ = app.update(wakeup(0));
-        condition(app)
-    });
+    handle_until(app, 0, what, condition);
 }
 
 #[test]

@@ -30,6 +30,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- Output read from the PTY right before it reported an error, such as the hang-up after the
+    program exited, was dropped when the terminal was locked at that moment
 - `CSI 1 J` (erase above) not clearing the first line when the cursor is on the second line
 
 ## Forked from Alacritty

@@ -129,6 +129,18 @@ impl Terminal {
         })
     }
 
+    /// Wait for the terminal's next event, for at most `timeout`.
+    ///
+    /// For tests that wait for a program's output: the PTY event loop sends
+    /// a [`AlacrittyEvent::Wakeup`] once it parsed new output, so checking
+    /// again after each event never misses it and never sleeps. Returns
+    /// `None` once the time is up. Events taken here don't reach
+    /// [`Terminal::subscription`].
+    #[cfg(any(test, feature = "testing"))]
+    pub fn wait_for_event(&self, timeout: Duration) -> Option<AlacrittyEvent> {
+        self.backend_event_rx.blocking_lock().recv_timeout(timeout)
+    }
+
     pub fn widget_id(&self) -> &iced::widget::Id {
         &self.widget_id
     }

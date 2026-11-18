@@ -209,6 +209,8 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 - Session file not written again after writing it failed, until the tabs or panes changed
 - Log messages from the terminal widget being dropped, such as the error for a hint regex that
     doesn't compile
+- A program's last output missing from a held terminal (`--hold`) when the window was drawing
+    the terminal as the program exited
 
 ## Forked from Alacritty
 

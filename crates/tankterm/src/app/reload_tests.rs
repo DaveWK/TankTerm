@@ -12,9 +12,7 @@ use iced_tterm::CursorShape;
 use tempfile::TempDir;
 
 use super::option_tests::{cells, cursor, oldest_line, wheel_step};
-use super::tab_tests::{
-    Warnings, mouse_pastes_with, perform, type_keys, wait_for_text, wait_until,
-};
+use super::tab_tests::{PATIENCE, Warnings, mouse_pastes_with, perform, type_keys, wait_for_text};
 use super::*;
 use crate::cli::Options;
 use crate::config::{self, UiConfig};
@@ -434,7 +432,7 @@ fn configuration_is_not_watched_without_live_config_reload() {
 #[test]
 fn watched_files_change_the_window_without_being_told() {
     use iced::futures::executor::block_on;
-    use iced::futures::{StreamExt, future, stream};
+    use iced::futures::{StreamExt, stream};
     use iced_winit::runtime::futures::subscription;
 
     let file = ConfigFile::new("");
@@ -443,20 +441,30 @@ fn watched_files_change_the_window_without_being_told() {
     // Run the application's subscriptions, the one watching the files among them, the way
     // iced would. Nothing happens in the window meanwhile.
     let recipes = subscription::into_recipes(app.subscription());
-    let mut streams: Vec<_> =
+    let streams: Vec<_> =
         recipes.into_iter().map(|recipe| recipe.stream(Box::pin(stream::pending()))).collect();
 
-    file.write("[colors.primary]\nbackground = \"#202040\"\n");
-    wait_until("the change was never noticed", || {
-        let changed = streams.iter_mut().any(|messages| {
-            let message = block_on(future::poll_immediate(messages.next()));
-            matches!(message, Some(Some(Message::ConfigChanged)))
-        });
-        if changed {
-            let _ = app.update(Message::ConfigChanged);
+    // A thread runs them and passes their messages on, so the test waits for the watcher's
+    // message without polling for it.
+    let (sender, messages) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let mut all = stream::select_all(streams);
+        while let Some(message) = block_on(all.next()) {
+            if sender.send(message).is_err() {
+                break;
+            }
         }
-        changed
     });
+
+    file.write("[colors.primary]\nbackground = \"#202040\"\n");
+    loop {
+        match messages.recv_timeout(PATIENCE) {
+            Ok(Message::ConfigChanged) => break,
+            Ok(_) => (),
+            Err(_) => panic!("the change was never noticed"),
+        }
+    }
+    let _ = app.update(Message::ConfigChanged);
 
     assert_eq!(app.options.layout.background, iced::Color::from_rgb8(0x20, 0x20, 0x40));
 }
@@ -508,8 +516,7 @@ fn background_set_by_an_application_is_drawn_behind_the_padding_too() {
     ));
     let mut app = file.start();
     let blue = iced::Color::from_rgb8(0x20, 0x40, 0x60);
-    wait_until("the background was never set", || {
-        let _ = app.update(super::tab_tests::wakeup(0));
+    super::tab_tests::handle_until(&mut app, 0, "the background was never set", |app| {
         app.terminals[&0].terminal.background_override() == Some(blue)
     });
     assert_eq!(app.pane_background(&app.terminals[&0]), blue);
