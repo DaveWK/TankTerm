@@ -520,35 +520,7 @@ fn dynamic_padding() {
 #[ignore = "writes screenshots for manual inspection"]
 fn tab_bar_styles() {
     let Some(dir) = env::var_os("TANKTERM_SNAPSHOT_DIR").map(PathBuf::from) else { return };
-    let window = Size::new(900., 120.);
-
-    // Four tabs: the second is shown, the third printed something unseen, and the fourth rang
-    // the bell. The mouse is over the first one in the `-hovered` pictures.
-    let shots = |name: &str, config: &str| {
-        let mut app = super::tab_tests::app_with(config, Hotkeys::default());
-        for action in
-            [AppAction::NewTab, AppAction::NewTab, AppAction::NewTab, AppAction::SelectTab(1)]
-        {
-            let _ = app.update(Message::Action(action));
-        }
-        settle(&mut app, window);
-        for (index, tab) in app.tabs.iter_mut().enumerate() {
-            tab.activity = index == 2;
-        }
-        app.terminals.get_mut(&3).unwrap().attention = true;
-
-        snapshot(&app, window, &dir, name);
-
-        let mut ui = Simulator::with_size(Default::default(), window, app.view());
-        let tab = ui.find("1: test").unwrap();
-        ui.point_at(iced_test::selector::Bounded::visible_bounds(&tab).unwrap().center());
-        let hovered = ui.snapshot(&Theme::Dark).unwrap();
-        assert!(hovered.matches_image(dir.join(format!("{name}-hovered"))).unwrap());
-        drop(ui);
-
-        app.window_focused = false;
-        snapshot(&app, window, &dir, &format!("{name}-blurred"));
-    };
+    let shots = |name: &str, config: &str| tab_bar_shots(&dir, name, config);
 
     shots("tab-bar-default", "");
     shots(
@@ -595,6 +567,130 @@ fn tab_bar_styles() {
         bold = false
         "##,
     );
+}
+
+/// Pictures of a tab bar with four tabs: the second is shown, the third printed something
+/// unseen, and the fourth rang the bell. The mouse is over the first one in the `-hovered`
+/// picture, and the window doesn't have focus in the `-blurred` one.
+fn tab_bar_shots(dir: &std::path::Path, name: &str, config: &str) {
+    let window = Size::new(900., 120.);
+    let mut app = super::tab_tests::app_with(config, Hotkeys::default());
+    for action in [AppAction::NewTab, AppAction::NewTab, AppAction::NewTab, AppAction::SelectTab(1)]
+    {
+        let _ = app.update(Message::Action(action));
+    }
+    settle(&mut app, window);
+    for (index, tab) in app.tabs.iter_mut().enumerate() {
+        tab.activity = index == 2;
+    }
+    app.terminals.get_mut(&3).unwrap().attention = true;
+
+    snapshot(&app, window, dir, name);
+
+    let mut ui = Simulator::with_size(Default::default(), window, app.view());
+    let tab = ui.find("1: test").unwrap();
+    ui.point_at(iced_test::selector::Bounded::visible_bounds(&tab).unwrap().center());
+    let hovered = ui.snapshot(&Theme::Dark).unwrap();
+    assert!(hovered.matches_image(dir.join(format!("{name}-hovered"))).unwrap());
+    drop(ui);
+
+    app.window_focused = false;
+    snapshot(&app, window, dir, &format!("{name}-blurred"));
+}
+
+#[test]
+#[ignore = "writes screenshots for manual inspection"]
+fn tab_bar_borders_and_widths() {
+    let Some(dir) = env::var_os("TANKTERM_SNAPSHOT_DIR").map(PathBuf::from) else { return };
+
+    // A line under the shown tab, and none around the others.
+    tab_bar_shots(
+        &dir,
+        "tab-bar-underline",
+        r##"
+        [style.tab_bar]
+        gap = 0
+
+        [style.tab_active]
+        border = "Thick"
+        border_bottom = true
+        border_foreground = "#00ff00"
+
+        [style.tab_hovered]
+        border = "Normal"
+        border_bottom = true
+        border_foreground = "#9a9aa8"
+        "##,
+    );
+
+    // Widths in cells: the shown tab is wider than the others, which are a fixed width, with
+    // space between them. Every side of the shown tab has a color of its own.
+    tab_bar_shots(
+        &dir,
+        "tab-bar-widths",
+        r##"
+        [style.tab_bar]
+        gap = 6
+        padding = [4, 6]
+
+        [style.tab_active]
+        width = 24
+        border = "Rounded"
+        border_top_foreground = "#ff4d5a"
+        border_right_foreground = "#f4d35e"
+        border_bottom_foreground = "#00ff00"
+        border_left_foreground = "#6b50ff"
+
+        [style.tab_inactive]
+        width = 14
+        border = "Rounded"
+        border_foreground = "#3a3a4a"
+
+        [style.blurred.tab_active]
+        border_foreground = "#3a3a4a"
+        "##,
+    );
+
+    // Every kind of border, on the tabs and the status segments, and only some sides on the
+    // segments: Double and ASCII tabs, Block buttons.
+    let segment = |kind: &str, sides: &str| {
+        format!(
+            r##"
+            [[tabs.status]]
+            segment = "Clock"
+            format = "{kind}"
+            style = {{ border = "{kind}", border_foreground = "#00ff00", margin = [0, 3], {sides} }}
+            "##
+        )
+    };
+    let mut config = String::from(
+        r##"
+        [style.tab_active]
+        border = "Double"
+        border_foreground = "#00ff00"
+        max_width = 18
+
+        [style.tab_inactive]
+        border = "ASCII"
+        border_foreground = "#9a9aa8"
+        max_width = 18
+
+        [style.tab_button]
+        border = "Block"
+        border_foreground = "#3a3a4a"
+        "##,
+    );
+    for (kind, sides) in [
+        ("Normal", "border_bottom = true"),
+        ("Rounded", "border_top = true, border_left = true"),
+        ("Thick", "border_left = true, border_right = true"),
+        ("Double", ""),
+        ("Block", "border_bottom = true"),
+        ("ASCII", "border_top_foreground = \"#ff4d5a\""),
+    ] {
+        config.push_str(&segment(kind, sides));
+    }
+    tab_bar_shots(&dir, "tab-bar-border-kinds", &config);
 }
 
 #[test]

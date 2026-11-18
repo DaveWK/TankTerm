@@ -39,12 +39,10 @@ Options given where a table is activated (`replace_current`, and `one_shot` and 
 binding instead of per table), `PaneSelect` modes that move the chosen pane to a new tab or
 window, and a configurable label alphabet.
 
-### Rest of Lip Gloss's box properties in the tab bar
+### Lip Gloss's box properties outside the tabs
 
-Borders on single sides (`border_top` and so on, for a line under the shown tab), the `Double`,
-`Block` and `ASCII` borders, `width`/`max_width` per tab style in place of the fixed 240 pixels,
-and the space between tabs. iced's `Border` has one width for all sides, so single sides need
-widgets of their own.
+`width` and `max_width` for the buttons and status segments, `gap` between the status segments
+and buttons, the `border_*_background` colors, and Lip Gloss's half block borders.
 
 ### More status segments
 

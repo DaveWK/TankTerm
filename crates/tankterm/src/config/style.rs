@@ -2,8 +2,8 @@
 //!
 //! Each element (cursor, selection, search matches, hint labels, footer bar, line indicator, key
 //! help, the parts of the tab bar) is styled by a [`Style`] with Lip Gloss's properties: colors
-//! and text attributes, and for the tab bar padding and borders. Styles compose like Lip Gloss's
-//! `Inherit`: a style can inherit from named styles defined in `[style.defs]`, taking every
+//! and text attributes, and for the tab bar padding, borders and widths. Styles compose like Lip
+//! Gloss's `Inherit`: a style can inherit from named styles defined in `[style.defs]`, taking every
 //! property it doesn't set itself.
 //!
 //! Every property resolves in this order:
@@ -249,8 +249,27 @@ pub struct Style {
     pub margin: Option<Spacing>,
     /// Border around the element. Only the tab bar uses it.
     pub border: Option<Border>,
+    /// Which sides of the border are drawn, like Lip Gloss's `BorderTop` and so on. Without any
+    /// of them, all four are; with any of them, only the sides set to true.
+    pub border_top: Option<bool>,
+    pub border_right: Option<bool>,
+    pub border_bottom: Option<bool>,
+    pub border_left: Option<bool>,
     /// Color of the border.
     pub border_foreground: Option<CellRgb>,
+    /// Color of one side of the border, in place of `border_foreground`.
+    pub border_top_foreground: Option<CellRgb>,
+    pub border_right_foreground: Option<CellRgb>,
+    pub border_bottom_foreground: Option<CellRgb>,
+    pub border_left_foreground: Option<CellRgb>,
+
+    /// Width of a tab in terminal cells, padding included and margin not, like Lip Gloss's
+    /// `Width`. Only tabs use it.
+    pub width: Option<u16>,
+    /// Widest a tab gets, in terminal cells, like Lip Gloss's `MaxWidth`. Only tabs use it.
+    pub max_width: Option<u16>,
+    /// Space between the tabs, in logical pixels. Only the tab bar's own style uses it.
+    pub gap: Option<u16>,
 }
 
 impl Style {
@@ -269,8 +288,30 @@ impl Style {
             padding: self.padding.or(parent.padding),
             margin: self.margin.or(parent.margin),
             border: self.border.or(parent.border),
+            border_top: self.border_top.or(parent.border_top),
+            border_right: self.border_right.or(parent.border_right),
+            border_bottom: self.border_bottom.or(parent.border_bottom),
+            border_left: self.border_left.or(parent.border_left),
             border_foreground: self.border_foreground.or(parent.border_foreground),
+            border_top_foreground: self
+                .side_color(self.border_top_foreground, parent.border_top_foreground),
+            border_right_foreground: self
+                .side_color(self.border_right_foreground, parent.border_right_foreground),
+            border_bottom_foreground: self
+                .side_color(self.border_bottom_foreground, parent.border_bottom_foreground),
+            border_left_foreground: self
+                .side_color(self.border_left_foreground, parent.border_left_foreground),
+            width: self.width.or(parent.width),
+            max_width: self.max_width.or(parent.max_width),
+            gap: self.gap.or(parent.gap),
         }
+    }
+
+    /// The color of a side of the border with `parent`'s color for that side inherited. As in
+    /// Lip Gloss, where `BorderForeground` sets the color of every side, the style's own
+    /// `border_foreground` takes the place of the parent's color for the side.
+    fn side_color(&self, own: Option<CellRgb>, parent: Option<CellRgb>) -> Option<CellRgb> {
+        own.or(if self.border_foreground.is_some() { None } else { parent })
     }
 
     fn attributes(&self) -> TextAttributes {
@@ -297,6 +338,33 @@ pub enum Border {
     Rounded,
     /// A thick line.
     Thick,
+    /// Two thin lines.
+    Double,
+    /// A solid band, like Lip Gloss's full block characters.
+    Block,
+    /// A dashed thin line, like rows of `-` and `|` joined by `+`.
+    Ascii,
+}
+
+/// Something for each of the four sides of a box.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Sides<T> {
+    pub top: T,
+    pub right: T,
+    pub bottom: T,
+    pub left: T,
+}
+
+impl<T: Copy> Sides<Option<T>> {
+    /// These values with the ones `above` sets changed.
+    fn below(self, above: Self) -> Self {
+        Sides {
+            top: above.top.or(self.top),
+            right: above.right.or(self.right),
+            bottom: above.bottom.or(self.bottom),
+            left: above.left.or(self.left),
+        }
+    }
 }
 
 /// Names of styles to inherit from: a single name or a list.
@@ -459,7 +527,16 @@ pub struct TabStyle {
     pub padding: Spacing,
     pub margin: Spacing,
     pub border: Border,
+    /// The sides set to be drawn, or none for all four; see [`TabStyle::border_sides`].
+    pub border_sides: Sides<Option<bool>>,
     pub border_foreground: Rgb,
+    /// Colors of single sides, in place of `border_foreground`.
+    pub border_side_foreground: Sides<Option<Rgb>>,
+    /// Width and widest width of a tab, in terminal cells; 0 is the same as none.
+    pub width: Option<u16>,
+    pub max_width: Option<u16>,
+    /// Space between the tabs, in logical pixels.
+    pub gap: u16,
 }
 
 impl TabStyle {
@@ -480,7 +557,44 @@ impl TabStyle {
             padding: layer.padding.unwrap_or(self.padding),
             margin: layer.margin.unwrap_or(self.margin),
             border: layer.border.unwrap_or(self.border),
+            border_sides: self.border_sides.below(layer.border_sides),
             border_foreground: layer.border_foreground.unwrap_or(self.border_foreground),
+            border_side_foreground: side_colors(
+                self.border_side_foreground,
+                layer.border_foreground,
+                layer.border_side_foreground,
+            ),
+            width: layer.width.or(self.width),
+            max_width: layer.max_width.or(self.max_width),
+            gap: layer.gap.unwrap_or(self.gap),
+        }
+    }
+
+    /// Which sides of the border are drawn. Like Lip Gloss, all four are while none is set, and
+    /// only those set to true once any is set.
+    pub fn border_sides(&self) -> Sides<bool> {
+        let sides = self.border_sides;
+        let any = [sides.top, sides.right, sides.bottom, sides.left].iter().any(Option::is_some);
+        let drawn = |side: Option<bool>| {
+            self.border != Border::Hidden && if any { side.unwrap_or(false) } else { true }
+        };
+        Sides {
+            top: drawn(sides.top),
+            right: drawn(sides.right),
+            bottom: drawn(sides.bottom),
+            left: drawn(sides.left),
+        }
+    }
+
+    /// The color of every side of the border.
+    pub fn border_colors(&self) -> Sides<Rgb> {
+        let sides = self.border_side_foreground;
+        let general = self.border_foreground;
+        Sides {
+            top: sides.top.unwrap_or(general),
+            right: sides.right.unwrap_or(general),
+            bottom: sides.bottom.unwrap_or(general),
+            left: sides.left.unwrap_or(general),
         }
     }
 
@@ -512,7 +626,12 @@ pub struct TabLayer {
     padding: Option<Spacing>,
     margin: Option<Spacing>,
     border: Option<Border>,
+    border_sides: Sides<Option<bool>>,
     border_foreground: Option<Rgb>,
+    border_side_foreground: Sides<Option<Rgb>>,
+    width: Option<u16>,
+    max_width: Option<u16>,
+    gap: Option<u16>,
 }
 
 impl TabLayer {
@@ -533,7 +652,22 @@ impl TabLayer {
             padding: style.padding,
             margin: style.margin,
             border: style.border,
+            border_sides: Sides {
+                top: style.border_top,
+                right: style.border_right,
+                bottom: style.border_bottom,
+                left: style.border_left,
+            },
             border_foreground: style.border_foreground.map(rgb),
+            border_side_foreground: Sides {
+                top: style.border_top_foreground.map(rgb),
+                right: style.border_right_foreground.map(rgb),
+                bottom: style.border_bottom_foreground.map(rgb),
+                left: style.border_left_foreground.map(rgb),
+            },
+            width: style.width,
+            max_width: style.max_width,
+            gap: style.gap,
         }
     }
 
@@ -551,9 +685,30 @@ impl TabLayer {
             padding: above.padding.or(self.padding),
             margin: above.margin.or(self.margin),
             border: above.border.or(self.border),
+            border_sides: self.border_sides.below(above.border_sides),
             border_foreground: above.border_foreground.or(self.border_foreground),
+            border_side_foreground: side_colors(
+                self.border_side_foreground,
+                above.border_foreground,
+                above.border_side_foreground,
+            ),
+            width: above.width.or(self.width),
+            max_width: above.max_width.or(self.max_width),
+            gap: above.gap.or(self.gap),
         }
     }
+}
+
+/// The colors of single sides of a border, `below`, with a style's `general` border color and
+/// colors of single `sides` applied over them. As in Lip Gloss, where `BorderForeground` sets
+/// the color of every side, a general color takes the place of the colors of the sides below.
+fn side_colors(
+    below: Sides<Option<Rgb>>,
+    general: Option<Rgb>,
+    sides: Sides<Option<Rgb>>,
+) -> Sides<Option<Rgb>> {
+    let below = if general.is_some() { Sides::default() } else { below };
+    below.below(sides)
 }
 
 /// The `[style.tab_*]` blocks, with their inherited styles applied.
@@ -607,7 +762,12 @@ impl TabBarStyles {
             padding: Spacing::new(3, 8),
             margin: Spacing::default(),
             border: Border::Hidden,
+            border_sides: Sides::default(),
             border_foreground: foreground,
+            border_side_foreground: Sides::default(),
+            width: None,
+            max_width: None,
+            gap: 1,
         };
         let bar = TabStyle {
             background: mix(background, foreground, 0.12),
@@ -1050,6 +1210,7 @@ mod tests {
         assert_eq!(tabs.active.border, Border::Rounded);
         assert_eq!(tabs.active.margin, Spacing::new(1, 1));
         assert_eq!(tabs.active.border_foreground, Rgb::new(0xff, 0, 0));
+        assert_eq!(tabs.active.border_colors().left, Rgb::new(0xff, 0, 0));
         assert!(tabs.active.attributes.bold);
         // Other tabs keep their defaults.
         assert_eq!(tabs.inactive.border, Border::Hidden);
@@ -1161,6 +1322,92 @@ mod tests {
         let blurred = close(config, false);
         assert_eq!(blurred.background, Rgb::new(0x12, 0x34, 0x56));
         assert!(blurred.attributes.bold);
+    }
+
+    #[test]
+    fn border_sides_follow_lip_gloss() {
+        let sides = |config: &str| {
+            let config = load(&format!("[style.tab_active]\nborder = 'normal'\n{config}"));
+            config.style.resolved().tab_bar(true).active.border_sides()
+        };
+        let all = Sides { top: true, right: true, bottom: true, left: true };
+
+        // Without any side set, all four are drawn.
+        assert_eq!(sides(""), all);
+        // With any side set, only those set to true.
+        assert_eq!(sides("border_bottom = true"), Sides { bottom: true, ..Sides::default() });
+        assert_eq!(sides("border_top = false"), Sides::default());
+        assert_eq!(sides("border_left = true\nborder_right = true\nborder_top = false"), Sides {
+            left: true,
+            right: true,
+            ..Sides::default()
+        });
+
+        // A side without a border isn't drawn.
+        let config = load("[style.tab_active]\nborder_bottom = true\n");
+        assert_eq!(config.style.resolved().tab_bar(true).active.border_sides(), Sides::default());
+    }
+
+    #[test]
+    fn border_kinds_are_named_after_lip_gloss() {
+        let border = |name: &str| {
+            let config = load(&format!("[style.tab_active]\nborder = '{name}'\n"));
+            config.style.resolved().tab_bar(true).active.border
+        };
+
+        assert_eq!(border("Double"), Border::Double);
+        assert_eq!(border("block"), Border::Block);
+        assert_eq!(border("ASCII"), Border::Ascii);
+    }
+
+    #[test]
+    fn side_colors_take_the_place_of_the_border_color() {
+        let config = load(
+            "[style.defs.framed]\nborder = 'thick'\nborder_top_foreground = \
+             '#0000ff'\n\n[style.tab_active]\ninherit = 'framed'\nborder_foreground = \
+             '#ff0000'\nborder_left_foreground = '#00ff00'\n\n[style.tab_inactive]\ninherit = \
+             'framed'\n\n[style.tab_hovered]\nborder_foreground = '#ffffff'\n",
+        );
+        let tabs = config.style.resolved().tab_bar(true);
+        let (red, green, blue) = (Rgb::new(0xff, 0, 0), Rgb::new(0, 0xff, 0), Rgb::new(0, 0, 0xff));
+
+        // The style's own border color takes the place of the inherited color of the top, like
+        // Lip Gloss's `BorderForeground`, and its own left color wins over its border color.
+        let active = tabs.active.border_colors();
+        assert_eq!(active, Sides { top: red, right: red, bottom: red, left: green });
+
+        // Without a border color of its own, the inherited top color stays.
+        let inactive = tabs.inactive.border_colors();
+        assert_eq!(inactive.top, blue);
+        assert_eq!(inactive.left, tabs.inactive.border_foreground);
+
+        // A border color in a style applied over another one colors every side.
+        let white = Rgb::new(0xff, 0xff, 0xff);
+        let hovered = tabs.active.with(&tabs.hovered).border_colors();
+        assert_eq!(hovered, Sides { top: white, right: white, bottom: white, left: white });
+    }
+
+    #[test]
+    fn tab_widths_and_gap() {
+        let config = load(
+            "[style.tab_bar]\ngap = 4\n\n[style.tab_active]\nwidth = \
+             30\n\n[style.tab_inactive]\nmax_width = 12\n\n[style.blurred.tab_active]\nwidth = \
+             0\n\n[style.blurred.tab_bar]\ngap = 0\n",
+        );
+        let styles = config.style.resolved();
+        let (focused, blurred) = (styles.tab_bar(true), styles.tab_bar(false));
+
+        assert_eq!(focused.bar.gap, 4);
+        assert_eq!(focused.active.width, Some(30));
+        assert_eq!(focused.inactive.max_width, Some(12));
+        assert_eq!(focused.inactive.width, None);
+        assert_eq!(blurred.active.width, Some(0));
+        assert_eq!(blurred.bar.gap, 0);
+
+        // Tabs are a pixel apart by default, and as wide as they share.
+        let defaults = load("").style.resolved().tab_bar(true);
+        assert_eq!(defaults.bar.gap, 1);
+        assert_eq!((defaults.active.width, defaults.active.max_width), (None, None));
     }
 
     #[test]

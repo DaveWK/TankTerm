@@ -12,11 +12,12 @@ use iced::window::Direction;
 use iced::{Border, Color, Element, Font, Length, Padding};
 use iced_tterm::TerminalView;
 
-use super::tab_strip::TabStrip;
+use super::tab_border::{BoxBorder, bordered};
+use super::tab_strip::{TabStrip, TabWidth};
 use super::{App, Layout, MAX_TAB_WIDTH, Message, Shell, TitleDrag};
 use crate::color::Rgb;
 use crate::config::BindingMode;
-use crate::config::style::{Border as StyleBorder, TabStyle};
+use crate::config::style::TabStyle;
 use crate::config::tabs::{ShowTabs, TabsPosition};
 use crate::config::window::Spacing;
 use crate::hotkeys::{AppAction, KeyFilter, PANE_LABELS};
@@ -186,12 +187,19 @@ impl App {
     ///
     /// Every part is drawn with its `[style.tab_*]` style. A tab or button under the mouse is
     /// drawn again over itself with the hovered style, in the same place: the hovered style's
-    /// margin is ignored, and its padding moves the content but doesn't resize the tab.
+    /// margin and widths are ignored, and its padding moves the content but doesn't resize the
+    /// tab.
     fn tab_bar(&self) -> Element<'_, Message> {
         let [focused, blurred] = self.options.layout.tab_bar;
         let styles = if self.window_focused { focused } else { blurred };
         let font = self.settings.font.font_type;
         let size = self.settings.font.size;
+        // Tab widths are in cells, which are only measured when a width is set.
+        let cell = std::cell::OnceCell::new();
+        let cells = |cells: Option<u16>| {
+            let cells = f32::from(cells.filter(|cells| *cells > 0)?);
+            Some(cells * *cell.get_or_init(|| self.settings.font.cell_size().width))
+        };
 
         let tabs = self.tabs.iter().enumerate().map(|(index, tab)| {
             let attention = tab
@@ -224,13 +232,25 @@ impl App {
                     .on_press(Message::Action(AppAction::SelectTab(index)));
 
                 // Like in browsers, a middle click closes the tab.
-                mouse_area(select).on_middle_press(Message::CloseTab(index)).into()
+                mouse_area(bordered(select, &style))
+                    .on_middle_press(Message::CloseTab(index))
+                    .into()
             };
             let hovered = view(style.with(&styles.hovered), Length::Fill);
-            container(hoverable(view(style, Length::Shrink), hovered))
+            let tab = container(hoverable(view(style, Length::Shrink), hovered))
                 .padding(padding(style.margin))
-                .width(Length::Fill)
-                .into()
+                .width(Length::Fill);
+
+            // Like Lip Gloss's, `width` and `max_width` leave out the margin; the strip lays the
+            // tab out with it. A `max_width` narrower than the `width` wins.
+            let margin = f32::from(style.margin.left + style.margin.right);
+            let max_width = cells(style.max_width);
+            let fixed = cells(style.width).map(|width| max_width.unwrap_or(width).min(width));
+            let width = TabWidth {
+                fixed: fixed.map(|width| width + margin),
+                max: max_width.map_or(MAX_TAB_WIDTH, |width| width + margin),
+            };
+            (tab.into(), width)
         });
 
         // The status segments, each drawn while it has something to show.
@@ -244,7 +264,7 @@ impl App {
                     border: border(&style),
                     ..Default::default()
                 });
-            Some(container(segment).padding(padding(style.margin)).into())
+            Some(container(bordered(segment, &style)).padding(padding(style.margin)).into())
         });
         let status = row(status).spacing(1).align_y(Vertical::Center);
 
@@ -260,12 +280,12 @@ impl App {
                 if !vertical_padding {
                     spacing = spacing.top(0).bottom(0);
                 }
-                button(content(&style))
+                let button = button(content(&style))
                     .padding(spacing)
                     .height(height)
                     .style(move |_, _| button_style(&style))
-                    .on_press(Message::Action(action.clone()))
-                    .into()
+                    .on_press(Message::Action(action.clone()));
+                bordered(button, &style)
             };
             let style = styles.button;
             let mut hovered = style.with(&styles.hovered);
@@ -296,7 +316,7 @@ impl App {
         };
         let settings = bar_button(&gear, false, false, AppAction::OpenConfig);
 
-        let tabs = TabStrip::new(tabs, new_tab, MAX_TAB_WIDTH, 1.);
+        let tabs = TabStrip::new(tabs, new_tab, styles.bar.gap.into());
         let mut parts: Vec<Element<'_, Message>> =
             vec![tabs.into(), status.into(), settings.into()];
 
@@ -332,8 +352,9 @@ impl App {
                 border: border(&bar),
                 ..Default::default()
             });
+        let bar = bordered(bar, &styles.bar);
         if title_bar.is_none() {
-            return bar.into();
+            return bar;
         }
 
         // The window is moved by dragging the bar where nothing else takes the mouse,
@@ -504,14 +525,9 @@ fn button_style(style: &TabStyle) -> button::Style {
     }
 }
 
+/// The corners of a background in `style`. The border itself is drawn by [`bordered`].
 fn border(style: &TabStyle) -> Border {
-    let (width, radius) = match style.border {
-        StyleBorder::Hidden => (0., 0.),
-        StyleBorder::Normal => (1., 0.),
-        StyleBorder::Rounded => (1., 6.),
-        StyleBorder::Thick => (2., 0.),
-    };
-    Border { color: color(style.border_foreground), width, radius: radius.into() }
+    Border { radius: BoxBorder::new(style).radius(), ..Border::default() }
 }
 
 fn padding(spacing: Spacing) -> Padding {

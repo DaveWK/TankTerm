@@ -258,8 +258,8 @@ only known on Linux, and the directory on Linux and with
 ### Tab bar styles
 
 The tab bar is styled with `[style.tab_*]` blocks, which take the same Lip Gloss
-properties as the other `[style]` blocks, plus `padding`, `margin`, `border`
-and `border_foreground`:
+properties as the other `[style]` blocks, plus Lip Gloss's box properties:
+`padding`, `margin`, `border`, `border_foreground`, `width` and `max_width`:
 
 - `tab_bar`: the bar itself.
 - `tab_active` and `tab_inactive`: the shown tab and the others.
@@ -292,6 +292,29 @@ border_foreground = "#3a3a4a"
 
 [style.tab_hovered]
 border_foreground = "#00ff00"
+```
+
+Borders are named after Lip Gloss's: `Normal`, `Rounded`, `Thick`, `Double`,
+`Block` and `ASCII`, drawn in pixels as a thin line, a thin line with rounded
+corners, a 2 pixel line, two thin lines, a solid band and a dashed line. As in
+Lip Gloss, `border_top`, `border_right`, `border_bottom` and `border_left`
+draw single sides, and `border_top_foreground` and so on color them. Tabs are
+`width` cells wide, or share the bar up to `max_width` cells, and `gap` in
+`[style.tab_bar]` is the space between them in pixels. This draws a green line
+under the shown tab, and makes it 24 cells wide:
+
+```toml
+[style.tab_bar]
+gap = 0
+
+[style.tab_active]
+border = "Thick"
+border_bottom = true
+border_foreground = "#00ff00"
+width = 24
+
+[style.tab_inactive]
+max_width = 16
 ```
 
 ### The tab bar as title bar

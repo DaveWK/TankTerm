@@ -65,6 +65,11 @@ Notable changes to the `tankterm_terminal` crate are documented in its
     with their `[style.blurred.tab_*]` variants. Styles take Lip Gloss's `padding`, `margin`,
     `border` (`Normal`, `Rounded`, `Thick`, `Hidden`) and `border_foreground`, which only the
     tab bar uses
+- Tab bar styles take Lip Gloss's `border_top`, `border_right`, `border_bottom` and `border_left`
+    for borders on single sides, such as a line under the shown tab, a color for each side
+    (`border_top_foreground` and so on), and the `Double`, `Block` and `ASCII` borders. Tabs take
+    `width` and `max_width` in terminal cells in place of the fixed 240 pixels, and
+    `[style.tab_bar]` takes `gap`, the space between the tabs
 - `tabs.title` sets what tabs show in the tab bar, with `{index}`, `{title}`, `{panes}`, `{cwd}`,
     `{path}`, `{process}`, `{marker}` and `{zoom}` placeholders; zoomed tabs are marked with ` Z`
 - Status segments at the end of the tab bar, as `[[tabs.status]]` tables: the active key table,
