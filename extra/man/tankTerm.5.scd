@@ -433,6 +433,16 @@ Unix, for shells with job control, and within about a second.
 
 	Default: _"{index}: {title}{zoom}{marker}"_
 
+*width* = _"Title"_ | _"Shared"_
+
+	How wide the tabs are, unless their style gives them a _width_. _Title_
+	makes every tab as wide as its title, its padding and its close button,
+	up to its _max\_width_ or 240 pixels; when they don't all fit, they share
+	the bar evenly. With _Shared_, the tabs share the bar evenly, each up to
+	its _max\_width_ or 240 pixels.
+
+	Default: _"Title"_
+
 *status* = [{ segment = _"<kind>"_, format = _"<format>"_, side = _"<side>"_, command = _<program>_, interval = _<seconds>_, style = { _<style>_ } }, ...]
 
 	Segments at the ends of the tab bar, in order. Each is drawn while it has
@@ -1045,7 +1055,7 @@ belong to a feature it doesn't have yet.
 
 		Default: the shown tab has the primary colors, the others the bar's
 		background and a dimmer foreground. Both have a _padding_ of _[3, 8]_,
-		and share the bar evenly up to 240 pixels each.
+		and are as wide as _tabs.width_ says.
 
 	*tab_button*
 		The new tab button, the gear, and the window buttons of a tab bar that is
@@ -1166,8 +1176,9 @@ belong to a feature it doesn't have yet.
 		Width of a tab, and the widest a tab gets, in terminal cells, like Lip
 		Gloss's _Width_ and _MaxWidth_. Both include the padding and leave out
 		the margin. A tab with a _width_ keeps it while there is room for it;
-		the other tabs share the rest of the bar evenly, each up to its
-		_max\_width_, or 240 pixels without one. _0_ is the same as not set.
+		the other tabs are as wide as _tabs.width_ says in the rest of the
+		bar, each up to its _max\_width_, or 240 pixels without one. _0_ is
+		the same as not set.
 		Only tabs use them.
 
 	*gap* = _<integer>_

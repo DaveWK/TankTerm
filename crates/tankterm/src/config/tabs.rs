@@ -28,6 +28,9 @@ pub struct Tabs {
     /// What every tab shows in the tab bar.
     pub title: TabTitle,
 
+    /// How wide the tabs are.
+    pub width: TabSizing,
+
     /// Segments at the ends of the tab bar, in order.
     pub status: Vec<StatusSegment>,
 }
@@ -40,9 +43,21 @@ impl Default for Tabs {
             restore: false,
             inherit_working_directory: true,
             title: TabTitle::default(),
+            width: Default::default(),
             status: vec![StatusSegment::default()],
         }
     }
+}
+
+/// How wide the tabs are, unless their style gives them a `width`.
+#[derive(ConfigDeserialize, Serialize, Default, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TabSizing {
+    /// As wide as the tab's title, up to the widest a tab gets.
+    #[default]
+    Title,
+
+    /// The tabs share the bar evenly, each up to the widest a tab gets.
+    Shared,
 }
 
 /// When the tab bar is shown.

@@ -11,6 +11,7 @@ use iced::widget::{
 use iced::window::Direction;
 use iced::{Border, Color, Element, Font, Length, Padding};
 use iced_tterm::TerminalView;
+use unicode_width::UnicodeWidthStr;
 
 use super::tab_border::{BoxBorder, bordered};
 use super::tab_strip::{TabStrip, TabWidth};
@@ -18,7 +19,7 @@ use super::{App, Layout, MAX_TAB_WIDTH, Message, Shell, TitleDrag};
 use crate::color::Rgb;
 use crate::config::BindingMode;
 use crate::config::style::TabStyle;
-use crate::config::tabs::{ShowTabs, Side, TabsPosition};
+use crate::config::tabs::{ShowTabs, Side, TabSizing, TabsPosition};
 use crate::config::window::Spacing;
 use crate::hotkeys::{AppAction, KeyFilter, PANE_LABELS};
 use crate::palette::{self, blend, paste_warning};
@@ -219,7 +220,7 @@ impl App {
                 let (foreground, _) = style.colors();
                 let title = container(label(title.clone(), &style, font, size)).clip(true);
                 let close = button(text("\u{d7}").font(font).size(size).color(color(foreground)))
-                    .padding(Padding::ZERO.left(8))
+                    .padding(Padding::ZERO.left(CLOSE_PADDING))
                     .style(|_, _| button::Style::default())
                     .on_press(Message::CloseTab(index));
 
@@ -245,11 +246,20 @@ impl App {
             // tab out with it. A `max_width` narrower than the `width` wins.
             let margin = f32::from(style.margin.left + style.margin.right);
             let max_width = cells(style.max_width);
+            let max = max_width.map_or(MAX_TAB_WIDTH, |width| width + margin);
             let fixed = cells(style.width).map(|width| max_width.unwrap_or(width).min(width));
-            let width = TabWidth {
-                fixed: fixed.map(|width| width + margin),
-                max: max_width.map_or(MAX_TAB_WIDTH, |width| width + margin),
-            };
+            // A tab as wide as its title: the title, in cells of the terminal's font, its
+            // padding and the close button, a cell and its padding.
+            let fitted = (self.options.tabs.width == TabSizing::Title).then(|| {
+                let cell = *cell.get_or_init(|| self.settings.font.cell_size().width);
+                let text = title.width() as f32 + 1.;
+                let padding = f32::from(style.padding.left + style.padding.right);
+                (text * cell + padding + CLOSE_PADDING + margin).ceil().min(max)
+            });
+            // A tab as wide as its title is flexible up to that width, so crowded tabs share the
+            // room evenly and tabs with a width of their own keep it.
+            let width =
+                TabWidth { fixed: fixed.map(|width| width + margin), max: fitted.unwrap_or(max) };
             (tab.into(), width)
         });
 
@@ -396,6 +406,9 @@ impl App {
         Some(row(segments).align_y(Vertical::Center).into())
     }
 }
+
+/// Space between a tab's title and its close button.
+const CLOSE_PADDING: f32 = 8.;
 
 /// How far from the window's border its edges can be dragged.
 const EDGE: f32 = 5.;

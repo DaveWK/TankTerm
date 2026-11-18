@@ -1764,7 +1764,8 @@ fn tabs_share_the_bar_evenly_up_to_the_widest_tab() {
     };
 
     // A few tabs are as wide as a tab gets, and leave the rest of the bar empty.
-    let mut app = app_with("[tabs]\nshow = \"Always\"\n", Hotkeys::default());
+    let config = "[tabs]\nshow = \"Always\"\nwidth = \"Shared\"\n";
+    let mut app = app_with(config, Hotkeys::default());
     let one = new_tab_button(&app);
     assert!((MAX_TAB_WIDTH..MAX_TAB_WIDTH + 20.).contains(&one), "{one}");
     perform(&mut app, &[AppAction::NewTab]);
@@ -1775,6 +1776,43 @@ fn tabs_share_the_bar_evenly_up_to_the_widest_tab() {
     perform(&mut app, &vec![AppAction::NewTab; 10]);
     let crowded = new_tab_button(&app);
     assert!((600. ..800.).contains(&crowded), "{crowded}");
+}
+
+#[test]
+fn tabs_are_as_wide_as_their_titles_by_default() {
+    let mut app = app();
+    perform(&mut app, &[AppAction::NewTab]);
+    app.tabs[0].title = Some("a".into());
+    app.tabs[1].title = Some("a much longer title".into());
+
+    let (first, second) = (text_x(&app, &tab_text(&app, 0)), text_x(&app, &tab_text(&app, 1)));
+    let plus = text_x(&app, "+");
+    let (first, second) = (second - first, plus - second);
+    assert!(first < second && first < 100., "{first} {second}");
+    assert!(second < MAX_TAB_WIDTH, "{second}");
+
+    // The whole title shows.
+    let label = tab_text(&app, 1);
+    let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
+    let shown = iced_test::selector::Bounded::visible_bounds(&ui.find(label.as_str()).unwrap());
+    let cell = app.settings.font.cell_size().width;
+    let shown = shown.unwrap().width;
+    assert!(shown >= label.chars().count() as f32 * cell - 1., "{shown} {cell}");
+}
+
+#[test]
+fn long_titles_and_crowded_bars_keep_the_buttons_on_the_bar() {
+    let mut app = app_with("[tabs]\nshow = \"Always\"\n", Hotkeys::default());
+    app.tabs[0].title = Some("x".repeat(200));
+    let tab = text_x(&app, "+") - text_x(&app, &tab_text(&app, 0));
+    assert!(tab <= MAX_TAB_WIDTH + 2., "{tab}");
+
+    // Twelve tabs share the bar, and the button after them stays on it.
+    perform(&mut app, &vec![AppAction::NewTab; 11]);
+    let plus = text_x(&app, "+");
+    assert!(plus < 790., "{plus}");
+    let step = text_x(&app, &tab_text(&app, 11)) - text_x(&app, &tab_text(&app, 10));
+    assert!(step < 800. / 12., "{step}");
 }
 
 /// Where the text `text` starts in the window, 800 wide.
@@ -1848,7 +1886,7 @@ fn bordered_tabs_and_buttons_take_clicks() {
 
 #[test]
 fn gap_is_the_space_between_tabs() {
-    let config = "[tabs]\nshow = \"Always\"\n[style.tab_bar]\ngap = 12\n";
+    let config = "[tabs]\nshow = \"Always\"\nwidth = \"Shared\"\n[style.tab_bar]\ngap = 12\n";
     let mut app = app_with(config, Hotkeys::default());
     perform(&mut app, &[AppAction::NewTab]);
 

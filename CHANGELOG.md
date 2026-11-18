@@ -154,6 +154,8 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 
 ### Changed
 
+- Tabs are as wide as their titles, up to 240 pixels, instead of sharing the bar evenly;
+    `tabs.width = "Shared"` brings that back
 - A tab whose programs set no title is named after where its shell is, as `user@host:path`,
     instead of `TankTerm`, while `window.dynamic_title` is on; this is also the window title and
     the `title` and `tab_title` of `tankTerm msg list`

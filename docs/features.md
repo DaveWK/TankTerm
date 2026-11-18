@@ -353,7 +353,8 @@ Borders are named after Lip Gloss's: `Normal`, `Rounded`, `Thick`, `Double`,
 corners, a 2 pixel line, two thin lines, a solid band and a dashed line. As in
 Lip Gloss, `border_top`, `border_right`, `border_bottom` and `border_left`
 draw single sides, and `border_top_foreground` and so on color them. Tabs are
-`width` cells wide, or share the bar up to `max_width` cells, and `gap` in
+`width` cells wide, or else as wide as their titles (`width = "Shared"` in
+`[tabs]` has them share the bar evenly instead), up to `max_width` cells, and `gap` in
 `[style.tab_bar]` is the space between them in pixels. This draws a green line
 under the shown tab, and makes it 24 cells wide:
 
