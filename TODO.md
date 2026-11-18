@@ -12,6 +12,23 @@ Approved and waiting their turn, in this order.
 
 Nothing below is started; each item lists what has to be decided or built first.
 
+### Actions TankTerm doesn't have yet
+
+Bindings to these are accepted and logged as warnings, but do nothing. Several are still in
+the default bindings inherited from Alacritty.
+
+- The key help (`ToggleHelp`): the Bubbles-style list of keys the OpenGL front end showed.
+- New windows (`SpawnNewInstance`, `CreateNewWindow`): TankTerm is one window with tabs. Needs
+  a decision on several windows per process, which also unblocks `create-window` in
+  `tankTerm msg`.
+- The message bar and `ClearLogNotice`: config errors and warnings shown in the window instead
+  of only in the log.
+- macOS only: `HideOtherApplications` and `ToggleSimpleFullscreen`.
+- Mouse bindings beyond pasting, expanding the selection and selecting a command's output: other
+  actions, the left and extra buttons, and bindings limited to a mode.
+- Taking the actions that stay unsupported out of the default bindings and the bindings man
+  page.
+
 ### Rest of `tankTerm migrate`
 
 - SSH profiles from Tabby and WezTerm run `ssh`; switch them to `tankTerm ssh` once it exists.

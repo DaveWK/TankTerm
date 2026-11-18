@@ -12,6 +12,13 @@ configuration. See *tankTerm*(5) for full configuration format documentation.
 Every value in these tables is a string, so the first key binding below is
 written as { key = _"Paste"_, action = _"Paste"_ } in the configuration file.
 
+Some of these defaults come from Alacritty and do nothing in TankTerm yet:
+_ClearLogNotice_, _ToggleHelp_, _SpawnNewInstance_, _CreateNewWindow_,
+_HideOtherApplications_ and _ToggleSimpleFullscreen_. Mouse bindings only work
+on the middle and right buttons, without a *mode*, and only paste, expand the
+selection or select a command's output. A binding in the configuration file
+that does nothing is logged as a warning when the file is read.
+
 # MOUSE BINDINGS
 
 [[ *mouse*

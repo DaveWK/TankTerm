@@ -328,16 +328,14 @@ impl<'de> Deserialize<'de> for KeyTable {
             true
         }
 
-        let Fields { mut bindings, one_shot, timeout, until_unknown, prevent_fallback } =
+        let Fields { bindings, one_shot, timeout, until_unknown, prevent_fallback } =
             Fields::deserialize(deserializer)?;
 
-        Ok(Self {
-            bindings: deserialize_bindings(&mut bindings, Vec::new()),
-            one_shot,
-            timeout,
-            until_unknown,
-            prevent_fallback,
-        })
+        let mut values = bindings;
+        let bindings = deserialize_bindings(&mut values, Vec::new());
+        warn_unsupported(&values, &bindings, crate::hotkeys::unsupported_key_binding);
+
+        Ok(Self { bindings, one_shot, timeout, until_unknown, prevent_fallback })
     }
 }
 
@@ -404,6 +402,7 @@ impl<'de> Deserialize<'de> for KeyBindings {
     {
         let mut user_bindings = Vec::<toml::Value>::deserialize(deserializer)?;
         let bindings = deserialize_bindings(&mut user_bindings, bindings::default_key_bindings());
+        warn_unsupported(&user_bindings, &bindings, crate::hotkeys::unsupported_key_binding);
         Ok(Self(bindings, user_bindings))
     }
 }
@@ -449,6 +448,31 @@ where
     bindings.extend(default);
 
     bindings
+}
+
+/// Log the user's bindings that do nothing in TankTerm, with `unsupported` saying why.
+///
+/// `bindings` start with the user's, in the order of `values`, as [`deserialize_bindings`]
+/// returns them.
+pub fn warn_unsupported<T>(
+    values: &[toml::Value],
+    bindings: &[Binding<T>],
+    unsupported: impl Fn(&Binding<T>) -> Option<&'static str>,
+) {
+    for message in unsupported_bindings(values, bindings, unsupported) {
+        warn!(target: LOG_TARGET_CONFIG, "Config warning: {message}");
+    }
+}
+
+/// What [`warn_unsupported`] logs.
+fn unsupported_bindings<T>(
+    values: &[toml::Value],
+    bindings: &[Binding<T>],
+    unsupported: impl Fn(&Binding<T>) -> Option<&'static str>,
+) -> Vec<String> {
+    let user = values.iter().zip(bindings);
+    let unsupported = user.filter_map(|(value, binding)| Some((value, unsupported(binding)?)));
+    unsupported.map(|(value, reason)| format!("binding {value} does nothing: {reason}")).collect()
 }
 
 /// A delta for a point in a 2 dimensional plane.
@@ -982,5 +1006,41 @@ mod tests {
             serialized["mouse"]["bindings"],
             serde_json::json!([{ "mouse": "Middle", "mode": "~Vi", "action": "Copy" }])
         );
+    }
+
+    #[test]
+    fn bindings_that_do_nothing_are_named() {
+        let config: UiConfig = toml::from_str(
+            r#"
+            [keyboard]
+            bindings = [
+                { key = "N", mods = "Control|Shift", action = "CreateNewWindow" },
+                { key = "T", mods = "Control|Shift", action = "CreateNewTab" },
+            ]
+
+            [mouse]
+            bindings = [
+                { mouse = "Left", action = "Paste" },
+                { mouse = "Middle", action = "Copy" },
+                { mouse = "Right", action = "PasteSelection" },
+            ]
+            "#,
+        )
+        .unwrap();
+
+        let keys = &config.keyboard.bindings;
+        let keys = unsupported_bindings(&keys.1, &keys.0, crate::hotkeys::unsupported_key_binding);
+        assert_eq!(keys, ["binding { action = \"CreateNewWindow\", key = \"N\", mods = \
+                           \"Control|Shift\" } does nothing: TankTerm doesn't have this action"]);
+
+        let mouse = &config.mouse.bindings;
+        let mouse = unsupported_bindings(
+            &mouse.user_bindings,
+            &mouse.bindings,
+            crate::hotkeys::unsupported_mouse_binding,
+        );
+        assert_eq!(mouse.len(), 2, "{mouse:?}");
+        assert!(mouse[0].contains("only the middle and right mouse buttons"), "{mouse:?}");
+        assert!(mouse[1].contains("\"Copy\""), "{mouse:?}");
     }
 }
