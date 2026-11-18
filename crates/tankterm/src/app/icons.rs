@@ -5,6 +5,7 @@ use std::f32::consts::PI;
 use iced::widget::canvas::{self, Canvas, Frame, Geometry, Path, Stroke};
 use iced::widget::{Id, container, svg};
 use iced::{Color, Element, Point, Rectangle, Renderer, Size, Theme, mouse};
+use iced_core::svg::Svg;
 
 /// An icon of the tab bar.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -141,18 +142,16 @@ impl<Message> canvas::Program<Message> for Lines {
                 frame.stroke(&back, stroke);
             },
             Icon::Gear => {
-                // The toothed rim, and the hole for the axle.
-                let outline = cog(side);
-                let rim = Path::new(|path| {
-                    path.move_to(outline[0]);
-                    for point in &outline[1..] {
-                        path.line_to(*point);
-                    }
-                    path.close();
-                });
-                frame.stroke(&rim, stroke);
-                let center = Point::new(side / 2., side / 2.);
-                frame.stroke(&Path::circle(center, side * COG_HOLE), stroke);
+                // The GPU smooths the slanted edges of the teeth with only a few samples, which
+                // leaves them blocky, so the cog is drawn as an image that is smoothed exactly,
+                // on whole pixels of the screen, so that it isn't blurred when it is placed.
+                let pixels = (side * scale).round().max(1.);
+                let onto = |at: f32| (at * scale).round() / scale - at;
+                let square = Rectangle::new(
+                    Point::new(onto(bounds.x), onto(bounds.y)),
+                    Size::new(pixels / scale, pixels / scale),
+                );
+                frame.draw_svg(square, Svg::new(cog_svg(pixels, width)).color(self.color));
             },
         }
 
@@ -166,6 +165,23 @@ const COG_TEETH: usize = 8;
 const COG_TIP: f32 = 0.47;
 const COG_ROOT: f32 = 0.33;
 const COG_HOLE: f32 = 0.13;
+
+/// A cog in a square `pixels` wide, with lines `width` wide, as an SVG picture of its rim and the
+/// hole for the axle.
+fn cog_svg(pixels: f32, width: f32) -> svg::Handle {
+    let rim: Vec<String> =
+        cog(pixels).iter().map(|point| format!("{},{}", point.x, point.y)).collect();
+    let center = pixels / 2.;
+    let picture = format!(
+        "<svg xmlns='http://www.w3.org/2000/svg' width='{pixels}' height='{pixels}' viewBox='0 0 \
+         {pixels} {pixels}'><g fill='none' stroke='white' stroke-width='{width}' \
+         stroke-linejoin='round'><polygon points='{}'/><circle cx='{center}' cy='{center}' \
+         r='{}'/></g></svg>",
+        rim.join(" "),
+        pixels * COG_HOLE,
+    );
+    svg::Handle::from_memory(picture.into_bytes())
+}
 
 /// The outline of a cog in a square `side` wide: for every tooth, the root before it, the two
 /// corners of its tip, and the root after it. The teeth are narrower at their tips, like a
