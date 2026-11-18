@@ -226,14 +226,31 @@ The program is only known on Linux, and the directory on Linux and with
 
 ### Status segments
 
-The right end of the tab bar holds status segments, listed as `[[tabs.status]]`
-tables. Each shows one thing in a format of its own: the active key table
-(`KeyTable`), the time (`Clock`, with a strftime format), the directory of the
-focused pane (`Cwd`) or the battery charge (`Battery`). Formats use
-placeholders in braces, and every segment can have a `style` of its own on top
-of `[style.tab_status]`:
+The ends of the tab bar hold status segments, listed as `[[tabs.status]]`
+tables. Each shows one thing in a format of its own:
+
+- `KeyTable`: the active key table.
+- `Clock`: the time, with a strftime format.
+- `Cwd`: the directory of the focused pane.
+- `Battery`: the battery charge.
+- `Zoom`: its format, while a pane is zoomed.
+- `Count`: `{tab}`, `{tabs}` and `{panes}`.
+- `Text`: its format, always, for separators and labels.
+- `Host`: `{user}`, `{host}` and `{fqdn}`.
+- `Process`: the program running in the focused pane, while a command runs.
+- `Load`: the load average, `{load1}`, `{load5}` and `{load15}`.
+- `Command`: the first line a program prints, `{output}`.
+
+Formats use placeholders in braces. A segment with nothing to show, or an empty
+text, isn't drawn. Segments go after the tabs unless they say
+`side = "Left"`, and every segment can have a `style` of its own on top of
+`[style.tab_status]`:
 
 ```toml
+[[tabs.status]]
+segment = "Host"
+side = "Left"
+
 [[tabs.status]]
 segment = "KeyTable"
 
@@ -251,9 +268,43 @@ format = "%a %H:%M"
 style = { foreground = "#000000", background = "#00ff00" }
 ```
 
-Without a `[[tabs.status]]` table, only the key table is shown. The battery is
-only known on Linux, and the directory on Linux and with
-[shell integration](#shell-integration).
+Segments touch, so `Text` segments can join them. With a font that has
+powerline arrows, this draws one between the directory and the clock:
+
+```toml
+[[tabs.status]]
+segment = "Cwd"
+style = { foreground = "#000000", background = "#f4d35e" }
+
+[[tabs.status]]
+segment = "Text"
+format = "\ue0b2"
+style = { foreground = "#00ff00", background = "#f4d35e" }
+
+[[tabs.status]]
+segment = "Clock"
+style = { foreground = "#000000", background = "#00ff00" }
+```
+
+A `Command` segment runs its `command` every `interval` seconds (5 by
+default), in the directory of the focused pane and with `TANKTERM_PANE_ID` set
+to that pane, and again when another pane gets the focus. The program runs
+without a shell, so a pipeline needs one:
+
+```toml
+[[tabs.status]]
+segment = "Command"
+command = { program = "sh", args = ["-c", "git branch --show-current"] }
+interval = 10
+```
+
+A program that fails, or runs longer than its interval or 10 seconds, hides
+the segment and is logged once. Commands come from the configuration file and
+`-o` only.
+
+Without a `[[tabs.status]]` table, only the key table is shown. The battery and
+the program are only known on Linux, the directory on Linux and with
+[shell integration](#shell-integration), and the load on Unix.
 
 ### Tab bar styles
 

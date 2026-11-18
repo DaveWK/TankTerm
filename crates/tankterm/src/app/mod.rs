@@ -42,6 +42,7 @@ mod render_tests;
 #[cfg(all(test, unix))]
 mod search_tests;
 pub mod status;
+mod status_command;
 mod tab_border;
 mod tab_strip;
 #[cfg(all(test, unix))]
@@ -110,6 +111,8 @@ pub enum Message {
     },
     /// Time to look at the shells again.
     Tick,
+    /// The program of a `Command` status segment finished.
+    StatusOutput(status_command::Output),
     /// A frame is about to be drawn while a visual bell flashes.
     Frame(Instant),
     /// A configuration file changed.
@@ -221,6 +224,10 @@ pub struct App {
     now: Option<jiff::Zoned>,
     /// The batteries at the last tick, while a battery segment shows them.
     battery: Option<status::Battery>,
+    /// The load average at the last tick, while a load segment shows it.
+    load: Option<[f64; 3]>,
+    /// The runs of the `Command` status segments' programs.
+    commands: status_command::Commands,
 }
 
 /// Dragging the window by the tab bar. The window moves once the mouse has moved a few
@@ -284,7 +291,7 @@ struct Shell {
     /// it in or a status segment to show it.
     working_directory: Option<PathBuf>,
     /// Name of the program that had the terminal at the last tick, where that can be told.
-    /// Only kept up to date while the tab title shows it.
+    /// Only kept up to date while the tab title or a status segment shows it.
     process: Option<String>,
     /// The terminal rang the bell or finished a command while nobody was looking at it.
     attention: bool,

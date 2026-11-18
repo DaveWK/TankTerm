@@ -18,7 +18,7 @@ use super::{App, Layout, MAX_TAB_WIDTH, Message, Shell, TitleDrag};
 use crate::color::Rgb;
 use crate::config::BindingMode;
 use crate::config::style::TabStyle;
-use crate::config::tabs::{ShowTabs, TabsPosition};
+use crate::config::tabs::{ShowTabs, Side, TabsPosition};
 use crate::config::window::Spacing;
 use crate::hotkeys::{AppAction, KeyFilter, PANE_LABELS};
 use crate::palette::{self, blend, paste_warning};
@@ -253,20 +253,9 @@ impl App {
             (tab.into(), width)
         });
 
-        // The status segments, each drawn while it has something to show.
-        let status = self.options.status.iter().filter_map(|segment| {
-            let content = self.segment_text(segment)?;
-            let style = styles.status.with(&segment.layer);
-            let segment = container(label(content, &style, font, size))
-                .padding(padding(style.padding))
-                .style(move |_| container::Style {
-                    background: Some(color(style.colors().1).into()),
-                    border: border(&style),
-                    ..Default::default()
-                });
-            Some(container(bordered(segment, &style)).padding(padding(style.margin)).into())
-        });
-        let status = row(status).spacing(1).align_y(Vertical::Center);
+        // The status segments at either end, each drawn while it has something to show.
+        let [left, right] =
+            [Side::Left, Side::Right].map(|side| self.status_row(side, styles.status));
 
         // A button on the bar. Content that is as high as the padding leaves the other buttons
         // gets only the horizontal padding.
@@ -317,8 +306,8 @@ impl App {
         let settings = bar_button(&gear, false, false, AppAction::OpenConfig);
 
         let tabs = TabStrip::new(tabs, new_tab, styles.bar.gap.into());
-        let mut parts: Vec<Element<'_, Message>> =
-            vec![tabs.into(), status.into(), settings.into()];
+        let parts = left.into_iter().chain([tabs.into()]).chain(right).chain([settings.into()]);
+        let mut parts: Vec<Element<'_, Message>> = parts.collect();
 
         // In a window without the system's title bar, the tab bar has the window's buttons at
         // either end.
@@ -381,6 +370,30 @@ impl App {
     /// that isn't maximized or fullscreen.
     fn resizable_edges(&self) -> bool {
         self.frameless && !self.maximized && !self.fullscreen
+    }
+
+    /// The status segments at one end of the tab bar, in `style` changed by each segment's own,
+    /// or `None` if no segment is configured there. Segments touch, so separators can join
+    /// them.
+    fn status_row(&self, side: Side, style: TabStyle) -> Option<Element<'_, Message>> {
+        let font = self.settings.font.font_type;
+        let size = self.settings.font.size;
+
+        let segments = self.options.status.iter().filter(|segment| segment.side == side);
+        segments.clone().next()?;
+        let segments = segments.filter_map(|segment| {
+            let content = self.segment_text(segment)?;
+            let style = style.with(&segment.layer);
+            let segment = container(label(content, &style, font, size))
+                .padding(padding(style.padding))
+                .style(move |_| container::Style {
+                    background: Some(color(style.colors().1).into()),
+                    border: border(&style),
+                    ..Default::default()
+                });
+            Some(container(bordered(segment, &style)).padding(padding(style.margin)).into())
+        });
+        Some(row(segments).align_y(Vertical::Center).into())
     }
 }
 

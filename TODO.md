@@ -44,11 +44,10 @@ and buttons, the `border_*_background` colors, and Lip Gloss's half block border
 
 ### More status segments
 
-Offered with the first four and not chosen yet: `Process` (the focused pane's foreground
-program), `Hostname`, `User`, `Load`, `PaneCount`/`TabCount`, `Zoom`, fixed `Text` (separators,
-powerline arrows) and `Command` (a shell command's output, run every N seconds). `Cwd` takes
-the directory from OSC 7 with shell integration, and otherwise from `/proc` on Linux; the
-battery is Linux only so far.
+- Powerline arrows drawn by TankTerm, so they don't need a font that has them.
+- The remote host from OSC 7 in the `Host` segment, for a shell on another computer.
+- `Process` on macOS (`proc_name`) and Windows; the program is read from `/proc` on Linux only.
+  The battery is Linux only too.
 
 ### Event API (planned, deferred)
 

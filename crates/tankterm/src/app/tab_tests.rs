@@ -1381,6 +1381,123 @@ fn only_the_key_table_is_a_segment_by_default() {
     assert!(app.now.is_none() && app.battery.is_none());
 }
 
+/// What the status segment at `index` shows.
+fn segment(app: &App, index: usize) -> Option<String> {
+    app.segment_text(&app.options.status[index])
+}
+
+#[test]
+fn zoom_count_and_text_segments_follow_the_tabs() {
+    let config = r#"
+        [tabs]
+        show = "Always"
+
+        [[tabs.status]]
+        segment = "Zoom"
+
+        [[tabs.status]]
+        segment = "Count"
+        format = "tab {tab} of {tabs}, {panes} panes"
+
+        [[tabs.status]]
+        segment = "Text"
+        format = "|"
+
+        [[tabs.status]]
+        segment = "Text"
+
+        [[tabs.status]]
+        segment = "Host"
+        format = "{user}@{host} {fqdn}"
+    "#;
+    let mut app = app_with(config, Hotkeys::default());
+
+    assert_eq!(segment(&app, 0), None);
+    assert_eq!(segment(&app, 1).as_deref(), Some("tab 1 of 1, 1 panes"));
+    assert_eq!(segment(&app, 2).as_deref(), Some("|"));
+    // A segment with nothing to show isn't drawn.
+    assert_eq!(segment(&app, 3), None);
+    assert!(has_text(&app, "|") && !has_text(&app, "ZOOM"));
+
+    perform(&mut app, &[AppAction::NewTab, AppAction::Split(Axis::Vertical)]);
+    assert_eq!(segment(&app, 1).as_deref(), Some("tab 2 of 2, 2 panes"));
+    assert!(has_text(&app, "tab 2 of 2, 2 panes"));
+
+    perform(&mut app, &[AppAction::ToggleZoom]);
+    assert_eq!(segment(&app, 0).as_deref(), Some("ZOOM"));
+    assert!(has_text(&app, "ZOOM"));
+    perform(&mut app, &[AppAction::SelectTab(0)]);
+    assert_eq!(segment(&app, 0), None);
+
+    // Who and where are known wherever the environment and the system say.
+    if std::env::var("USER").is_ok_and(|user| !user.is_empty()) {
+        let host = segment(&app, 4).unwrap();
+        assert!(host.contains('@') && !host.ends_with(' '), "{host}");
+    }
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn process_segment_shows_while_a_command_runs() {
+    let config = format!(
+        "{INTERACTIVE_SHELL}\n[tabs]\nshow = \"Always\"\n[[tabs.status]]\nsegment = \"Process\"\n"
+    );
+    let mut app = app_with(&config, Hotkeys::default());
+
+    // At the prompt the shell has the terminal, and there is nothing to show.
+    let _ = app.update(Message::Tick);
+    assert_eq!(segment(&app, 0), None);
+
+    start_command(&mut app, 0);
+    let _ = app.update(Message::Tick);
+    assert_eq!(segment(&app, 0).as_deref(), Some("cat"));
+    assert!(has_text(&app, "cat"));
+
+    end_command(&mut app, 0);
+    tick_until(&mut app, "the command never finished", |app| !app.terminals[&0].busy);
+    assert_eq!(segment(&app, 0), None);
+}
+
+#[cfg(unix)]
+#[test]
+fn load_segment_shows_the_load_average() {
+    let config = "[[tabs.status]]\nsegment = \"Load\"\nformat = \"{load1} {load5} {load15}\"\n";
+    let mut app = app_with(config, Hotkeys::default());
+
+    app.load = Some([0.5, 1.25, 2.]);
+    assert_eq!(segment(&app, 0).as_deref(), Some("0.50 1.25 2.00"));
+
+    // The ticks look at it again.
+    let _ = app.update(Message::Tick);
+    assert!(app.load.is_some_and(|load| load != [0.5, 1.25, 2.]));
+}
+
+#[test]
+fn status_segments_go_to_either_end_of_the_tab_bar() {
+    let config = r#"
+        [tabs]
+        show = "Always"
+
+        [[tabs.status]]
+        segment = "Text"
+        format = "left of the tabs"
+        side = "Left"
+
+        [[tabs.status]]
+        segment = "Text"
+        format = "right of the tabs"
+    "#;
+    let app = app_with(config, Hotkeys::default());
+
+    let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
+    let mut x = |text: &str| {
+        let found = ui.find(text).unwrap();
+        iced_test::selector::Bounded::visible_bounds(&found).unwrap().x
+    };
+    let (left, tab, right) = (x("left of the tabs"), x("1: test"), x("right of the tabs"));
+    assert!(left < tab && tab < right, "{left} {tab} {right}");
+}
+
 #[test]
 fn bound_keys_are_handled_and_kept_from_the_shell() {
     let hotkeys =

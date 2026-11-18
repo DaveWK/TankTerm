@@ -19,6 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
     `Event::CommandFinished`)
 - `Cell::zone` records the prompt, command line or output a cell was written in;
     `Term::scroll_to_prompt` and `Term::select_command_output` use it
+- `term::shell_integration::local_host_name`, this computer's host name, read once
 
 ### Changed
 
