@@ -173,7 +173,7 @@ This section documents the *[window]* table of the configuration file.
 
 	Example: _padding = [1, 2]_
 
-	Default: { x = _0_, y = _0_ }
+	Default: { x = _8_, y = _0_ }
 
 *dynamic_padding* = _true_ | _false_
 

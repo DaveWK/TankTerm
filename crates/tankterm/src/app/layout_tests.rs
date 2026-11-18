@@ -70,9 +70,17 @@ fn terminal_size(config: &str, window: Size) -> (Size, Padding) {
 #[test]
 fn terminal_fills_window_without_padding() {
     let window = Size::new(800., 400.);
-    let (size, _) = terminal_size("", window);
+    let (size, _) = terminal_size("[window]\npadding = { x = 0, y = 0 }\n", window);
 
     assert_eq!(size, window);
+}
+
+#[test]
+fn terminal_keeps_off_the_sides_by_default() {
+    let window = Size::new(800., 400.);
+    let (size, _) = terminal_size("", window);
+
+    assert_eq!(size, Size::new(800. - 2. * 8., 400.));
 }
 
 #[test]
