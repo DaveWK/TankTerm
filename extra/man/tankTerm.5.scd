@@ -207,20 +207,39 @@ This section documents the *[window]* table of the configuration file.
 
 	Default: _"Full"_
 
-*buttons* = _"Right"_ | _"Left"_ | _"None"_
+*buttons* = _"Desktop"_ | _"Right"_ | _"Left"_ | _"None"_
 
 	Where the tab bar has the minimize, maximize and close buttons in a window
-	with *decorations* = _"None"_, with the close button at the outer end.
+	with *decorations* = _"None"_.
 
-	Such a tab bar is the window's title bar: it is shown even with a single
-	tab, whatever *tabs.show* says. Dragging it where there is no tab or button
-	moves the window, and double-clicking it there maximizes the window or
-	gives it its size back. With _"None"_ the tab bar is only the tab bar.
+	*Desktop*
+		Where the desktop puts them: on KDE as _ButtonsOnLeft_ and
+		_ButtonsOnRight_ in kwinrc say, on GNOME as
+		_org.gnome.desktop.wm.preferences button-layout_ says, on the left
+		on macOS, and on the right elsewhere. Buttons the desktop leaves out
+		aren't drawn.
+	*Right*
+		At the right end, with the close button last.
+	*Left*
+		At the left end, with the close button first.
+	*None*
+		Nowhere, and the tab bar is only the tab bar.
+
+	Unless it is _"None"_, the tab bar is the window's title bar: it is shown
+	even with a single tab, whatever *tabs.show* says. Dragging it where there
+	is no tab or button moves the window, double-clicking it there maximizes
+	the window or gives it its size back, and right-clicking it opens the
+	window menu. While the window is maximized, the maximize button shows a
+	restore icon.
+
+	A window with *decorations* = _"None"_ is resized by dragging its edges and
+	corners, unless it is maximized or fullscreen.
 
 	*decorations* only changes for a new window; *buttons* changes in the
-	window that is open.
+	window that is open. The desktop's button layout is read when the window
+	opens and whenever the configuration is read again.
 
-	Default: _"Right"_
+	Default: _"Desktop"_
 
 *opacity* = _<float>_
 
@@ -919,6 +938,12 @@ belong to a feature it doesn't have yet.
 		moves the content without resizing the tab.
 
 		Default: the primary foreground.
+
+	*tab_close_hovered*
+		Changes to the window's close button under the mouse, applied over
+		_tab\_hovered_.
+
+		Default: white on red (_#da4453_).
 
 	*tab_activity*, *tab_attention*
 		Changes to a tab marked with *\** because it printed something, and to

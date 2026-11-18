@@ -208,8 +208,12 @@ pub enum Decorations {
 /// Where the tab bar has the minimize, maximize and close buttons when it is the title bar.
 #[derive(ConfigDeserialize, Serialize, Default, Debug, Copy, Clone, PartialEq, Eq)]
 pub enum WindowButtons {
-    /// At the right end, with the close button last.
+    /// Where the desktop puts them: KDE's and GNOME's button layout, on the left on macOS,
+    /// and on the right elsewhere.
     #[default]
+    Desktop,
+
+    /// At the right end, with the close button last.
     Right,
 
     /// At the left end, with the close button first.

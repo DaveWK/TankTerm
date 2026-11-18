@@ -29,7 +29,11 @@ fn terminal_size(config: &str, window: Size) -> (Size, Padding) {
         tabs: config.tabs.clone(),
         status: crate::app::status::segments(&config),
         frameless: config.window.decorations == crate::config::window::Decorations::None,
-        window_buttons: config.window.buttons,
+        // Tests don't depend on the desktop they run on.
+        title_buttons: crate::title_buttons::TitleButtons::new(
+            config.window.buttons,
+            Default::default,
+        ),
         hotkeys: Hotkeys::default(),
         config_file: None,
         session_file: None,

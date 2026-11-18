@@ -71,8 +71,12 @@ Notable changes to the `tankterm_terminal` crate are documented in its
     a clock with a strftime format, the focused pane's directory and the battery charge, each
     with a `{placeholder}` format and a style on top of `[style.tab_status]`
 - With `window.decorations = "None"` the tab bar is the title bar: it is always shown, has
-    minimize, maximize and close buttons on the side `window.buttons` gives (`Right`, `Left`,
-    `None`), moves the window when dragged and maximizes it when double-clicked
+    minimize, maximize and close buttons where `window.buttons` says (`Desktop`, the default,
+    follows KDE's and GNOME's button layout; `Right`, `Left`, `None`), moves the window when
+    dragged, maximizes it when double-clicked and opens the window menu when right-clicked.
+    The window's edges and corners resize it, the maximize button shows a restore icon while the
+    window is maximized, and the close button turns red under the mouse
+    (`[style.tab_close_hovered]`)
 - `window.padding` accepts Lip Gloss/CSS shorthand in terminal cells, like `[1, 2]`, including
     different padding on every side
 - `tankTerm msg` commands for tabs and panes, following `wezterm cli`: `list`, `spawn`,

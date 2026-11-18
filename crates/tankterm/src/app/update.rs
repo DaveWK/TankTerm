@@ -39,6 +39,8 @@ impl App {
             transparent: options.opacity < 1.,
             frameless: options.frameless,
             title_drag: TitleDrag::default(),
+            maximized: false,
+            fullscreen: false,
             options,
             settings,
             tabs: Vec::new(),
@@ -326,6 +328,7 @@ impl App {
                 Some(Message::WindowFocused(true))
             },
             iced::Event::Window(window::Event::Unfocused) => Some(Message::WindowFocused(false)),
+            iced::Event::Window(window::Event::Resized(_)) => Some(Message::WindowResized),
             _ => None,
         });
 
@@ -368,6 +371,23 @@ impl App {
                 window::latest().and_then(window::drag)
             },
         }
+    }
+
+    /// Ask whether a frameless window is maximized or fullscreen, which decides its maximize
+    /// icon and whether its edges resize it.
+    fn window_state(&self) -> Task<Message> {
+        if !self.frameless {
+            return Task::none();
+        }
+
+        window::latest().and_then(|id| {
+            window::is_maximized(id).then(move |maximized| {
+                window::mode(id).map(move |mode| Message::WindowState {
+                    maximized,
+                    fullscreen: mode == window::Mode::Fullscreen,
+                })
+            })
+        })
     }
 
     /// Whether the visual bell flashes for a terminal.
@@ -502,6 +522,16 @@ impl App {
                 self.title_drag = TitleDrag::Released;
                 toggle_maximized()
             },
+            Message::TitleBarMenu => window::latest().and_then(window::show_system_menu),
+            Message::ResizeWindow(direction) => {
+                window::latest().and_then(move |id| window::drag_resize(id, direction))
+            },
+            Message::WindowResized => self.window_state(),
+            Message::WindowState { maximized, fullscreen } => {
+                self.maximized = maximized;
+                self.fullscreen = fullscreen;
+                Task::none()
+            },
             Message::ConfigChanged => {
                 self.reload_config();
                 self.sample_status();
@@ -538,7 +568,12 @@ impl App {
                 for shell in self.terminals.values_mut() {
                     shell.terminal.handle(iced_tterm::Command::WindowFocus(focused));
                 }
-                if focused { self.focus() } else { Task::none() }
+                // A window opened maximized isn't necessarily resized afterwards.
+                if focused {
+                    Task::batch([self.focus(), self.window_state()])
+                } else {
+                    Task::none()
+                }
             },
             Message::Action(action) => self.perform(action),
             #[cfg(unix)]

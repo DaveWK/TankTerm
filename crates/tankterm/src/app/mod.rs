@@ -16,11 +16,11 @@ use iced_tterm::settings::Settings;
 use crate::bell::Bell;
 use crate::config::style::TabBarStyles;
 use crate::config::tabs::Tabs;
-use crate::config::window::WindowButtons;
 use crate::hotkeys::{ActiveTable, AppAction, Hotkeys, PaneSelectMode};
 use crate::palette::Palette;
 use crate::session::Session;
 use crate::setup::ConfigSource;
+use crate::title_buttons::TitleButtons;
 
 mod actions;
 #[cfg(all(test, unix))]
@@ -95,6 +95,17 @@ pub enum Message {
     TitleBarReleased,
     /// Empty space of the tab bar was double-clicked.
     TitleBarDoubleClicked,
+    /// The tab bar was right-clicked where nothing else takes the mouse.
+    TitleBarMenu,
+    /// The left button was pressed on an edge or corner of a frameless window.
+    ResizeWindow(iced::window::Direction),
+    /// The window was resized, which it also is when it is maximized or made fullscreen.
+    WindowResized,
+    /// Whether the window is maximized or fullscreen now.
+    WindowState {
+        maximized: bool,
+        fullscreen: bool,
+    },
     /// Time to look at the shells again.
     Tick,
     /// A frame is about to be drawn while a visual bell flashes.
@@ -118,8 +129,9 @@ pub struct AppOptions {
     pub status: Vec<status::Segment>,
     /// Whether the window was opened without the system's title bar and borders.
     pub frameless: bool,
-    /// Where the tab bar has the window's buttons in a frameless window.
-    pub window_buttons: WindowButtons,
+    /// The window buttons of the tab bar in a frameless window, or `None` if the tab bar
+    /// isn't the title bar there.
+    pub title_buttons: Option<TitleButtons>,
     pub hotkeys: Hotkeys,
     /// The configuration file, or where a new one goes, for `OpenConfig`.
     pub config_file: Option<PathBuf>,
@@ -196,6 +208,10 @@ pub struct App {
     frameless: bool,
     /// The left button was pressed on empty space of the tab bar, while it is the title bar.
     title_drag: TitleDrag,
+    /// Whether the window is maximized, as far as a frameless window has been told.
+    maximized: bool,
+    /// Whether the window is fullscreen, as far as a frameless window has been told.
+    fullscreen: bool,
     /// The socket `tankTerm msg` talks to, while there is one.
     #[cfg(unix)]
     socket: Option<crate::ipc::Listener>,

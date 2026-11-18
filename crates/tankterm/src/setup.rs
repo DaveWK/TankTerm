@@ -10,6 +10,7 @@ use crate::bell::Bell;
 use crate::cli::Options;
 use crate::config::{self, UiConfig};
 use crate::hotkeys::{self, Hotkeys};
+use crate::title_buttons::TitleButtons;
 use crate::{session, term_settings};
 
 /// The application's settings for a configuration.
@@ -101,7 +102,7 @@ pub fn setup(config: &UiConfig, options: &mut Options) -> Setup {
         tabs: config.tabs.clone(),
         status: crate::app::status::segments(config),
         frameless: config.window.decorations == config::window::Decorations::None,
-        window_buttons: config.window.buttons,
+        title_buttons: TitleButtons::new(config.window.buttons, TitleButtons::desktop),
         hotkeys: Hotkeys::from_config(config),
         config_file: config.config_paths.first().cloned().or_else(config::default_config_path),
         // A window started for a single command isn't a session worth remembering.

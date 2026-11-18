@@ -54,17 +54,6 @@ powerline arrows) and `Command` (a shell command's output, run every N seconds).
 the directory from OSC 7 with shell integration, and otherwise from `/proc` on Linux; the
 battery is Linux only so far.
 
-### Rest of the tab bar as title bar
-
-- Resizing a window with `decorations = "None"` from its edges (`iced::window::drag_resize`
-  from a few pixels along the border). KWin moves and resizes such windows with Meta and the
-  mouse until then.
-- A restore icon on the maximize button while the window is maximized, which needs the
-  maximized state from iced (`window::is_maximized`) after every resize.
-- A style of its own for the close button, such as red when hovered.
-- The window menu on a right click on the bar, and following the desktop's button layout
-  (KWin's `ButtonsOnLeft`/`ButtonsOnRight`) instead of `window.buttons`.
-
 ### Event API (planned, deferred)
 
 Let scripts react to what happens in TankTerm, as WezTerm does with `wezterm.on`, without
