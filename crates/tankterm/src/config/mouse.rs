@@ -23,7 +23,7 @@ impl Default for Mouse {
 #[derive(SerdeReplace, Clone, Debug, PartialEq)]
 pub struct MouseBindings {
     pub bindings: Vec<MouseBinding>,
-    user_bindings: Vec<toml::Value>,
+    pub(super) user_bindings: Vec<toml::Value>,
 }
 
 impl Default for MouseBindings {
@@ -40,6 +40,11 @@ impl<'de> Deserialize<'de> for MouseBindings {
         let mut user_bindings = Vec::<toml::Value>::deserialize(deserializer)?;
         let bindings =
             ui_config::deserialize_bindings(&mut user_bindings, bindings::default_mouse_bindings());
+        ui_config::warn_unsupported(
+            &user_bindings,
+            &bindings,
+            crate::hotkeys::unsupported_mouse_binding,
+        );
         Ok(Self { bindings, user_bindings })
     }
 }

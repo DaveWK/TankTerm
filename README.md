@@ -58,8 +58,10 @@ tabs and panes and sends and reads their text, like `wezterm cli`; see
 This front end is new and doesn't support everything the OpenGL one did yet:
 
 - `--daemon`, and the `create-window`, `config` and `get-config` messages of `tankTerm msg`
-- Key bindings to `SpawnNewInstance`, `CreateNewWindow` and `HideOtherApplications`; mouse
-  bindings other than pasting and expanding the selection with the middle and right buttons
+- Key bindings to `SpawnNewInstance`, `CreateNewWindow`, `HideOtherApplications`, `ToggleHelp`,
+  `ClearLogNotice` and `ToggleSimpleFullscreen`; mouse bindings other than pasting, expanding
+  the selection and selecting a command's output with the middle and right buttons. A binding
+  like these in the configuration file is logged as a warning.
 - `colors.transparent_background_colors`
 
 Command line options that aren't supported yet fail with an error; config

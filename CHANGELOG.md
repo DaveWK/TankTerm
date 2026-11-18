@@ -12,6 +12,8 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 
 ### Added
 
+- Key and mouse bindings in the configuration file that do nothing in TankTerm, such as those to
+    `CreateNewWindow` or to the left mouse button, are logged as warnings
 - Tabs: a tab bar, shown while there is more than one tab, with `CreateNewTab`, `CloseTab`,
     `SelectNextTab`, `SelectPreviousTab`, `SelectTab1` to `SelectTab9`, `SelectLastTab`,
     `MoveTabLeft` and `MoveTabRight` key binding actions, like in Tabby and WezTerm

@@ -717,6 +717,43 @@ impl Hotkeys {
     }
 }
 
+/// Why a key binding from the configuration does nothing, if it does nothing: its action is one
+/// TankTerm doesn't have.
+pub fn unsupported_key_binding(binding: &KeyBinding) -> Option<&'static str> {
+    match &binding.action {
+        // Hints get keys of their own, and these leave the key to the terminal or remove a
+        // default binding.
+        Action::Hint(_) | Action::ReceiveChar | Action::None => None,
+        action if AppAction::from_config(action).is_some() => None,
+        _ => Some("TankTerm doesn't have this action"),
+    }
+}
+
+/// Why a mouse binding from the configuration does nothing, if it does nothing. See
+/// [`mouse_bindings`] for what the terminal can do with mouse buttons.
+pub fn unsupported_mouse_binding(binding: &MouseBinding) -> Option<&'static str> {
+    use winit::event::MouseButton;
+
+    if binding.action == Action::None {
+        return None;
+    }
+    if !matches!(binding.trigger, MouseEvent::Button(MouseButton::Middle | MouseButton::Right)) {
+        return Some("only the middle and right mouse buttons can be bound");
+    }
+    if !binding.mode.is_empty() {
+        return Some("mouse bindings can't be limited to a mode");
+    }
+    match binding.action {
+        Action::Paste
+        | Action::PasteSelection
+        | Action::Mouse(MouseAction::ExpandSelection)
+        | Action::SelectCommandOutput => None,
+        _ => {
+            Some("mouse buttons can only paste, expand the selection or select a command's output")
+        },
+    }
+}
+
 /// Widget bindings for the config's mouse bindings to the middle and right buttons.
 ///
 /// `Paste`, `PasteSelection`, `ExpandSelection` and `SelectCommandOutput` are the actions the
@@ -2017,6 +2054,20 @@ mod tests {
     }
 
     /// The shared direct keys still work next to leader bindings.
+    #[test]
+    fn key_bindings_to_actions_tankterm_lacks_are_named() {
+        let unsupported =
+            |action| unsupported_key_binding(&binding("n", ModifiersState::CONTROL, action));
+
+        for action in [Action::SpawnNewInstance, Action::CreateNewWindow, Action::ToggleHelp] {
+            assert!(unsupported(action.clone()).is_some(), "{action:?}");
+        }
+        // Actions TankTerm has, and the ones that leave the key to the terminal or unbind it.
+        for action in [Action::CreateNewTab, Action::Quit, Action::ReceiveChar, Action::None] {
+            assert_eq!(unsupported(action.clone()), None, "{action:?}");
+        }
+    }
+
     fn assert_shared_keys_with_leader(hotkeys: &Hotkeys) {
         assert_eq!(hotkeys.action(&character("t"), CTRL_SHIFT), Some(AppAction::NewTab));
         assert_eq!(hotkeys.action(&character("1"), Modifiers::ALT), Some(AppAction::SelectTab(0)));
