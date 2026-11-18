@@ -585,7 +585,11 @@ impl TabStyle {
             width: layer.width.or(self.width),
             max_width: layer.max_width.or(self.max_width),
             gap: layer.gap.unwrap_or(self.gap),
-            fill: layer.fill.unwrap_or(self.fill),
+            // A lift is only drawn where nothing solid is: a background someone set stays.
+            fill: match (layer.fill, self.fill) {
+                (Some(Fill::Lift(_)), Fill::Color) | (None, _) => self.fill,
+                (Some(fill), _) => fill,
+            },
         }
     }
 
@@ -1277,6 +1281,7 @@ mod tests {
             (Fill::Color, config.colors.primary.background)
         );
         assert_eq!(tabs.active.border_sides(), Sides::default());
+        assert_eq!(tabs.active.with(&tabs.hovered).fill, Fill::Color);
         assert_eq!(
             (tabs.inactive.padding, tabs.button.padding),
             (Spacing::new(3, 8), Spacing::new(3, 8))
@@ -1289,6 +1294,9 @@ mod tests {
         let tabs = config.style.resolved().tab_bar(true);
         assert_eq!(tabs.inactive.fill, Fill::Color);
         assert_eq!(tabs.active.fill, Fill::Lift(5));
+        // Under the mouse too: the default lift doesn't take its place.
+        assert_eq!(tabs.inactive.with(&tabs.hovered).fill, Fill::Color);
+        assert_eq!(tabs.active.with(&tabs.hovered).fill, Fill::Lift(8));
     }
 
     #[test]
