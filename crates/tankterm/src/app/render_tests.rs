@@ -624,7 +624,7 @@ fn tab_bar_shots(dir: &std::path::Path, name: &str, config: &str) {
     snapshot(&app, window, dir, name);
 
     let mut ui = Simulator::with_size(Default::default(), window, app.view());
-    let tab = ui.find("1: test").unwrap();
+    let tab = ui.find(super::tab_tests::tab_text(&app, 0)).unwrap();
     ui.point_at(iced_test::selector::Bounded::visible_bounds(&tab).unwrap().center());
     let hovered = ui.snapshot(&Theme::Dark).unwrap();
     assert!(hovered.matches_image(dir.join(format!("{name}-hovered"))).unwrap());
@@ -915,7 +915,7 @@ fn window_buttons() {
         snapshot(&app, window, &dir, name);
 
         let mut ui = Simulator::with_size(Default::default(), window, app.view());
-        let tab = ui.find("1: test").unwrap();
+        let tab = ui.find(super::tab_tests::tab_text(&app, 0)).unwrap();
         let y = iced_test::selector::Bounded::visible_bounds(&tab).unwrap().center_y();
         ui.point_at((close, y));
         let hovered = ui.snapshot(&Theme::Dark).unwrap();
