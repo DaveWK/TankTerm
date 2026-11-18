@@ -26,6 +26,7 @@ mod actions;
 #[cfg(all(test, unix))]
 mod hint_tests;
 mod hover_swap;
+mod icons;
 #[cfg(unix)]
 mod ipc;
 #[cfg(all(test, unix))]

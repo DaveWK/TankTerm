@@ -1074,6 +1074,23 @@ fn the_tab_bar_of_a_frameless_window_has_the_window_buttons() {
 }
 
 #[test]
+fn the_gear_sits_apart_from_the_window_buttons() {
+    use super::icons::{Icon, id};
+
+    let app = app_with(FRAMELESS, Hotkeys::default());
+    let bounds = |icon| {
+        let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
+        iced_test::selector::Bounded::visible_bounds(&ui.find(id(icon)).unwrap()).unwrap()
+    };
+    let (gear, minimize) = (bounds(Icon::Gear), bounds(Icon::Minimize));
+    assert!(minimize.x - (gear.x + gear.width) >= 2. * minimize.width, "{gear:?} {minimize:?}");
+
+    // With the window buttons on the left, the gear is the last thing on the right.
+    let left = app_with(&format!("{FRAMELESS}buttons = \"Left\"\n"), Hotkeys::default());
+    assert_eq!(actions_along_the_tab_bar(&left, false)[0], AppAction::OpenConfig);
+}
+
+#[test]
 fn the_tab_bar_is_the_title_bar_only_without_the_system_one() {
     let shown = |config: &str| {
         let app = app_with(config, Hotkeys::default());

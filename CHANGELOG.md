@@ -154,6 +154,8 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 
 ### Changed
 
+- The tab bar's `+`, gear, window buttons and close buttons are drawn as thin line icons
+    instead of font glyphs, and the gear keeps a gap from the window buttons after it
 - The tab bar is restyled: it has the terminal's background and is as see-through as the
     terminals, the shown tab is lifted off the bar a little with a line along its top, other
     tabs and buttons have no background of their own, and the bar is taller (`padding = [9, 14]`)

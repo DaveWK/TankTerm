@@ -246,7 +246,7 @@ fn the_gear_opens_the_configuration_file_in_a_new_tab() {
 
     // The gear is at the end of the tab bar.
     let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
-    ui.click("\u{2699}").unwrap();
+    ui.click(super::icons::id(super::icons::Icon::Gear)).unwrap();
     let actions: Vec<_> = ui
         .into_messages()
         .filter_map(|message| match message {

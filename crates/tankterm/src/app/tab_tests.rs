@@ -11,6 +11,7 @@ use iced_test::simulator::{self, Simulator};
 use iced_tterm::settings::BackendSettings;
 use iced_tterm::{AlacrittyEvent, BackendCommand, TermMode};
 
+use super::icons::{self, Icon};
 use super::*;
 use crate::cli::Options;
 use crate::config::UiConfig;
@@ -1326,21 +1327,11 @@ fn tab_bar_buttons_select_close_and_add_tabs() {
     let mut app = app();
     perform(&mut app, &[AppAction::NewTab]);
 
-    let click = |app: &App, text: &str| {
-        let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
-        ui.click(text).unwrap();
-        // The terminal also publishes its size when it is laid out.
-        ui.into_messages()
-            .filter(|message| !matches!(message, Message::Terminal(_)))
-            .collect::<Vec<_>>()
-    };
-
-    let messages = click(&app, &tab_text(&app, 0));
+    let messages = click_on(&app, tab_text(&app, 0));
     assert!(matches!(messages[..], [Message::Action(AppAction::SelectTab(0))]));
-    let messages = click(&app, "+");
+    let messages = click_on(&app, icons::id(Icon::Plus));
     assert!(matches!(messages[..], [Message::Action(AppAction::NewTab)]));
-    // Both tabs have a close button; the first one found belongs to the first tab.
-    let messages = click(&app, "\u{d7}");
+    let messages = click_on(&app, icons::close_tab_id(0));
     assert!(matches!(messages[..], [Message::CloseTab(0)]));
 }
 
@@ -1768,7 +1759,7 @@ fn tabs_share_the_bar_evenly_up_to_the_widest_tab() {
     // Where the button after the tabs starts, in a window 800 wide.
     let new_tab_button = |app: &App| {
         let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
-        let plus = ui.find("+").unwrap();
+        let plus = ui.find(icons::id(Icon::Plus)).unwrap();
         iced_test::selector::Bounded::visible_bounds(&plus).unwrap().x
     };
 
@@ -1794,8 +1785,8 @@ fn tabs_are_as_wide_as_their_titles_by_default() {
     app.tabs[0].title = Some("a".into());
     app.tabs[1].title = Some("a much longer title".into());
 
-    let (first, second) = (text_x(&app, &tab_text(&app, 0)), text_x(&app, &tab_text(&app, 1)));
-    let plus = text_x(&app, "+");
+    let (first, second) = (text_x(&app, tab_text(&app, 0)), text_x(&app, tab_text(&app, 1)));
+    let plus = text_x(&app, icons::id(Icon::Plus));
     let (first, second) = (second - first, plus - second);
     assert!(first < second && first < 100., "{first} {second}");
     assert!(second < MAX_TAB_WIDTH, "{second}");
@@ -1813,22 +1804,39 @@ fn tabs_are_as_wide_as_their_titles_by_default() {
 fn long_titles_and_crowded_bars_keep_the_buttons_on_the_bar() {
     let mut app = app_with("[tabs]\nshow = \"Always\"\n", Hotkeys::default());
     app.tabs[0].title = Some("x".repeat(200));
-    let tab = text_x(&app, "+") - text_x(&app, &tab_text(&app, 0));
+    let tab = text_x(&app, icons::id(Icon::Plus)) - text_x(&app, tab_text(&app, 0));
     assert!(tab <= MAX_TAB_WIDTH + 2., "{tab}");
 
     // Twelve tabs share the bar, and the button after them stays on it.
     perform(&mut app, &vec![AppAction::NewTab; 11]);
-    let plus = text_x(&app, "+");
+    let plus = text_x(&app, icons::id(Icon::Plus));
     assert!(plus < 790., "{plus}");
-    let step = text_x(&app, &tab_text(&app, 11)) - text_x(&app, &tab_text(&app, 10));
+    let step = text_x(&app, tab_text(&app, 11)) - text_x(&app, tab_text(&app, 10));
     assert!(step < 800. / 12., "{step}");
 }
 
-/// Where the text `text` starts in the window, 800 wide.
-fn text_x(app: &App, text: &str) -> f32 {
+/// Where what `selector` finds, like a text or a drawn icon's ID, starts in the window, 800
+/// wide.
+pub(super) fn text_x<S>(app: &App, selector: S) -> f32
+where
+    S: iced_test::selector::Selector + Send,
+    S::Output: iced_test::selector::Bounded + Clone + Send,
+{
     let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
-    let found = ui.find(text).unwrap();
+    let found = ui.find(selector).unwrap();
     iced_test::selector::Bounded::visible_bounds(&found).unwrap().x
+}
+
+/// The messages a click on what `selector` finds sends, apart from the terminals'.
+pub(super) fn click_on<S>(app: &App, selector: S) -> Vec<Message>
+where
+    S: iced_test::selector::Selector + Send,
+    S::Output: iced_test::selector::Bounded + Clone + Send + Sync + 'static,
+{
+    let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
+    ui.click(selector).unwrap();
+    // The terminal also publishes its size when it is laid out.
+    ui.into_messages().filter(|message| !matches!(message, Message::Terminal(_))).collect()
 }
 
 #[test]
@@ -1838,13 +1846,16 @@ fn tab_widths_are_in_cells() {
     let mut app = app_with(config, Hotkeys::default());
     let cell = app.settings.font.cell_size().width;
 
-    // The shown tab is 20 cells wide, then a pixel, then the new tab button's padding.
-    let plus = text_x(&app, "+");
+    // The shown tab is 20 cells wide, then a pixel, then the new tab button's padding, and its
+    // icon is centered in a square as wide as the font is high.
+    let size = app.settings.font.size;
+    let centered = (size - (size * 0.75).round()) / 2.;
+    let plus = text_x(&app, icons::id(Icon::Plus)) - centered;
     assert!((plus - (20. * cell).floor() - 1. - 14.).abs() < 1., "{plus} {cell}");
 
     // The second tab is shown, and the first is 10 cells wide.
     perform(&mut app, &[AppAction::NewTab]);
-    let second = text_x(&app, &tab_text(&app, 1)) - text_x(&app, &tab_text(&app, 0));
+    let second = text_x(&app, tab_text(&app, 1)) - text_x(&app, tab_text(&app, 0));
     assert!((second - (10. * cell).floor() - 1.).abs() < 1., "{second} {cell}");
 }
 
@@ -1856,11 +1867,11 @@ fn tabs_with_a_width_keep_it_in_a_crowded_bar() {
     perform(&mut app, &[AppAction::SelectTab(0)]);
     let cell = app.settings.font.cell_size().width;
 
-    let shown = text_x(&app, &tab_text(&app, 1)) - text_x(&app, &tab_text(&app, 0));
+    let shown = text_x(&app, tab_text(&app, 1)) - text_x(&app, tab_text(&app, 0));
     assert!((shown - (30. * cell).floor() - 1.).abs() < 1., "{shown} {cell}");
 
     // The other tabs share what is left.
-    let other = text_x(&app, &tab_text(&app, 2)) - text_x(&app, &tab_text(&app, 1));
+    let other = text_x(&app, tab_text(&app, 2)) - text_x(&app, tab_text(&app, 1));
     assert!(other < shown / 2., "{other} {shown}");
 }
 
@@ -1885,7 +1896,7 @@ fn same_picture_at(one: &App, other: &App, at: Option<(f32, f32)>) -> bool {
 /// Where the close button of the first tab is, in a bar that shows it.
 fn close_button_center(app: &App) -> iced::Point {
     let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
-    let close = ui.find("\u{d7}").unwrap();
+    let close = ui.find(icons::close_tab_id(0)).unwrap();
     iced_test::selector::Bounded::visible_bounds(&close).unwrap().center()
 }
 
@@ -1896,7 +1907,7 @@ fn close_buttons_show_under_the_mouse() {
         app_with("[tabs]\nshow = \"Always\"\nclose_button = \"Always\"\n", Hotkeys::default());
 
     // The room for the close button is kept.
-    assert_eq!(text_x(&hover, "+"), text_x(&always, "+"));
+    assert_eq!(text_x(&hover, icons::id(Icon::Plus)), text_x(&always, icons::id(Icon::Plus)));
 
     // It is only drawn under the mouse.
     let close = close_button_center(&always);
@@ -1928,11 +1939,11 @@ fn close_buttons_can_be_left_out() {
     let hover = app_with("[tabs]\nshow = \"Always\"\n", Hotkeys::default());
     let never =
         app_with("[tabs]\nshow = \"Always\"\nclose_button = \"Never\"\n", Hotkeys::default());
-    assert!(text_x(&never, "+") < text_x(&hover, "+"));
+    assert!(text_x(&never, icons::id(Icon::Plus)) < text_x(&hover, icons::id(Icon::Plus)));
 
     // Nothing along the tab closes it, but a middle click still does.
-    let start = text_x(&never, &tab_text(&never, 0));
-    let end = text_x(&never, "+");
+    let start = text_x(&never, tab_text(&never, 0));
+    let end = text_x(&never, icons::id(Icon::Plus));
     let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), never.view());
     let y = iced_test::selector::Bounded::visible_bounds(&ui.find(tab_text(&never, 0)).unwrap())
         .unwrap()
@@ -1979,8 +1990,9 @@ fn bordered_tabs_and_buttons_take_clicks() {
         };
         let first = tab_text(&app, 0);
         assert!(matches!(click(&first)[..], [Message::Action(AppAction::SelectTab(0))]));
-        assert!(matches!(click("+")[..], [Message::Action(AppAction::NewTab)]));
-        assert!(matches!(click("\u{d7}")[..], [Message::CloseTab(0)]));
+        let plus = click_on(&app, icons::id(Icon::Plus));
+        assert!(matches!(plus[..], [Message::Action(AppAction::NewTab)]));
+        assert!(matches!(click_on(&app, icons::close_tab_id(0))[..], [Message::CloseTab(0)]));
     }
 }
 
@@ -1990,7 +2002,7 @@ fn gap_is_the_space_between_tabs() {
     let mut app = app_with(config, Hotkeys::default());
     perform(&mut app, &[AppAction::NewTab]);
 
-    let step = text_x(&app, &tab_text(&app, 1)) - text_x(&app, &tab_text(&app, 0));
+    let step = text_x(&app, tab_text(&app, 1)) - text_x(&app, tab_text(&app, 0));
     assert!((step - MAX_TAB_WIDTH - 12.).abs() < 1., "{step}");
 }
 
