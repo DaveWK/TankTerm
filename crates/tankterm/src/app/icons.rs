@@ -112,22 +112,56 @@ impl<Message> canvas::Program<Message> for Lines {
                 frame.stroke(&back, stroke);
             },
             Icon::Gear => {
+                // The toothed rim, and the hole for the axle.
+                let outline = cog(side);
+                let rim = Path::new(|path| {
+                    path.move_to(outline[0]);
+                    for point in &outline[1..] {
+                        path.line_to(*point);
+                    }
+                    path.close();
+                });
+                frame.stroke(&rim, stroke);
                 let center = Point::new(side / 2., side / 2.);
-                frame.stroke(&Path::circle(center, side * 0.24), stroke);
-                frame.stroke(&Path::circle(center, side * 0.08), stroke);
-                for tooth in 0..8 {
-                    let angle = tooth as f32 * PI / 4.;
-                    let (sin, cos) = angle.sin_cos();
-                    let point = |radius: f32| {
-                        Point::new(center.x + cos * radius * side, center.y + sin * radius * side)
-                    };
-                    line(&mut frame, point(0.24), point(0.45));
-                }
+                frame.stroke(&Path::circle(center, side * COG_HOLE), stroke);
             },
         }
 
         vec![frame.into_geometry()]
     }
+}
+
+/// The cog's teeth, and how far from its center their tips and roots and its hole are, as
+/// shares of the icon's side.
+const COG_TEETH: usize = 8;
+const COG_TIP: f32 = 0.47;
+const COG_ROOT: f32 = 0.33;
+const COG_HOLE: f32 = 0.13;
+
+/// The outline of a cog in a square `side` wide: for every tooth, the root before it, the two
+/// corners of its tip, and the root after it. The teeth are narrower at their tips, like a
+/// gear's.
+fn cog(side: f32) -> Vec<Point> {
+    let center = side / 2.;
+    let step = 2. * PI / COG_TEETH as f32;
+    let point = |radius: f32, angle: f32| {
+        let (sin, cos) = angle.sin_cos();
+        Point::new(center + cos * radius * side, center + sin * radius * side)
+    };
+
+    (0..COG_TEETH)
+        .flat_map(|tooth| {
+            // Start at the top, so the cog stands upright.
+            let angle = tooth as f32 * step - PI / 2.;
+            let (root, tip) = (step * 0.3, step * 0.17);
+            [
+                point(COG_ROOT, angle - root),
+                point(COG_TIP, angle - tip),
+                point(COG_TIP, angle + tip),
+                point(COG_ROOT, angle + root),
+            ]
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -150,6 +184,32 @@ mod tests {
         assert!(ui.snapshot(&Theme::Dark).unwrap().matches_hash(&picture).unwrap());
         let mut ui = Simulator::with_size(Default::default(), window, other);
         ui.snapshot(&Theme::Dark).unwrap().matches_hash(&picture).unwrap()
+    }
+
+    #[test]
+    fn the_gear_is_a_cog_with_eight_teeth() {
+        let side = 16.;
+        let center = Point::new(side / 2., side / 2.);
+        let outline = cog(side);
+        let radius = |point: &Point| point.distance(center) / side;
+
+        // Every tooth is a root, two corners of its tip and another root, all the way round.
+        assert_eq!(outline.len(), COG_TEETH * 4);
+        for tooth in outline.chunks(4) {
+            assert!((radius(&tooth[0]) - COG_ROOT).abs() < 1e-4);
+            assert!((radius(&tooth[1]) - COG_TIP).abs() < 1e-4);
+            assert!((radius(&tooth[2]) - COG_TIP).abs() < 1e-4);
+            assert!((radius(&tooth[3]) - COG_ROOT).abs() < 1e-4);
+        }
+        // The teeth are narrower at the tip than at the root.
+        let width = |a: &Point, b: &Point| a.distance(*b);
+        assert!(width(&outline[1], &outline[2]) < width(&outline[0], &outline[3]));
+        // And the whole cog fits in its square.
+        assert!(
+            outline
+                .iter()
+                .all(|point| (0. ..=side).contains(&point.x) && (0. ..=side).contains(&point.y))
+        );
     }
 
     #[test]
