@@ -149,6 +149,21 @@ like WezTerm's multiplexer domains or tmux.
 - Decide the scope first: local sessions only (unix socket), or also remote sessions over SSH.
 - Depends on stable pane IDs and the `tankTerm msg` protocol, which the server would extend.
 
+### Logging with `tracing`
+
+Idea: replace the `log` crate and TankTerm's own logger with `tracing`, `tracing-subscriber` and
+`tracing-appender`.
+
+- Today every crate logs through `log` macros, and `crates/tankterm/src/logging.rs` (inherited
+  from Alacritty) writes Charm's log layout, JSON or logfmt (`TANKTERM_LOG_FORMAT`) to stdout and a
+  log file.
+- `tracing-subscriber` would do the formatting and filtering, and `tracing-appender` the file
+  writing, off the main thread and with rotation. `tracing-log` would carry the `log` records of
+  dependencies and of the crates still on `log`.
+- To decide: keep Charm's layout as a custom `tracing-subscriber` formatter or switch to its own
+  formats, and whether spans (per pane, per IPC request) are worth adding.
+- Rejected: OpenTelemetry export, which is too heavy for a terminal's logs.
+
 ### Research spike: ligatures and font shaping
 
 Find out what it would take to draw ligatures and shape text across cells.
