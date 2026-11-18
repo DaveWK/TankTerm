@@ -436,11 +436,19 @@ impl App {
         }
     }
 
-    /// What the tab at `index` shows in the tab bar: the `tabs.title` format filled in.
+    /// What the tab at `index` shows in the tab bar, in one piece.
+    #[cfg(test)]
+    pub(super) fn tab_label(&self, index: usize, tab: &Tab) -> String {
+        let parts = self.tab_label_parts(index, tab).into_iter();
+        parts.map(|(text, _)| text).collect()
+    }
+
+    /// What the tab at `index` shows in the tab bar: the `tabs.title` format filled in, in
+    /// parts, `true` for the tab's number, which the tab bar draws in the `tab_index` style.
     ///
     /// Placeholders without a value, like the directory where it can't be told, are left
     /// empty; placeholders the format shouldn't have stay as they are written.
-    pub(super) fn tab_label(&self, index: usize, tab: &Tab) -> String {
+    pub(super) fn tab_label_parts(&self, index: usize, tab: &Tab) -> Vec<(String, bool)> {
         let focused = tab.panes.get(tab.focus).and_then(|id| self.terminals.get(id));
         let directory = focused.and_then(|shell| shell.working_directory.as_deref());
         let attention = tab
@@ -448,7 +456,7 @@ impl App {
             .iter()
             .any(|(_, id)| self.terminals.get(id).is_some_and(|shell| shell.attention));
 
-        let label = self.options.tabs.title.template().render(|name| {
+        let label = self.options.tabs.title.template().render_parts("index", |name| {
             let value: Cow<'_, str> = match name {
                 "index" => (index + 1).to_string().into(),
                 "title" => self.tab_title(tab),

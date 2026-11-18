@@ -285,7 +285,7 @@ fn changed_tabs_bell_and_window_options_take_effect() {
 
     assert_eq!(app.title(), "Renamed");
     let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
-    assert!(ui.find("1: Renamed").is_ok());
+    assert!(ui.find("  Renamed").is_ok());
     assert!(!app.options.tabs.inherit_working_directory);
     assert_eq!(app.options.bell, crate::bell::Bell::from_config(&file.config().bell));
     assert!(app.options.bell.command.is_some() && app.options.copy_on_select);

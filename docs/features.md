@@ -219,7 +219,8 @@ where its shell is: `user@host:~/src`, like the titles many shells set; with
 A tab's close button shows while the mouse is over it; `close_button` in
 `[tabs]` set to `"Always"` shows it on every tab, and `"Never"` leaves it out.
 The
-default is `"{index}: {title}{zoom}{marker}"`; this shows the program and the
+default is `"{index}  {title}{zoom}{marker}"`, with the number drawn faint
+(`[style.tab_index]`); this shows the program and the
 directory instead:
 
 ```toml
@@ -326,6 +327,8 @@ properties as the other `[style]` blocks, plus Lip Gloss's box properties:
 - `tab_hovered`, `tab_activity` and `tab_attention`: changes to a tab under the
   mouse, a tab marked with `*` and a tab marked with `!`.
 - `tab_status`: the status segments.
+- `tab_index`: changes to the tab's number, over the rest of its style. It is
+  faint unless set.
 
 Like the other styles, they can `inherit` from `[style.defs]`, and
 `[style.blurred.tab_*]` blocks change them while the window doesn't have focus.

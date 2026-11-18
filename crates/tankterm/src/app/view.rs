@@ -207,7 +207,8 @@ impl App {
                 .panes
                 .iter()
                 .any(|(_, id)| self.terminals.get(id).is_some_and(|shell| shell.attention));
-            let title = self.tab_label(index, tab);
+            let parts = self.tab_label_parts(index, tab);
+            let title: String = parts.iter().map(|(text, _)| text.as_str()).collect();
 
             let style = if index == self.active { styles.active } else { styles.inactive };
             let style = match (attention, tab.activity) {
@@ -222,7 +223,12 @@ impl App {
             let view =
                 |style: TabStyle, height: Length, show_close: bool| -> Element<'_, Message> {
                     let (foreground, _) = style.colors();
-                    let title = container(label(title.clone(), &style, font, size)).clip(true);
+                    // The tab's number is drawn in the `tab_index` style, the rest in the tab's.
+                    let index_style = style.with(&styles.index);
+                    let parts = parts.iter().map(|(text, number)| {
+                        label(text.clone(), if *number { &index_style } else { &style }, font, size)
+                    });
+                    let title = container(row(parts)).clip(true);
                     let close = (close_button != CloseButton::Never).then(|| {
                         let glyph = if show_close { color(foreground) } else { Color::TRANSPARENT };
                         button(text("\u{d7}").font(font).size(size).color(glyph))

@@ -431,7 +431,9 @@ Unix, for shells with job control, and within about a second.
 	only works on Linux. The program is read from _/proc_ too, so it is only
 	known on Linux.
 
-	Default: _"{index}: {title}{zoom}{marker}"_
+	The text of _{index}_ is drawn in the _tab\_index_ style.
+
+	Default: _"{index}  {title}{zoom}{marker}"_
 
 *width* = _"Title"_ | _"Shared"_
 
@@ -1097,6 +1099,13 @@ belong to a feature it doesn't have yet.
 		changes it for that segment.
 
 		Default: the bar's colors, and a _padding_ of _[3, 8]_.
+
+	*tab_index*
+		Changes to the tab's number, the text of _{index}_ in _tabs.title_,
+		applied over the rest of the tab's style, hovered and marked too.
+
+		Default: _faint = true_, which draws it halfway between the tab's text
+		and background colors.
 
 	In the tab bar styles, _CellForeground_ and _CellBackground_ refer to the
 	primary colors. The background of _tab\_bar_ is the default background of

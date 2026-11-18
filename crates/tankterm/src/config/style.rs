@@ -55,6 +55,7 @@ pub struct StyleConfig {
     pub tab_activity: Style,
     pub tab_attention: Style,
     pub tab_status: Style,
+    pub tab_index: Style,
 
     /// Changes to the styles while the window doesn't have focus.
     pub blurred: BlurredStyleConfig,
@@ -88,6 +89,7 @@ pub struct BlurredStyleConfig {
     pub tab_activity: Style,
     pub tab_attention: Style,
     pub tab_status: Style,
+    pub tab_index: Style,
 }
 
 /// Storage for the resolved styles, which can't be set from the configuration itself.
@@ -130,6 +132,7 @@ impl StyleConfig {
                 activity: style(&self.tab_activity),
                 attention: style(&self.tab_attention),
                 status: style(&self.tab_status),
+                index: style(&self.tab_index),
             },
             colors,
         );
@@ -207,6 +210,7 @@ impl StyleConfig {
                 activity: style(&blurred.tab_activity),
                 attention: style(&blurred.tab_attention),
                 status: style(&blurred.tab_status),
+                index: style(&blurred.tab_index),
             },
             colors,
         );
@@ -722,6 +726,7 @@ struct TabBlocks {
     activity: Style,
     attention: Style,
     status: Style,
+    index: Style,
 }
 
 /// Effective styles of the tab bar.
@@ -745,6 +750,8 @@ pub struct TabBarStyles {
     pub attention: TabLayer,
     /// The status segments at the end of the bar.
     pub status: TabStyle,
+    /// Changes to the tab's number, over the rest of the tab's style.
+    pub index: TabLayer,
 }
 
 impl TabBarStyles {
@@ -796,6 +803,8 @@ impl TabBarStyles {
             attention: layer(&blocks.attention),
             status: TabStyle { foreground: bar.foreground, background: bar.background, ..base }
                 .with(&layer(&blocks.status)),
+            index: TabLayer { faint: Some(true), ..TabLayer::default() }
+                .below(&layer(&blocks.index)),
         }
     }
 
@@ -812,6 +821,7 @@ impl TabBarStyles {
             activity: self.activity.below(&layer(&blocks.activity)),
             attention: self.attention.below(&layer(&blocks.attention)),
             status: self.status.with(&layer(&blocks.status)),
+            index: self.index.below(&layer(&blocks.index)),
         }
     }
 }
@@ -1166,6 +1176,25 @@ mod tests {
         let cursor = config.style.resolved().elements(false).cursor;
 
         assert!(cursor.attributes.faint && cursor.attributes.italic);
+    }
+
+    #[test]
+    fn tab_numbers_are_faint_by_default() {
+        let styles = load("").style.resolved().tab_bar(true);
+        assert!(styles.active.with(&styles.index).attributes.faint);
+        assert!(styles.inactive.with(&styles.index).attributes.faint);
+
+        let config = "[style.tab_index]\nfaint = false\nforeground = '#ff0000'\n";
+        let styles = load(config).style.resolved().tab_bar(true);
+        let index = styles.inactive.with(&styles.index);
+        assert!(!index.attributes.faint);
+        assert_eq!(index.foreground, Rgb::new(0xff, 0, 0));
+
+        let config = "[style.blurred.tab_index]\nbold = true\n";
+        let config = load(config);
+        let styles = config.style.resolved();
+        let bold = |tabs: TabBarStyles| tabs.inactive.with(&tabs.index).attributes.bold;
+        assert!(!bold(styles.tab_bar(true)) && bold(styles.tab_bar(false)));
     }
 
     #[test]

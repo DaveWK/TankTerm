@@ -132,7 +132,7 @@ impl TabTitle {
 
 impl Default for TabTitle {
     fn default() -> Self {
-        Self::new("{index}: {title}{zoom}{marker}".into())
+        Self::new("{index}  {title}{zoom}{marker}".into())
     }
 }
 

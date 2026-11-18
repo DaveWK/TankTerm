@@ -113,9 +113,11 @@ pub(super) fn has_text(app: &App, text: &str) -> bool {
     ui.find(text).is_ok()
 }
 
-/// The text the tab bar shows for the tab at `index`, to find the tab by.
+/// The text the tab bar shows for the tab at `index`, to find the tab by: its label without
+/// the tab's number, which is drawn on its own.
 pub(super) fn tab_text(app: &App, index: usize) -> String {
-    app.tab_label(index, &app.tabs[index])
+    let parts = app.tab_label_parts(index, &app.tabs[index]).into_iter();
+    parts.filter(|(_, number)| !number).map(|(text, _)| text).collect()
 }
 
 /// Whether the tab bar shows the tab at `index`.
@@ -1415,13 +1417,15 @@ fn tab_titles_follow_the_title_format() {
     forget_directories(&mut app);
 
     // The default shows the position, the title and the markers.
-    assert_eq!(app.tab_label(0, &app.tabs[0]), "1: test");
+    assert_eq!(app.tab_label(0, &app.tabs[0]), "1  test");
+    let parts = app.tab_label_parts(0, &app.tabs[0]);
+    assert_eq!(parts, [("1".into(), true), ("  test".into(), false)]);
     app.tabs[0].activity = true;
-    assert_eq!(app.tab_label(0, &app.tabs[0]), "1: test *");
+    assert_eq!(app.tab_label(0, &app.tabs[0]), "1  test *");
     perform(&mut app, &[AppAction::SelectTab(0), AppAction::ToggleZoom]);
-    assert_eq!(app.tab_label(0, &app.tabs[0]), "1: test Z");
+    assert_eq!(app.tab_label(0, &app.tabs[0]), "1  test Z");
     app.terminals.get_mut(&0).unwrap().attention = true;
-    assert_eq!(app.tab_label(0, &app.tabs[0]), "1: test Z !");
+    assert_eq!(app.tab_label(0, &app.tabs[0]), "1  test Z !");
 
     let config = "[tabs]\nshow = \"Always\"\ntitle = \"{{{index}}} {process}@{cwd} [{panes}] \
                   {path} {nope}\"\n";
@@ -1432,7 +1436,12 @@ fn tab_titles_follow_the_title_format() {
     shell.working_directory = Some("/srv/www".into());
     shell.process = Some("vim".into());
     assert_eq!(app.tab_label(0, &app.tabs[0]), "{1} vim@www [2] /srv/www {nope}");
-    assert!(has_text(&app, "{1} vim@www [2] /srv/www {nope}"));
+    // The number is drawn on its own, between the rest.
+    assert!(
+        has_text(&app, "{")
+            && has_text(&app, "1")
+            && has_text(&app, "} vim@www [2] /srv/www {nope}")
+    );
 
     // What can't be told is left empty.
     let shell = app.terminals.get_mut(&focused).unwrap();
