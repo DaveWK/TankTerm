@@ -1,10 +1,10 @@
-use std::cell::{OnceCell, RefCell};
+use std::cell::OnceCell;
 use std::collections::{BTreeMap, HashMap};
+use std::env;
 use std::error::Error;
 use std::fmt::{self, Formatter};
 use std::path::PathBuf;
 use std::rc::Rc;
-use std::{env, mem};
 
 use log::{error, warn};
 use serde::de::{DeserializeOwned, Error as SerdeError, MapAccess, Visitor};
@@ -14,9 +14,8 @@ use winit::keyboard::{Key, ModifiersState};
 
 use tankterm_config::SerdeReplace;
 use tankterm_config_derive::{ConfigDeserialize, SerdeReplace};
-use tankterm_terminal::term::search::RegexSearch;
-use tankterm_terminal::term::{ColorScheme, Config as TermConfig};
-use tankterm_terminal::tty::{Options as PtyOptions, Shell};
+use tankterm_terminal::term::ColorScheme;
+use tankterm_terminal::tty::Shell;
 
 use crate::color::ColorContext;
 use crate::config::LOG_TARGET_CONFIG;
@@ -162,33 +161,6 @@ impl UiConfig {
             ColorScheme::Dark
         } else {
             ColorScheme::Light
-        }
-    }
-
-    /// Derive [`TermConfig`] from the config.
-    pub fn term_options(&self) -> TermConfig {
-        TermConfig {
-            semantic_escape_chars: self.selection.semantic_escape_chars.clone(),
-            scrolling_history: self.scrolling.history() as usize,
-            vi_mode_cursor_style: self.cursor.vi_mode_style(),
-            default_cursor_style: self.cursor.style(),
-            osc52: self.terminal.osc52.0,
-            kitty_keyboard: true,
-        }
-    }
-
-    /// Derive [`PtyOptions`] from the config.
-    pub fn pty_config(&self) -> PtyOptions {
-        let shell = self.terminal.shell.clone().or_else(|| self.shell.clone()).map(Into::into);
-        let working_directory =
-            self.working_directory.clone().or_else(|| self.general.working_directory.clone());
-        PtyOptions {
-            working_directory,
-            shell,
-            drain_on_exit: false,
-            env: HashMap::new(),
-            #[cfg(target_os = "windows")]
-            escape_args: false,
         }
     }
 
@@ -497,9 +469,7 @@ pub struct Hints {
 impl Default for Hints {
     fn default() -> Self {
         // Add URL hint by default when no other hint is present.
-        let pattern = LazyRegexVariant::Pattern(String::from(URL_REGEX));
-        let regex = LazyRegex(Rc::new(RefCell::new(pattern)));
-        let content = HintContent::new(Some(regex), true);
+        let content = HintContent { regex: Some(String::from(URL_REGEX)), hyperlinks: true };
 
         #[cfg(not(any(target_os = "macos", windows)))]
         let action = HintAction::Command(Program::Just(String::from("xdg-open")));
@@ -626,17 +596,11 @@ pub struct Hint {
 
 #[derive(Serialize, Default, Clone, Debug, PartialEq, Eq)]
 pub struct HintContent {
-    /// Regex for finding matches.
-    pub regex: Option<LazyRegex>,
+    /// Regex for finding matches, compiled by the terminal widget.
+    pub regex: Option<String>,
 
     /// Escape sequence hyperlinks.
     pub hyperlinks: bool,
-}
-
-impl HintContent {
-    pub fn new(regex: Option<LazyRegex>, hyperlinks: bool) -> Self {
-        Self { regex, hyperlinks }
-    }
 }
 
 impl<'de> Deserialize<'de> for HintContent {
@@ -660,7 +624,7 @@ impl<'de> Deserialize<'de> for HintContent {
 
                 while let Some((key, value)) = map.next_entry::<String, toml::Value>()? {
                     match key.as_str() {
-                        "regex" => match Option::<LazyRegex>::deserialize(value) {
+                        "regex" => match Option::<String>::deserialize(value) {
                             Ok(regex) => content.regex = regex,
                             Err(err) => {
                                 error!(
@@ -748,104 +712,6 @@ pub struct HintMouse {
     #[serde(skip_serializing)]
     pub mods: ModsWrapper,
 }
-
-/// Lazy regex with interior mutability.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct LazyRegex(Rc<RefCell<LazyRegexVariant>>);
-
-impl LazyRegex {
-    /// The regex as it was written.
-    pub fn pattern(&self) -> String {
-        match &*self.0.borrow() {
-            LazyRegexVariant::Compiled(regex, _)
-            | LazyRegexVariant::Uncompilable(regex)
-            | LazyRegexVariant::Pattern(regex) => regex.clone(),
-        }
-    }
-
-    /// Execute a function with the compiled regex DFAs as parameter.
-    pub fn with_compiled<T, F>(&self, f: F) -> Option<T>
-    where
-        F: FnMut(&mut RegexSearch) -> T,
-    {
-        self.0.borrow_mut().compiled().map(f)
-    }
-}
-
-impl<'de> Deserialize<'de> for LazyRegex {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let regex = LazyRegexVariant::Pattern(String::deserialize(deserializer)?);
-        Ok(Self(Rc::new(RefCell::new(regex))))
-    }
-}
-
-impl Serialize for LazyRegex {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let variant = self.0.borrow();
-        let regex = match &*variant {
-            LazyRegexVariant::Compiled(regex, _) => regex,
-            LazyRegexVariant::Uncompilable(regex) => regex,
-            LazyRegexVariant::Pattern(regex) => regex,
-        };
-        serializer.serialize_str(regex)
-    }
-}
-
-/// Regex which is compiled on demand, to avoid expensive computations at startup.
-#[derive(Clone, Debug)]
-pub enum LazyRegexVariant {
-    Compiled(String, Box<RegexSearch>),
-    Pattern(String),
-    Uncompilable(String),
-}
-
-impl LazyRegexVariant {
-    /// Get a reference to the compiled regex.
-    ///
-    /// If the regex is not already compiled, this will compile the DFAs and store them for future
-    /// access.
-    fn compiled(&mut self) -> Option<&mut RegexSearch> {
-        // Check if the regex has already been compiled.
-        let regex = match self {
-            Self::Compiled(_, regex_search) => return Some(regex_search),
-            Self::Uncompilable(_) => return None,
-            Self::Pattern(regex) => mem::take(regex),
-        };
-
-        // Compile the regex.
-        let regex_search = match RegexSearch::new(&regex) {
-            Ok(regex_search) => regex_search,
-            Err(err) => {
-                error!("could not compile hint regex: {err}");
-                *self = Self::Uncompilable(regex);
-                return None;
-            },
-        };
-        *self = Self::Compiled(regex, Box::new(regex_search));
-
-        // Return a reference to the compiled DFAs.
-        match self {
-            Self::Compiled(_, dfas) => Some(dfas),
-            _ => unreachable!(),
-        }
-    }
-}
-
-impl PartialEq for LazyRegexVariant {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Pattern(regex), Self::Pattern(other_regex)) => regex == other_regex,
-            _ => false,
-        }
-    }
-}
-impl Eq for LazyRegexVariant {}
 
 /// Wrapper around f32 that represents a percentage value between 0.0 and 1.0.
 #[derive(SerdeReplace, Serialize, Clone, Copy, Debug, PartialEq)]

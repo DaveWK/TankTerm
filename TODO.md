@@ -12,6 +12,31 @@ Approved and waiting their turn, in this order.
 
 Nothing below is started; each item lists what has to be decided or built first.
 
+### Regex search and validation
+
+- Check hint regexes when the configuration is read, and log the hint and the error then.
+  Today the widget compiles each one the first time the hint is used (`iced_tterm/src/hint.rs`,
+  `LazyRegex`); one that doesn't compile logs an error at that moment and silently finds
+  nothing.
+- Say in the search bar when the typed regex doesn't compile, instead of finding nothing
+  (`iced_tterm/src/search.rs` keeps `dfas = None`). Consider a literal (non-regex) mode and a
+  case toggle.
+- Find out whether every terminal compiles its own copy of each hint regex, and share one per
+  configuration if so.
+- Measure what large patterns and long scrollback cost: DFA build time and size limits in
+  `RegexSearch`, and the line limits while typing (`MAX_SEARCH_WHILE_TYPING`). Benchmarks would
+  belong with the planned criterion benches.
+- Crates to weigh. `tankterm_terminal`'s `RegexSearch` already uses `regex-automata`'s lazy
+  (hybrid) DFA directly and steps it cell by cell, so the engine itself has no faster
+  replacement.
+  - `regex-syntax`'s parser (already a dependency through `regex-automata`) gives parse errors
+    with the position in the pattern: the error messages for the two points above.
+  - `regex-cursor` (0.1.5, from Helix's maintainers) runs `regex-automata`'s engines over
+    text in chunks through a `Cursor` trait. Searching the grid through it could replace the
+    hand-written DFA stepping and allow the engines that support more of the syntax. Its docs
+    call it a prototype for upstream "streaming regex" support, so try it in a spike first.
+  - For a literal mode, `memchr`'s substring search (already a dependency) or `aho-corasick`.
+
 ### Actions TankTerm doesn't have yet
 
 Bindings to these are accepted and logged as warnings, but do nothing. Several are still in

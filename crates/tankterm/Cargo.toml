@@ -86,4 +86,3 @@ embed-resource = "3.0.12"
 default = ["wayland", "x11"]
 x11 = ["iced/x11", "winit/x11", "png"]
 wayland = ["iced/wayland", "winit/wayland"]
-nightly = []

@@ -1,5 +1,4 @@
 use std::cmp::max;
-use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 use std::path::PathBuf;
 
@@ -8,8 +7,6 @@ use log::{LevelFilter, error};
 use serde::{Deserialize, Serialize};
 use tankterm_config::SerdeReplace;
 use toml::Value;
-
-use tankterm_terminal::tty::Options as PtyOptions;
 
 use crate::color::ColorContext;
 use crate::config::UiConfig;
@@ -147,36 +144,6 @@ impl TerminalOptions {
     pub fn command(&self) -> Option<Program> {
         let (program, args) = self.command.split_first()?;
         Some(Program::WithArgs { program: program.clone(), args: args.to_vec() })
-    }
-
-    /// Override the [`PtyOptions`]'s fields with the [`TerminalOptions`].
-    pub fn override_pty_config(&self, pty_config: &mut PtyOptions) {
-        if let Some(working_directory) = &self.working_directory {
-            if working_directory.is_dir() {
-                pty_config.working_directory = Some(working_directory.to_owned());
-            } else {
-                error!("Invalid working directory: {working_directory:?}");
-            }
-        }
-
-        if let Some(command) = self.command() {
-            pty_config.shell = Some(command.into());
-        }
-
-        pty_config.drain_on_exit |= self.hold;
-    }
-}
-
-impl From<TerminalOptions> for PtyOptions {
-    fn from(mut options: TerminalOptions) -> Self {
-        PtyOptions {
-            working_directory: options.working_directory.take(),
-            shell: options.command().map(Into::into),
-            drain_on_exit: options.hold,
-            env: HashMap::new(),
-            #[cfg(target_os = "windows")]
-            escape_args: false,
-        }
     }
 }
 
@@ -524,16 +491,6 @@ pub struct WindowOptions {
     #[clap(flatten)]
     /// Window options which could be passed via IPC.
     pub window_identity: WindowIdentity,
-
-    #[clap(skip)]
-    #[cfg(target_os = "macos")]
-    /// The window tabbing identifier to use when building a window.
-    pub window_tabbing_id: Option<String>,
-
-    #[clap(skip)]
-    #[cfg(not(any(target_os = "macos", windows)))]
-    /// `ActivationToken` that we pass to winit.
-    pub activation_token: Option<String>,
 
     /// Override configuration file options [example: 'cursor.style="Beam"'].
     #[clap(short = 'o', long, num_args = 1..)]

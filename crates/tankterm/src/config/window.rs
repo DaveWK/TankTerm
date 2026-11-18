@@ -4,10 +4,6 @@ use log::{error, warn};
 use serde::de::{self, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
 
-#[cfg(target_os = "macos")]
-use winit::platform::macos::OptionAsAlt as WinitOptionAsAlt;
-use winit::window::{Fullscreen, Theme as WinitTheme, WindowLevel as WinitWindowLevel};
-
 use tankterm_config_derive::{ConfigDeserialize, SerdeReplace};
 
 use crate::config::LOG_TARGET_CONFIG;
@@ -135,40 +131,6 @@ impl WindowConfig {
                 left: f32::from(left) * cell_width,
             },
         }
-    }
-
-    /// Configured padding, to detect changes.
-    #[inline]
-    pub fn padding_config(&self) -> Padding {
-        self.padding
-    }
-
-    #[inline]
-    pub fn fullscreen(&self) -> Option<Fullscreen> {
-        if self.startup_mode == StartupMode::Fullscreen {
-            Some(Fullscreen::Borderless(None))
-        } else {
-            None
-        }
-    }
-
-    #[inline]
-    pub fn maximized(&self) -> bool {
-        self.startup_mode == StartupMode::Maximized
-    }
-
-    #[cfg(target_os = "macos")]
-    pub fn option_as_alt(&self) -> WinitOptionAsAlt {
-        match self.option_as_alt {
-            OptionAsAlt::OnlyLeft => WinitOptionAsAlt::OnlyLeft,
-            OptionAsAlt::OnlyRight => WinitOptionAsAlt::OnlyRight,
-            OptionAsAlt::Both => WinitOptionAsAlt::Both,
-            OptionAsAlt::None => WinitOptionAsAlt::None,
-        }
-    }
-
-    pub fn theme(&self) -> Option<WinitTheme> {
-        self.decorations_theme_variant.map(WinitTheme::from)
     }
 }
 
@@ -335,29 +297,11 @@ pub enum Theme {
     Dark,
 }
 
-impl From<Theme> for WinitTheme {
-    fn from(theme: Theme) -> Self {
-        match theme {
-            Theme::Light => WinitTheme::Light,
-            Theme::Dark => WinitTheme::Dark,
-        }
-    }
-}
-
 #[derive(ConfigDeserialize, Serialize, Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WindowLevel {
     #[default]
     Normal,
     AlwaysOnTop,
-}
-
-impl From<WindowLevel> for WinitWindowLevel {
-    fn from(level: WindowLevel) -> Self {
-        match level {
-            WindowLevel::Normal => WinitWindowLevel::Normal,
-            WindowLevel::AlwaysOnTop => WinitWindowLevel::AlwaysOnTop,
-        }
-    }
 }
 
 /// Space around the terminal grid.

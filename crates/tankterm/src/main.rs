@@ -30,9 +30,6 @@ mod app;
 mod bell;
 mod cli;
 mod color;
-// Most configuration options belong to the previous OpenGL front end and aren't read by the iced
-// front end yet, but are still parsed so existing config files keep loading without errors.
-#[allow(dead_code, unused_imports)]
 mod config;
 mod daemon;
 mod hotkeys;
@@ -236,7 +233,7 @@ fn listen(config: &UiConfig, options: &Options) -> Option<ipc::Listener> {
 /// Settings for the main window.
 ///
 /// `size` is the window size for `window.dimensions`, if they are configured.
-#[allow(unused_variables)]
+#[cfg_attr(any(target_os = "macos", windows), allow(unused_variables))]
 fn window_settings(config: &UiConfig, options: &Options, size: Option<Size>) -> window::Settings {
     let defaults = window::Settings::default();
     let window = &config.window;

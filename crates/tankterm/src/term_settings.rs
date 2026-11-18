@@ -63,7 +63,7 @@ pub fn settings(config: &UiConfig, options: &Options) -> Settings {
 /// The hints, with the label characters.
 fn hint_settings(hints: &ui_config::Hints) -> HintSettings {
     let hint = |hint: &ui_config::Hint| Hint {
-        regex: hint.content.regex.as_ref().map(ui_config::LazyRegex::pattern),
+        regex: hint.content.regex.clone(),
         hyperlinks: hint.content.hyperlinks,
         post_processing: hint.post_processing,
         persist: hint.persist,
@@ -249,8 +249,7 @@ fn face(family: Font, description: &FontDescription, default: Face) -> Font {
 /// Convert a config font description into an iced font.
 ///
 /// iced replaces families it can't find with a proportional font, which breaks the terminal grid.
-/// Missing families are replaced with the system monospace font instead, like the OpenGL renderer
-/// did.
+/// Missing families are replaced with the system monospace font instead, like Alacritty does.
 fn font(description: &FontDescription) -> Font {
     let family = family(&description.family, family_installed).unwrap_or_else(|| {
         let system = FontDescription::system();
@@ -437,7 +436,7 @@ fn palette(colors: &Colors) -> ColorPalette {
     let primary = &colors.primary;
     let (normal, bright) = (&colors.normal, &colors.bright);
 
-    // Like the OpenGL renderer, derive dim colors from the normal ones when they aren't set.
+    // Like Alacritty, derive dim colors from the normal ones when they aren't set.
     let dim = |configured: Option<Rgb>, normal: Rgb| hex(configured.unwrap_or(normal * DIM_FACTOR));
     let dim_colors = colors.dim.as_ref();
 
