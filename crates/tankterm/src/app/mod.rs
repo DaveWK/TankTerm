@@ -86,6 +86,8 @@ pub enum Message {
     PaneResized(pane_grid::ResizeEvent),
     /// The window was opened or gained focus (`true`), or lost focus (`false`).
     WindowFocused(bool),
+    /// How many pixels of the screen a logical pixel is now.
+    ScaleFactor(f32),
     /// Text typed into the command palette or profile selector.
     PaletteQuery(String),
     /// Run the selected item of the command palette or profile selector.
@@ -188,6 +190,9 @@ pub struct App {
     next_tab: u64,
     /// Whether the window has focus; a bell in an unfocused window asks for attention.
     window_focused: bool,
+    /// How many pixels of the screen a logical pixel is, so thin lines can be drawn on whole
+    /// pixels.
+    scale_factor: f32,
     /// The session as it was last written to `session_file`.
     saved_session: Option<Session>,
     /// Why the session couldn't be written, while a write that failed waits to be tried again.

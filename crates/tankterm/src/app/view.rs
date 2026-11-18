@@ -197,6 +197,7 @@ impl App {
         let styles = if self.window_focused { focused } else { blurred };
         let font = self.settings.font.font_type;
         let size = self.settings.font.size;
+        let scale = self.scale_factor;
         // Tab widths are in cells, which are only measured when a width is set.
         let cell = std::cell::OnceCell::new();
         let cells = |cells: Option<u16>| {
@@ -222,38 +223,43 @@ impl App {
             // The close button is drawn while `show_close` is set. With `Hover`, a tab not under
             // the mouse keeps its room, so the tab doesn't change width under the mouse.
             let close_button = self.options.tabs.close_button;
-            let view = |style: TabStyle,
-                        height: Length,
-                        show_close: bool|
-             -> Element<'_, Message> {
-                let (foreground, _) = style.colors();
-                // The tab's number is drawn in the `tab_index` style, the rest in the tab's.
-                let index_style = style.with(&styles.index);
-                let parts = parts.iter().map(|(text, number)| {
-                    label(text.clone(), if *number { &index_style } else { &style }, font, size)
-                });
-                let title = container(row(parts)).clip(true);
-                let close = (close_button != CloseButton::Never).then(|| {
-                    let glyph = if show_close { color(foreground) } else { Color::TRANSPARENT };
-                    button(icons::icon(Icon::Close, close_size(size), glyph, close_tab_id(index)))
+            let view =
+                |style: TabStyle, height: Length, show_close: bool| -> Element<'_, Message> {
+                    let (foreground, _) = style.colors();
+                    // The tab's number is drawn in the `tab_index` style, the rest in the tab's.
+                    let index_style = style.with(&styles.index);
+                    let parts = parts.iter().map(|(text, number)| {
+                        label(text.clone(), if *number { &index_style } else { &style }, font, size)
+                    });
+                    let title = container(row(parts)).clip(true);
+                    let close = (close_button != CloseButton::Never).then(|| {
+                        let glyph = if show_close { color(foreground) } else { Color::TRANSPARENT };
+                        button(icons::icon(
+                            Icon::Close,
+                            close_size(size),
+                            glyph,
+                            close_tab_id(index),
+                            scale,
+                        ))
                         .padding(Padding::ZERO.left(CLOSE_PADDING))
                         .style(|_, _| button::Style::default())
                         .on_press_maybe(show_close.then_some(Message::CloseTab(index)))
-                });
+                    });
 
-                let content = row![title.width(Length::Fill)].push(close).align_y(Vertical::Center);
-                let select = button(content)
-                    .padding(padding(style.padding))
-                    .width(Length::Fill)
-                    .height(height)
-                    .style(move |_, _| button_style(&style))
-                    .on_press(Message::Action(AppAction::SelectTab(index)));
+                    let content =
+                        row![title.width(Length::Fill)].push(close).align_y(Vertical::Center);
+                    let select = button(content)
+                        .padding(padding(style.padding))
+                        .width(Length::Fill)
+                        .height(height)
+                        .style(move |_, _| button_style(&style))
+                        .on_press(Message::Action(AppAction::SelectTab(index)));
 
-                // Like in browsers, a middle click closes the tab.
-                mouse_area(bordered(select, &style))
-                    .on_middle_press(Message::CloseTab(index))
-                    .into()
-            };
+                    // Like in browsers, a middle click closes the tab.
+                    mouse_area(bordered(select, &style))
+                        .on_middle_press(Message::CloseTab(index))
+                        .into()
+                };
             let hovered = view(style.with(&styles.hovered), Length::Fill, true);
             let normal = view(style, Length::Shrink, close_button == CloseButton::Always);
             let tab = container(hoverable(normal, hovered))
@@ -312,10 +318,10 @@ impl App {
             container(hoverable(view(style, Length::Shrink), hovered))
                 .padding(padding(style.margin))
         };
-        let plus = |style: &TabStyle| bar_icon(Icon::Plus, style, size);
+        let plus = |style: &TabStyle| bar_icon(Icon::Plus, style, size, scale);
         let new_tab = bar_button(&plus, false, AppAction::NewTab);
         // The gear opens the configuration file.
-        let gear = |style: &TabStyle| bar_icon(Icon::Gear, style, size);
+        let gear = |style: &TabStyle| bar_icon(Icon::Gear, style, size, scale);
         let settings = bar_button(&gear, false, AppAction::OpenConfig);
 
         let tabs = TabStrip::new(tabs, new_tab, styles.bar.gap.into());
@@ -350,7 +356,8 @@ impl App {
                     TitleButton::Close => AppAction::Quit,
                     TitleButton::Menu => unreachable!("the app's icon isn't a button"),
                 };
-                let icon = move |style: &TabStyle| window_icon(button, maximized, style, size);
+                let icon =
+                    move |style: &TabStyle| window_icon(button, maximized, style, size, scale);
                 bar_button(&icon, button == TitleButton::Close, action).into()
             });
             let buttons: Vec<Element<'_, Message>> = buttons.collect();
@@ -503,6 +510,7 @@ fn window_icon(
     maximized: bool,
     style: &TabStyle,
     size: f32,
+    scale: f32,
 ) -> Element<'static, Message> {
     let icon = match button {
         TitleButton::Minimize => Icon::Minimize,
@@ -511,12 +519,14 @@ fn window_icon(
         TitleButton::Close => Icon::Close,
         TitleButton::Menu => unreachable!("the app's icon isn't drawn as a line icon"),
     };
-    bar_icon(icon, style, size)
+    bar_icon(icon, style, size, scale)
 }
 
 /// An icon of a button on the bar, in the button's text color, centered in a line of text.
-fn bar_icon(icon: Icon, style: &TabStyle, size: f32) -> Element<'static, Message> {
-    let drawn = icons::icon(icon, bar_icon_size(size), color(style.colors().0), icons::id(icon));
+/// Its lines are drawn on whole pixels of a screen with `scale` of them to a logical pixel.
+fn bar_icon(icon: Icon, style: &TabStyle, size: f32, scale: f32) -> Element<'static, Message> {
+    let (side, foreground) = (bar_icon_size(size), color(style.colors().0));
+    let drawn = icons::icon(icon, side, foreground, icons::id(icon), scale);
     container(drawn).center_y(size * LINE_HEIGHT).into()
 }
 

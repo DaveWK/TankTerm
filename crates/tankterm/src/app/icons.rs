@@ -50,9 +50,16 @@ pub fn app_icon<'a, Message: 'a>(size: f32) -> Element<'a, Message> {
     container(logo).id(app_icon_id()).into()
 }
 
-/// `icon` drawn in `color` with lines a pixel wide, in a square `size` wide.
-pub fn icon<'a, Message: 'a>(icon: Icon, size: f32, color: Color, id: Id) -> Element<'a, Message> {
-    let canvas = Canvas::new(Lines { icon, color }).width(size).height(size);
+/// `icon` drawn in `color` with lines about a logical pixel wide, in a square `size` wide, on
+/// a screen with `scale` pixels to a logical pixel.
+pub fn icon<'a, Message: 'a>(
+    icon: Icon,
+    size: f32,
+    color: Color,
+    id: Id,
+    scale: f32,
+) -> Element<'a, Message> {
+    let canvas = Canvas::new(Lines { icon, color, scale }).width(size).height(size);
     container(canvas).id(id).into()
 }
 
@@ -60,6 +67,22 @@ pub fn icon<'a, Message: 'a>(icon: Icon, size: f32, color: Color, id: Id) -> Ele
 struct Lines {
     icon: Icon,
     color: Color,
+    /// Pixels of the screen to a logical pixel.
+    scale: f32,
+}
+
+/// How wide the lines of icons are, in pixels of a screen with `scale` of them to a logical
+/// pixel: a logical pixel, in whole pixels, and at least one.
+fn line_width(scale: f32) -> f32 {
+    scale.round().max(1.)
+}
+
+/// Where a line `width` pixels wide is drawn, near `at` in a frame at `origin`, so that it
+/// covers whole pixels of a screen with `scale` of them to a logical pixel. Everything is in
+/// logical pixels but `width`.
+fn on_pixels(at: f32, origin: f32, width: f32, scale: f32) -> f32 {
+    let edge = ((origin + at) * scale - width / 2.).round();
+    (edge + width / 2.) / scale - origin
 }
 
 impl<Message> canvas::Program<Message> for Lines {
@@ -75,9 +98,15 @@ impl<Message> canvas::Program<Message> for Lines {
     ) -> Vec<Geometry> {
         let mut frame = Frame::new(renderer, bounds.size());
         let side = bounds.width.min(bounds.height);
-        // Points as shares of the square, on pixel centers so the lines stay sharp.
-        let at = |x: f32, y: f32| Point::new((x * side).round() + 0.5, (y * side).round() + 0.5);
-        let stroke = Stroke::default().with_width(1.).with_color(self.color);
+        // Points as shares of the square, where the lines cover whole pixels of the screen, so
+        // they stay sharp also where the frame doesn't start on one, and on scaled screens.
+        let scale = if self.scale > 0. { self.scale } else { 1. };
+        let width = line_width(scale);
+        let at = |x: f32, y: f32| {
+            let snap = |share: f32, origin: f32| on_pixels(share * side, origin, width, scale);
+            Point::new(snap(x, bounds.x), snap(y, bounds.y))
+        };
+        let stroke = Stroke::default().with_width(width / scale).with_color(self.color);
         let line = |frame: &mut Frame, from: Point, to: Point| {
             frame.stroke(&Path::line(from, to), stroke);
         };
@@ -213,8 +242,28 @@ mod tests {
     }
 
     #[test]
+    fn lines_cover_whole_pixels_of_the_screen() {
+        for scale in [1., 1.25, 1.5, 1.75, 2., 3.] {
+            let width = line_width(scale);
+            assert!(width >= 1. && width.fract() == 0., "{scale}");
+            for origin in [0., 10.25, 13.5, 21.7] {
+                for at in [0., 1.6, 7.5, 13.] {
+                    let line = on_pixels(at, origin, width, scale);
+                    // The line's edges are on the screen's pixels' edges, and near `at`.
+                    let edge = (origin + line) * scale - width / 2.;
+                    assert!((edge - edge.round()).abs() < 1e-3, "{scale} {origin} {at}");
+                    assert!((line - at).abs() <= 0.5 / scale + 1e-3, "{scale} {origin} {at}");
+                }
+            }
+        }
+        // Where the frame starts on a pixel, at a scale of one, they are on the pixels' centers
+        // as before.
+        assert_eq!(on_pixels(4., 10., 1., 1.), 4.5);
+    }
+
+    #[test]
     fn every_icon_draws_something_of_its_own() {
-        let draw = |shown: Icon| icon(shown, 16., Color::WHITE, id(shown));
+        let draw = |shown: Icon| icon(shown, 16., Color::WHITE, id(shown), 1.);
         for (index, shown) in ICONS.into_iter().enumerate() {
             assert!(!same_picture(draw(shown), Space::new().into()), "{shown:?}");
             for other in &ICONS[index + 1..] {

@@ -50,6 +50,7 @@ impl App {
             next_terminal: 0,
             next_tab: 0,
             window_focused: true,
+            scale_factor: 1.,
             saved_session: None,
             session_error: None,
             palette: None,
@@ -335,6 +336,9 @@ impl App {
             },
             iced::Event::Window(window::Event::Unfocused) => Some(Message::WindowFocused(false)),
             iced::Event::Window(window::Event::Resized(_)) => Some(Message::WindowResized),
+            iced::Event::Window(window::Event::Rescaled(scale)) => {
+                Some(Message::ScaleFactor(scale))
+            },
             _ => None,
         });
 
@@ -538,6 +542,10 @@ impl App {
                 window::latest().and_then(move |id| window::drag_resize(id, direction))
             },
             Message::WindowResized => self.window_state(),
+            Message::ScaleFactor(scale) => {
+                self.scale_factor = scale;
+                Task::none()
+            },
             Message::WindowState { maximized, fullscreen } => {
                 self.maximized = maximized;
                 self.fullscreen = fullscreen;
@@ -579,9 +587,15 @@ impl App {
                 for shell in self.terminals.values_mut() {
                     shell.terminal.handle(iced_tterm::Command::WindowFocus(focused));
                 }
-                // A window opened maximized isn't necessarily resized afterwards.
+                // A window opened maximized isn't necessarily resized afterwards, nor rescaled
+                // when it opens on a screen that is scaled.
                 if focused {
-                    Task::batch([self.focus(), self.window_state()])
+                    let scale = window::latest().and_then(window::scale_factor);
+                    Task::batch([
+                        self.focus(),
+                        self.window_state(),
+                        scale.map(Message::ScaleFactor),
+                    ])
                 } else {
                     Task::none()
                 }
