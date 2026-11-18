@@ -44,8 +44,8 @@ fn extra_log_targets() -> &'static [String] {
 const ALLOWED_TARGETS: &[&str] = &[
     LOG_TARGET_IPC_CONFIG,
     LOG_TARGET_CONFIG,
-    "tankterm_config_derive",
     "tankterm_terminal",
+    "iced_tterm",
     env!("CARGO_CRATE_NAME"),
 ];
 
@@ -360,6 +360,20 @@ mod tests {
         );
         assert_eq!(logfmt_value("a=b"), "\"a=b\"");
         assert_eq!(logfmt_value(""), "\"\"");
+    }
+
+    #[test]
+    fn every_tankterm_crate_is_logged() {
+        for target in [
+            env!("CARGO_CRATE_NAME"),
+            "tankterm_terminal",
+            "tankterm_config_derive",
+            "iced_tterm",
+            LOG_TARGET_IPC_CONFIG,
+        ] {
+            assert!(is_allowed_target(Level::Info, target), "{target}");
+        }
+        assert!(!is_allowed_target(Level::Info, "wgpu_core"));
     }
 
     #[test]

@@ -195,6 +195,8 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 - Resizing a zoomed pane with the keyboard moving a divider that isn't shown; the zoom ends
     first, like when focus moves
 - Session file not written again after writing it failed, until the tabs or panes changed
+- Log messages from the terminal widget being dropped, such as the error for a hint regex that
+    doesn't compile
 
 ## Forked from Alacritty
 
