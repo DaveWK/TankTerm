@@ -326,10 +326,15 @@ mod tests {
         assert_eq!(settings.size, defaults.size);
         assert!(matches!(settings.position, window::Position::Default));
         assert!(!settings.maximized && !settings.fullscreen);
-        assert!(settings.decorations);
         assert_eq!(settings.level, window::Level::Normal);
         assert!(!settings.transparent);
         assert!(!settings.blur);
+    }
+
+    #[test]
+    fn windows_open_without_the_system_title_bar_by_default() {
+        // The tab bar is the title bar.
+        assert!(!window_settings(&config(""), &options(&[]), None).decorations);
     }
 
     #[test]
@@ -362,7 +367,7 @@ mod tests {
             "[window]\n",
             "position = { x = 30, y = 40 }\n",
             "startup_mode = \"Maximized\"\n",
-            "decorations = \"None\"\n",
+            "decorations = \"Full\"\n",
             "level = \"AlwaysOnTop\"\n",
         ));
         let settings = window_settings(&config, &options(&[]), Some(Size::new(800., 480.)));
@@ -373,7 +378,7 @@ mod tests {
             window::Position::Specific(point) if point == Point::new(30., 40.)
         ));
         assert!(settings.maximized && !settings.fullscreen);
-        assert!(!settings.decorations);
+        assert!(settings.decorations);
         assert_eq!(settings.level, window::Level::AlwaysOnTop);
     }
 

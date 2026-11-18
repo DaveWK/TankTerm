@@ -11,7 +11,9 @@ use crate::term_settings;
 
 /// Size the terminal widget is laid out at in a window of `window` with `config`'s padding.
 fn terminal_size(config: &str, window: Size) -> (Size, Padding) {
-    let config: UiConfig = toml::from_str(config).unwrap();
+    let mut config: UiConfig = toml::from_str(config).unwrap();
+    // The system's title bar, so a single tab shows no tab bar.
+    config.window.decorations = crate::config::window::Decorations::Full;
     let mut settings = term_settings::settings(&config, &Options::default());
     settings.backend = BackendSettings { program: "cat".into(), ..BackendSettings::default() };
 

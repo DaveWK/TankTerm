@@ -383,8 +383,8 @@ max_width = 16
 
 ### The tab bar as title bar
 
-With `decorations = "None"` in the `[window]` section the window has no title
-bar of its own, and the tab bar takes its place. It is shown even with a single
+By default (`decorations = "None"` in the `[window]` section) the window has no
+title bar of its own, and the tab bar takes its place. It is shown even with a single
 tab and has minimize, maximize and close buttons where the desktop puts them:
 on KDE as KWin's button layout says, on GNOME as its `button-layout` setting
 says, on the left on macOS and on the right elsewhere. `buttons = "Right"` and
@@ -408,6 +408,23 @@ buttons = "Desktop"
 
 The buttons are drawn with the `tab_button` and `tab_hovered` styles, and the
 close button under the mouse also with `tab_close_hovered`.
+
+This brings back the tab bar as it was before TankTerm 0.18.0, under the
+system's title bar, with tabs sharing the bar and always showing their close
+buttons; `dynamic_title = false` also brings back `TankTerm` as the title of
+tabs whose programs set none. The styles in `tankTerm(5)` bring back its
+colors.
+
+```toml
+[window]
+decorations = "Full"
+dynamic_title = false
+
+[tabs]
+title = "{index}: {title}{zoom}{marker}"
+width = "Shared"
+close_button = "Always"
+```
 
 [tankTerm(5) manpage]: ../extra/man/tankTerm.5.scd
 [tankTerm-bindings(5) manpage]: ../extra/man/tankTerm-bindings.5.scd

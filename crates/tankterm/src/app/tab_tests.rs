@@ -30,7 +30,13 @@ pub(super) fn app_from(
     session_file: Option<PathBuf>,
     first: impl FnOnce(&mut Settings),
 ) -> App {
-    let mut config: UiConfig = toml::from_str(config).unwrap();
+    let text = config;
+    let mut config: UiConfig = toml::from_str(text).unwrap();
+    // Tests not about the tab bar keep the system's title bar, so a single tab shows no tab bar
+    // and the terminal fills the window.
+    if !text.contains("decorations") {
+        config.window.decorations = crate::config::window::Decorations::Full;
+    }
     // Loading a configuration resolves its styles.
     config.style.resolve(&config.colors);
     let mut settings = term_settings::settings(&config, &Options::default());

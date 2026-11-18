@@ -506,7 +506,9 @@ fn changed_opacity_waits_for_a_restart_in_a_window_that_was_opened_opaque() {
 
 #[test]
 fn background_set_by_an_application_is_drawn_behind_the_padding_too() {
-    let padding = "[window]\npadding = { x = 12, y = 6 }\n";
+    // With the system's title bar: the tab bar has the configured background, not the one
+    // the application sets.
+    let padding = "[window]\npadding = { x = 12, y = 6 }\ndecorations = \"Full\"\n";
 
     // OSC 11 sets the background color.
     let file = ConfigFile::new("");

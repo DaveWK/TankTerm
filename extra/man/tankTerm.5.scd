@@ -205,7 +205,20 @@ This section documents the *[window]* table of the configuration file.
 		Title bar, transparent background and no title bar buttons. Currently
 		drawn like _Full_.
 
-	Default: _"Full"_
+	Default: _"None"_
+
+	The tab bar looked like this before TankTerm 0.18.0, under the system's
+	title bar; these options bring that back, with the styles under
+	*[style]*'s _tab\_\*_ elements:
+
+	*[window]*++
+decorations = _"Full"_++
+dynamic_title = _false_ # only for the _"TankTerm"_ tab title too
+
+	*[tabs]*++
+title = _"{index}: {title}{zoom}{marker}"_++
+width = _"Shared"_++
+close_button = _"Always"_
 
 *buttons* = _"Desktop"_ | _"Right"_ | _"Left"_ | _"None"_
 
