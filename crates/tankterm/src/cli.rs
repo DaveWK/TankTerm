@@ -210,6 +210,8 @@ pub enum Subcommands {
     #[cfg(unix)]
     Msg(MessageOptions),
     Migrate(MigrateOptions),
+    #[cfg(unix)]
+    Ssh(SshOptions),
 }
 
 /// Send a message to the TankTerm socket.
@@ -453,6 +455,35 @@ pub struct SetTabTitleOptions {
 
     /// The new title; an empty title goes back to the title of the tab's focused pane.
     pub title: String,
+}
+
+/// Run ssh with a TERM the server has a terminfo entry for.
+///
+/// Hosts in the `ssh.probe` patterns are checked once for the entries in `ssh.order`; others get
+/// `ssh.fallback`. TankTerm's options come before the ssh arguments.
+#[cfg(unix)]
+#[derive(Args, Default, Clone, Debug, PartialEq, Eq)]
+pub struct SshOptions {
+    /// Check the host's terminfo entries, even if `ssh.probe` doesn't list it.
+    #[clap(long, conflicts_with = "no_probe")]
+    pub probe: bool,
+
+    /// Send `ssh.fallback` without checking or using the cache.
+    #[clap(long, conflicts_with = "reprobe")]
+    pub no_probe: bool,
+
+    /// Check the host again instead of using the cached answer.
+    #[clap(long)]
+    pub reprobe: bool,
+
+    /// Arguments for ssh, passed on unchanged.
+    #[clap(
+        required = true,
+        trailing_var_arg = true,
+        allow_hyphen_values = true,
+        value_name = "SSH_ARGS"
+    )]
+    pub args: Vec<String>,
 }
 
 /// Migrate the configuration file.

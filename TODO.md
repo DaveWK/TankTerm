@@ -7,8 +7,6 @@ Approved and waiting their turn, in this order.
 1. Delete the `xitely/iced_term` repository on Forgejo (web UI; `forgejo-repos` can't).
 2. Config options the iced front end ignores:
    - Port later, low priority: `window.resize_increments` and `window.option_as_alt`.
-3. `tankTerm ssh` with terminfo negotiation; design and decisions are in the section below
-   the deferred list.
 
 ## Deferred
 
@@ -140,6 +138,22 @@ recorded: the `--ref-test` flag that wrote the recordings went away with the Ope
   the four files, with no window involved.
 - Update the ref test section of `CONTRIBUTING.md` when this exists.
 
+### Rest of terminfo negotiation over SSH
+
+`tankTerm ssh` covers profiles and commands typed by hand, on Unix.
+
+- Plain `ssh` typed in a pane isn't covered; that would need a shell alias or function that the
+  shell integration scripts set up.
+- Windows: `tankTerm ssh` needs `exec` replaced by running `ssh` as a child, and the cache would
+  go in `%LOCALAPPDATA%\tankterm\`.
+- Answering XTGETTCAP (DCS `+q`) doesn't remove the need, since an unknown `TERM` fails before
+  any query, but it would give Neovim true colour on servers that drop `COLORTERM`. TankTerm
+  answers no DCS queries today.
+- `extra/tankterm.info` is behind ncurses 6.6 in several capabilities; refreshing it is a small
+  separate job.
+- With `ControlMaster yes` or `ask` in `~/.ssh/config`, the session doesn't attach to the probe's
+  connection and authenticates a second time on the first connection.
+
 ### Built-in SSH, serial and vault (requirements open)
 
 Tabby and WezTerm both have built-in SSH and serial clients; Tabby also has an encrypted store for
@@ -155,40 +169,3 @@ Requirements to capture:
 - What the vault stores (passwords, key passphrases, whole config), what unlocks it, and whether
   the system keyring is enough instead.
 - Serial: which devices and settings matter (baud rate, flow control, hex view, reconnect).
-
-## Terminfo negotiation over SSH ("greedyterm")
-
-Planned item 8. Send a server only a `TERM` value it actually has. Assessed against Fedora 45,
-Rocky 10.2, Debian 13 and 11, and Ubuntu 24.04.
-
-Recommended design: a `tankTerm ssh` wrapper that execs the real `ssh`.
-
-- Probing is opt-in per host or profile. Hosts that have not opted in get `xterm-256color`.
-- First connection to an opted-in host: one fixed probe over a shared SSH connection
-  (ControlMaster) that tests which terminfo files exist in the system directories. The answer is
-  cached per resolved user, host and port until `--reprobe` is given; later connections add no
-  latency and run nothing on the server.
-- Order: `alacritty`, `xterm-256color`, `xterm`; `xterm-256color` when the probe fails. The list
-  is configurable. TankTerm keeps the `alacritty` names.
-- It never installs an entry on a server. On Debian and Ubuntu hosts without one it prints a
-  hint to install `ncurses-term`.
-- The probe tests files instead of calling `infocmp`, which is missing from Fedora and Rocky
-  container images. It ignores `~/.terminfo` so the answer still holds after `sudo`.
-- Covered: profiles that use it as their shell, and `tankTerm ssh` typed by hand. Plain `ssh` is
-  not covered.
-- Size: medium. Unix only at first.
-
-Findings that shaped it:
-
-- `alacritty` is always present on Fedora and Rocky. On Debian and Ubuntu it comes with
-  `ncurses-term`, which `openssh-server` pulls in by default but minimal and container installs
-  lack. `INSTALL.md` currently says the entry ships everywhere, which is wrong for those.
-- `alacritty-direct` and `xterm-direct` are left out of the default order: outside tmux they
-  turn colours 8 and above into RGB values, so `tput setaf 9` comes out nearly black.
-- Installing the entry on the server lost: root cannot see it after `sudo -i`, it goes stale,
-  and Fedora and Rocky images have no `tic`.
-- Answering XTGETTCAP does not remove the need, since an unknown `TERM` fails before any query,
-  but it would give Neovim true colour on servers that drop `COLORTERM`. TankTerm answers no
-  DCS queries today. Worth its own item.
-- `extra/tankterm.info` is behind ncurses 6.6 in several capabilities; refreshing it is a small
-  separate job.

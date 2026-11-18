@@ -25,6 +25,9 @@ _tankTerm() {
             tankTerm,msg)
                 cmd="tankTerm__subcmd__msg"
                 ;;
+            tankTerm,ssh)
+                cmd="tankTerm__subcmd__ssh"
+                ;;
             tankTerm__subcmd__help,help)
                 cmd="tankTerm__subcmd__help__subcmd__help"
                 ;;
@@ -33,6 +36,9 @@ _tankTerm() {
                 ;;
             tankTerm__subcmd__help,msg)
                 cmd="tankTerm__subcmd__help__subcmd__msg"
+                ;;
+            tankTerm__subcmd__help,ssh)
+                cmd="tankTerm__subcmd__help__subcmd__ssh"
                 ;;
             tankTerm__subcmd__help__subcmd__msg,activate-pane)
                 cmd="tankTerm__subcmd__help__subcmd__msg__subcmd__activate__subcmd__pane"
@@ -164,7 +170,7 @@ _tankTerm() {
 
     case "${cmd}" in
         tankTerm)
-            opts="-q -v -e -T -o -h -V --config-file --socket --daemon --theme --working-directory --hold --command --title --class --option --help --version msg migrate help"
+            opts="-q -v -e -T -o -h -V --config-file --socket --daemon --theme --working-directory --hold --command --title --class --option --help --version msg migrate ssh help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 1 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -255,7 +261,7 @@ _tankTerm() {
             return 0
             ;;
         tankTerm__subcmd__help)
-            opts="msg migrate help"
+            opts="msg migrate ssh help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -481,6 +487,20 @@ _tankTerm() {
         tankTerm__subcmd__help__subcmd__msg__subcmd__zoom__subcmd__pane)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        tankTerm__subcmd__help__subcmd__ssh)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
@@ -1102,6 +1122,20 @@ _tankTerm() {
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        tankTerm__subcmd__ssh)
+            opts="-h --probe --no-probe --reprobe --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
                 *)
                     COMPREPLY=()
                     ;;

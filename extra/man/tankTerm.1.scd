@@ -101,6 +101,11 @@ profiles, set up through a TOML configuration file; see *tankTerm*(5).
 
 	Send IPC socket messages (see *tankTerm-msg*(1)).
 
+*ssh* [*--probe*|*--no-probe*] [*--reprobe*] _<SSH_ARGS>_...
+
+	Run *ssh*(1) with a _TERM_ the server has a terminfo entry for (see
+	*tankTerm-ssh*(1)). Not available on Windows.
+
 *migrate*
 
 	Migrate the configuration file.
@@ -145,7 +150,8 @@ the marks, TankTerm watches the shell's processes for both, where it can.
 
 # SEE ALSO
 
-*tankTerm-msg*(1), *tankTerm*(5), *tankTerm-bindings*(5), *tankTerm-escapes*(7)
+*tankTerm-msg*(1), *tankTerm-ssh*(1), *tankTerm*(5), *tankTerm-bindings*(5),
+*tankTerm-escapes*(7)
 
 # BUGS
 

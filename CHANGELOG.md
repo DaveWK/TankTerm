@@ -117,6 +117,13 @@ Notable changes to the `tankterm_terminal` crate are documented in its
     `hint_end` styles apply, and the URIs of hyperlinks under the mouse or the vi cursor are shown
     at the bottom of the terminal. URLs open with a plain click and with `Control+Shift+O`, as the
     default URL hint says, instead of with `Control`+click
+- `tankTerm ssh` runs `ssh` with a `TERM` the server has. Hosts matching the `[ssh]` table's
+    `probe` patterns are checked once, over the connection the session then reuses, for the
+    terminfo entries in `order` (`alacritty`, `xterm-256color`, `xterm`); other hosts get
+    `fallback` (`xterm-256color`). Answers are cached per user, host and port as `ssh -G`
+    resolves them, `--reprobe`, `--probe` and `--no-probe` override the cache and the patterns,
+    and Debian and Ubuntu servers without `alacritty` get a hint to install `ncurses-term`.
+    Not available on Windows
 
 ### Changed
 

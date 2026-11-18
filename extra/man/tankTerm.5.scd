@@ -543,6 +543,48 @@ name = _"Project"_++
 working_directory = _"/home/user/project"_++
 env = { EDITOR = _"hx"_ }
 
+	A profile that runs *tankTerm ssh* sends the server a _TERM_ it has; see
+	*[ssh]* and *tankTerm-ssh*(1).
+
+	*[[profiles]]*++
+name = _"Pi"_++
+shell = { program = _"tankTerm"_, args = [_"ssh"_, _"pi@10.0.0.5"_] }
+
+# SSH
+
+This section documents the *[ssh]* table of the configuration file. It sets
+which _TERM_ *tankTerm ssh* sends to a server; see *tankTerm-ssh*(1).
+
+*probe* = [_"<pattern>"_,]
+
+	Hosts to check for the entries of _order_, once per user, host and port.
+	Patterns are like those of *ssh_config*(5): _\*_ matches any characters,
+	_?_ one character, and a pattern starting with _!_ rules out the hosts it
+	matches. A pattern without _@_ matches the host as typed or the host name
+	*ssh -G* resolves it to; a pattern with _@_ matches _user@host_ with
+	either. Case doesn't matter.
+
+	Default: _[]_
+
+*order* = [_"<string>"_,]
+
+	Terminfo entries to look for on a checked host, best first. The first one
+	the host has becomes _TERM_. _alacritty-direct_ and _xterm-direct_ aren't in
+	the default, since outside tmux they turn colors 8 and above into RGB
+	values.
+
+	Default: _["alacritty", "xterm-256color", "xterm"]_
+
+*fallback* = _"<string>"_
+
+	_TERM_ for hosts that aren't checked, and for checked hosts with none of
+	the entries of _order_.
+
+	Default: _"xterm-256color"_
+
+Example:
+	*[ssh]*++
+probe = [_"\*.lan"_, _"build-\*"_, _"pi@10.0.0.\*"_, _"!nas.lan"_]
 
 # SCROLLING
 
@@ -1899,7 +1941,8 @@ relied upon.
 
 # SEE ALSO
 
-*tankTerm*(1), *tankTerm-msg*(1), *tankTerm-bindings*(5), *tankTerm-escapes*(7)
+*tankTerm*(1), *tankTerm-msg*(1), *tankTerm-ssh*(1), *tankTerm-bindings*(5),
+*tankTerm-escapes*(7)
 
 # BUGS
 

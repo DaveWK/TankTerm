@@ -47,6 +47,8 @@ mod palette;
 mod panic;
 mod session;
 mod setup;
+#[cfg(unix)]
+mod ssh;
 mod template;
 mod term_settings;
 mod title_buttons;
@@ -78,9 +80,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     // Load command line options.
-    let options = Options::new();
+    let mut options = Options::new();
 
-    match options.subcommands {
+    match options.subcommands.take() {
         #[cfg(unix)]
         Some(Subcommands::Msg(options)) => {
             if let Err(err) = ipc::send(options) {
@@ -89,6 +91,11 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         },
         Some(Subcommands::Migrate(options)) => migrate::migrate(options),
+        #[cfg(unix)]
+        Some(Subcommands::Ssh(ssh)) => {
+            let config = config::load(&mut options);
+            ssh::run(&config.ssh, &ssh)
+        },
         None => tankterm(options)?,
     }
 
