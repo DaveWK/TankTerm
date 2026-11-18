@@ -149,6 +149,32 @@ like WezTerm's multiplexer domains or tmux.
 - Decide the scope first: local sessions only (unix socket), or also remote sessions over SSH.
 - Depends on stable pane IDs and the `tankTerm msg` protocol, which the server would extend.
 
+### Rest of the title bar styling
+
+Minor findings from the final review of `title-bar-styling` (merged 2026-11-18), deferred:
+
+- The `user@host:path` fallback title only leaves out `ssh`; it is just as wrong under `mosh`,
+  `et`, `su`/`sudo -i` (user), `toolbox`/`distrobox` (host), `docker`/`podman exec` and
+  `kubectl exec`. A short list of process names would do.
+- `iced_tterm` drops `ResetTitle` (`backend.rs`, `Event::Title` only), so a program's title
+  stays after it pops it; and the remote title stays after `ssh` exits. Handling `ResetTitle` is
+  one match arm; clearing titles set by finished commands needs a decision.
+- `HoverSwap` (`app/hover_swap.rs`) doesn't track hover on `RedrawRequested` or drop the hidden
+  layer's redraw requests like iced's `hover`, so leaving a tab can cause redraws on every mouse
+  move until the next view rebuild (up to a second).
+- The title-wide tab estimate uses `cell_size().width`, which includes `font.offset.x`: a
+  negative offset makes long titles clip. `cell_size()` is now shaped on every `view()`.
+- The default top line on the shown tab ignores borders set only in
+  `[style.blurred.tab_active]` (`TabLayer::sets_border` looks at the focused block).
+- The shown tab's faint number blends toward the primary background, not a custom
+  `[style.tab_bar]` background.
+- The bar ignores an application's OSC 11 background, which shows now that the bar is always
+  there (base16-shell and tinted-shell set it at every prompt).
+- Stale comments: `poll_directories` in `app/update.rs`, `bar_button` in `app/view.rs`.
+- No frameless variant of `long_titles_and_crowded_bars_keep_the_buttons_on_the_bar` that checks
+  the window buttons.
+- Not tried in a real KWin session yet.
+
 ### Logging with `tracing`
 
 Idea: replace the `log` crate and TankTerm's own logger with `tracing`, `tracing-subscriber` and
