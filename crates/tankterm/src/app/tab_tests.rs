@@ -620,9 +620,13 @@ fn profiles_open_in_a_new_tab() {
 ///
 /// Only a test that is about to fail waits this long, so this is generous: a shell on a busy
 /// machine can take a while to start.
-const PATIENCE: Duration = Duration::from_secs(60);
+pub(super) const PATIENCE: Duration = Duration::from_secs(60);
 
-/// Wait until `condition` holds, failing with `what` if it doesn't in time.
+/// Poll `condition` until it holds, failing with `what` if it doesn't in time.
+///
+/// Only for what nothing sends an event about: which process group has a terminal, or what a
+/// command run outside of any terminal did. Wait for a program's output with
+/// [`wait_for_terminal`].
 pub(super) fn wait_until(what: &str, mut condition: impl FnMut() -> bool) {
     let deadline = Instant::now() + PATIENCE;
     while !condition() {
@@ -631,9 +635,63 @@ pub(super) fn wait_until(what: &str, mut condition: impl FnMut() -> bool) {
     }
 }
 
+/// Wait until `condition` holds, checking it again after each event a terminal sends: its PTY
+/// event loop sends a wakeup once it parsed a program's output. Fails with `what` if it doesn't
+/// hold in time.
+///
+/// The events are taken from the terminal, so the application doesn't see them.
+pub(super) fn wait_for_terminal(
+    app: &App,
+    terminal: u64,
+    what: &str,
+    mut condition: impl FnMut() -> bool,
+) {
+    let deadline = Instant::now() + PATIENCE;
+    while !condition() {
+        let left = deadline.saturating_duration_since(Instant::now());
+        assert!(!left.is_zero(), "{what}");
+        app.terminals[&terminal].terminal.wait_for_event(left);
+    }
+}
+
+/// Like [`wait_for_terminal`], with the application handling each event the terminal sends, as
+/// it does in a window.
+pub(super) fn handle_until(
+    app: &mut App,
+    terminal: u64,
+    what: &str,
+    mut condition: impl FnMut(&App) -> bool,
+) {
+    let deadline = Instant::now() + PATIENCE;
+    while !condition(app) {
+        let left = deadline.saturating_duration_since(Instant::now());
+        assert!(!left.is_zero(), "{what}");
+        let Some(shell) = app.terminals.get(&terminal) else {
+            panic!("{what}: terminal {terminal} closed");
+        };
+        if let Some(event) = shell.terminal.wait_for_event(left) {
+            let _ = app.update(terminal_event(terminal, event));
+        }
+    }
+}
+
+/// Hand the application the events its terminals sent so far, without waiting for more.
+pub(super) fn handle_pending(app: &mut App) {
+    let terminals: Vec<u64> = app.terminals.keys().copied().collect();
+    for terminal in terminals {
+        let pending = |app: &App| {
+            let shell = app.terminals.get(&terminal)?;
+            shell.terminal.wait_for_event(Duration::ZERO)
+        };
+        while let Some(event) = pending(app) {
+            let _ = app.update(terminal_event(terminal, event));
+        }
+    }
+}
+
 /// Wait for a terminal to show `text`.
 pub(super) fn wait_for_text(app: &App, terminal: u64, text: &str) {
-    wait_until(&format!("terminal never showed {text:?}"), || {
+    wait_for_terminal(app, terminal, &format!("terminal never showed {text:?}"), || {
         app.terminals[&terminal].terminal.text().concat().contains(text)
     });
 }
@@ -797,7 +855,7 @@ fn pastes_are_not_questioned_with_bracketed_paste_or_when_turned_off() {
     let config = "[terminal]\nshell = { program = \"sh\", args = [\"-c\", \"printf \
                   '\\\\033[?2004h'; exec cat\"] }\n";
     let mut app = app_with(config, Hotkeys::default());
-    wait_until("bracketed paste was never enabled", || {
+    wait_for_terminal(&app, 0, "bracketed paste was never enabled", || {
         app.terminals[&0].terminal.mode().contains(TermMode::BRACKETED_PASTE)
     });
 
@@ -999,7 +1057,7 @@ fn finished_commands_are_noticed_with_the_output_that_follows_them() {
 }
 
 /// An event of a terminal, as the application is told about it.
-fn terminal_event(terminal: u64, event: AlacrittyEvent) -> Message {
+pub(super) fn terminal_event(terminal: u64, event: AlacrittyEvent) -> Message {
     let event = BackendCommand::ProcessAlacrittyEvent(event);
     Message::Terminal(iced_tterm::Event::BackendCall(terminal, event))
 }
@@ -1061,11 +1119,11 @@ fn directory(app: &App, terminal: u64) -> Option<PathBuf> {
 }
 
 /// Have the shell of a terminal change its directory and wait until it did, without the
-/// application looking at the shell.
+/// application looking at the shell. The shell prints its prompt once it is there.
 #[cfg(target_os = "linux")]
 pub(super) fn change_directory(app: &mut App, terminal: u64, path: &std::path::Path) {
     run(app, terminal, &format!("cd {}", path.display()));
-    wait_until("the shell never changed directory", || {
+    wait_for_terminal(app, terminal, "the shell never changed directory", || {
         directory(app, terminal).as_deref() == Some(path)
     });
 }

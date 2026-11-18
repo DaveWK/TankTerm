@@ -1330,6 +1330,25 @@ impl EventReceiver {
         }
         event
     }
+
+    /// The next event, waiting for at most `timeout`. Returns `None` once
+    /// the time is up.
+    #[cfg(any(test, feature = "testing"))]
+    pub(crate) fn recv_timeout(
+        &mut self,
+        timeout: std::time::Duration,
+    ) -> Option<Event> {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .build()
+            .expect("a runtime for waiting on terminal events");
+        runtime.block_on(async {
+            tokio::time::timeout(timeout, self.recv())
+                .await
+                .ok()
+                .flatten()
+        })
+    }
 }
 
 #[cfg(test)]
@@ -1610,42 +1629,94 @@ mod tests {
         assert_eq!(paste_bytes("a\x1bb", false), b"a\x1bb");
     }
 
-    /// Wait for `condition` to hold for a terminal with a running program.
+    /// How long a test waits for a program before it gives up. Only a test
+    /// that is about to fail waits this long.
     #[cfg(unix)]
-    fn eventually(what: &str, mut condition: impl FnMut() -> bool) {
-        let deadline =
-            std::time::Instant::now() + std::time::Duration::from_secs(10);
+    const PATIENCE: std::time::Duration = std::time::Duration::from_secs(10);
+
+    /// Poll `condition` until it holds. Only for state nothing sends an
+    /// event about, like which process group has the terminal; wait for a
+    /// program's output with [`Running::wait_until`].
+    #[cfg(unix)]
+    fn poll_until(what: &str, mut condition: impl FnMut() -> bool) {
+        let deadline = std::time::Instant::now() + PATIENCE;
         while !condition() {
             assert!(std::time::Instant::now() < deadline, "{what}");
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
     }
 
+    /// A terminal with a running program, and the events it sends.
     #[cfg(unix)]
-    fn backend_running(script: &str) -> Backend {
+    struct Running {
+        backend: Backend,
+        events: EventReceiver,
+    }
+
+    #[cfg(unix)]
+    impl Running {
+        fn new(settings: BackendSettings, scrollback: usize) -> Self {
+            let (proxy, events) = event_channel(100);
+            let backend = Backend::new(
+                0,
+                proxy,
+                settings,
+                tankterm_terminal::term::ColorScheme::Dark,
+                scrollback,
+                CursorStyle::default(),
+            )
+            .unwrap();
+            Self { backend, events }
+        }
+
+        /// Wait until `condition` holds, checking it again after each event
+        /// the terminal sends: the PTY event loop sends a wakeup once it
+        /// parsed the program's output.
+        fn wait_until(
+            &mut self,
+            what: &str,
+            mut condition: impl FnMut(&mut Backend) -> bool,
+        ) {
+            let deadline = std::time::Instant::now() + PATIENCE;
+            while !condition(&mut self.backend) {
+                let left = deadline
+                    .saturating_duration_since(std::time::Instant::now());
+                assert!(!left.is_zero(), "{what}");
+                self.events.recv_timeout(left);
+            }
+        }
+    }
+
+    #[cfg(unix)]
+    impl std::ops::Deref for Running {
+        type Target = Backend;
+
+        fn deref(&self) -> &Backend {
+            &self.backend
+        }
+    }
+
+    #[cfg(unix)]
+    impl std::ops::DerefMut for Running {
+        fn deref_mut(&mut self) -> &mut Backend {
+            &mut self.backend
+        }
+    }
+
+    #[cfg(unix)]
+    fn backend_running(script: &str) -> Running {
         backend_with_scrollback(script, 10_000)
     }
 
     /// A terminal running `script` that keeps `scrollback` lines of history.
     #[cfg(unix)]
-    fn backend_with_scrollback(script: &str, scrollback: usize) -> Backend {
-        use tankterm_terminal::term::ColorScheme;
-
-        let (proxy, _receiver) = event_channel(100);
+    fn backend_with_scrollback(script: &str, scrollback: usize) -> Running {
         let settings = BackendSettings {
             program: "/bin/sh".into(),
             args: vec!["-c".into(), script.into()],
             ..BackendSettings::default()
         };
-        Backend::new(
-            0,
-            proxy,
-            settings,
-            ColorScheme::Dark,
-            scrollback,
-            CursorStyle::default(),
-        )
-        .unwrap()
+        Running::new(settings, scrollback)
     }
 
     /// What a program printed right before it exited is kept when the
@@ -1653,26 +1724,15 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn held_terminal_keeps_the_last_output() {
-        use tankterm_terminal::term::ColorScheme;
-
-        let (proxy, _receiver) = event_channel(100);
         let settings = BackendSettings {
             program: "/bin/sh".into(),
             args: vec!["-c".into(), "printf held; exit 3".into()],
             hold: true,
             ..BackendSettings::default()
         };
-        let backend = Backend::new(
-            0,
-            proxy,
-            settings,
-            ColorScheme::Dark,
-            100,
-            CursorStyle::default(),
-        )
-        .unwrap();
+        let mut backend = Running::new(settings, 100);
 
-        eventually("the output was lost", || {
+        backend.wait_until("the output was lost", |backend| {
             backend.text().concat().contains("held")
         });
     }
@@ -1682,8 +1742,9 @@ mod tests {
     fn lines_count_from_the_top_of_the_screen() {
         // 250 lines and the cursor's line fill the 50 rows of the screen
         // from "202" on, with 201 lines of history above them.
-        let backend = backend_with_scrollback("seq 1 250; exec cat", 10_000);
-        eventually("the output never ended", || {
+        let mut backend =
+            backend_with_scrollback("seq 1 250; exec cat", 10_000);
+        backend.wait_until("the output never ended", |backend| {
             backend.text().iter().any(|line| line == "250")
         });
 
@@ -1708,16 +1769,16 @@ mod tests {
 
         let first = |backend: &Backend| backend.text().first().cloned();
 
-        let backend = backend_with_scrollback(script, 10_000);
-        eventually("the output never ended", || {
+        let mut backend = backend_with_scrollback(script, 10_000);
+        backend.wait_until("the output never ended", |backend| {
             backend.text().iter().any(|line| line == "250")
         });
         assert_eq!(first(&backend).as_deref(), Some("1"));
 
         // 20 lines of history above the 49 lines of output on the screen.
         let mut backend = backend_with_scrollback(script, 20);
-        eventually("the history never filled up", || {
-            first(&backend).as_deref() == Some("182")
+        backend.wait_until("the history never filled up", |backend| {
+            first(backend).as_deref() == Some("182")
         });
 
         // A smaller buffer drops the oldest lines, and no buffer leaves
@@ -1737,13 +1798,13 @@ mod tests {
     #[test]
     fn pastes_follow_the_bracketed_paste_mode() {
         let mut backend = backend_running("printf '\\033[?2004h'; exec cat");
-        eventually("bracketed paste was not enabled", || {
+        backend.wait_until("bracketed paste was not enabled", |backend| {
             backend.mode().contains(TermMode::BRACKETED_PASTE)
         });
 
         // The terminal echoes the markers of the paste in caret notation.
         backend.handle(Command::Paste("one\ntwo".into()));
-        eventually("the paste was not wrapped", || {
+        backend.wait_until("the paste was not wrapped", |backend| {
             backend.text().concat().contains("^[[200~one")
         });
     }
@@ -1752,7 +1813,7 @@ mod tests {
     #[test]
     fn selection_is_the_selected_text() {
         let mut backend = backend_running("printf 'hello world'; exec cat");
-        eventually("nothing was printed", || {
+        backend.wait_until("nothing was printed", |backend| {
             backend.text().concat().contains("hello world")
         });
         assert_eq!(backend.selection(), None);
@@ -1809,7 +1870,7 @@ mod tests {
         assert!(backend.search_active());
         assert_eq!(lines(&backend), 19);
 
-        eventually("the program prints its needle", || {
+        backend.wait_until("the program prints its needle", |backend| {
             backend.sync();
             backend.text().concat().contains("needle")
         });
@@ -1838,7 +1899,7 @@ mod tests {
         let mut backend = backend_running(
             "printf 'go https://a.example and https://b.example\\n'; exec cat",
         );
-        eventually("the program prints", || {
+        backend.wait_until("the program prints", |backend| {
             backend.text().concat().contains("b.example")
         });
         let hint = |action| Hint {
@@ -1916,7 +1977,7 @@ mod tests {
             "stty -echo; printf ready; read x; printf '\\r\\033[K'; \
              seq 1 30; exec cat",
         );
-        eventually("the program waits", || {
+        backend.wait_until("the program waits", |backend| {
             backend.text().concat().contains("ready")
         });
         backend.handle(Command::Resize(
@@ -1924,7 +1985,7 @@ mod tests {
             Some(Size::new(8., 16.)),
         ));
         backend.handle(Command::Write(b"\n".to_vec()));
-        eventually("the program prints its lines", || {
+        backend.wait_until("the program prints its lines", |backend| {
             backend.term.lock().total_lines() == 31
         });
         let last = 30;
@@ -1991,7 +2052,7 @@ mod tests {
     #[test]
     fn expanding_starts_or_extends_the_selection() {
         let mut backend = backend_running("printf 'hello world'; exec cat");
-        eventually("nothing was printed", || {
+        backend.wait_until("nothing was printed", |backend| {
             backend.text().concat().contains("hello world")
         });
 
@@ -2018,7 +2079,7 @@ mod tests {
     #[test]
     fn words_end_at_the_semantic_escape_chars() {
         let mut backend = backend_running("printf 'one:two three'; exec cat");
-        eventually("nothing was printed", || {
+        backend.wait_until("nothing was printed", |backend| {
             backend.text().concat().contains("three")
         });
         let word_at_start = |backend: &mut Backend| {
@@ -2050,8 +2111,8 @@ mod tests {
         let script =
             "printf '\\033[5 q'; read line; printf '\\033[0 q'; exec cat";
         let mut backend = backend_running(script);
-        eventually("the cursor never became a beam", || {
-            synced(&mut backend) == style(CursorShape::Beam, true)
+        backend.wait_until("the cursor never became a beam", |backend| {
+            synced(backend) == style(CursorShape::Beam, true)
         });
 
         // A new default doesn't replace what the application asked for.
@@ -2059,9 +2120,10 @@ mod tests {
         assert_eq!(synced(&mut backend), style(CursorShape::Beam, true));
 
         backend.handle(Command::Write(b"\n".to_vec()));
-        eventually("the cursor never went back to the default", || {
-            synced(&mut backend) == style(CursorShape::Underline, false)
-        });
+        backend.wait_until(
+            "the cursor never went back to the default",
+            |backend| synced(backend) == style(CursorShape::Underline, false),
+        );
         backend.set_default_cursor_style(style(CursorShape::Block, true));
         assert_eq!(synced(&mut backend), style(CursorShape::Block, true));
     }
@@ -2111,7 +2173,7 @@ mod tests {
     #[test]
     fn scrollback_is_paged_through_and_cleared() {
         let mut backend = backend_running("seq 1 250; printf done; exec cat");
-        eventually("the output never ended", || {
+        backend.wait_until("the output never ended", |backend| {
             backend.text().concat().contains("done")
         });
         let offset = |backend: &mut Backend, scroll| {
@@ -2143,34 +2205,25 @@ mod tests {
     fn foreground_group_is_the_shell_until_a_command_runs() {
         // An interactive shell puts every command in a process group of its
         // own and hands it the terminal.
-        let (proxy, _receiver) = event_channel(100);
         let settings = BackendSettings {
             program: "/bin/sh".into(),
             args: vec!["-i".into()],
             ..BackendSettings::default()
         };
-        let mut backend = Backend::new(
-            0,
-            proxy,
-            settings,
-            tankterm_terminal::term::ColorScheme::Dark,
-            10_000,
-            CursorStyle::default(),
-        )
-        .unwrap();
+        let mut backend = Running::new(settings, 10_000);
 
         let shell = backend.child_pid().unwrap();
-        eventually("the shell never took the terminal", || {
+        poll_until("the shell never took the terminal", || {
             backend.foreground_process_group() == Some(shell)
         });
 
         backend.handle(Command::Write(b"sleep 1\n".to_vec()));
-        eventually("the command never took the terminal", || {
+        poll_until("the command never took the terminal", || {
             backend
                 .foreground_process_group()
                 .is_some_and(|group| group != shell)
         });
-        eventually("the shell never got the terminal back", || {
+        poll_until("the shell never got the terminal back", || {
             backend.foreground_process_group() == Some(shell)
         });
     }
@@ -2246,15 +2299,17 @@ mod tests {
     /// for its wakeups.
     #[cfg(unix)]
     fn events_until(receiver: &mut EventReceiver, event: &str) -> Vec<String> {
+        let deadline = std::time::Instant::now() + PATIENCE;
         let mut events = Vec::new();
-        eventually(&format!("no {event}"), || {
-            while let Ok(event) = receiver.receiver.try_recv() {
-                if !matches!(event, Event::Wakeup | Event::MouseCursorDirty) {
-                    events.push(format!("{event:?}"));
-                }
+        while !events.iter().any(|sent| sent == event) {
+            let left =
+                deadline.saturating_duration_since(std::time::Instant::now());
+            assert!(!left.is_zero(), "no {event}");
+            match receiver.recv_timeout(left) {
+                Some(Event::Wakeup | Event::MouseCursorDirty) | None => (),
+                Some(sent) => events.push(format!("{sent:?}")),
             }
-            events.iter().any(|sent| sent == event)
-        });
+        }
         events
     }
 

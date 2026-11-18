@@ -2,9 +2,9 @@
 //!
 //! Run with `TANKTERM_SNAPSHOT_DIR=<dir> cargo test -p tankterm render_tests -- --ignored`.
 
+use std::env;
 use std::path::PathBuf;
 use std::time::Duration;
-use std::{env, thread};
 
 use iced::widget::pane_grid::Axis;
 use iced::{Size, Theme};
@@ -79,10 +79,8 @@ fn tabs_and_panes() {
     for message in resizes {
         let _ = app.update(message);
     }
-    thread::sleep(Duration::from_millis(500));
     for id in 0..app.next_terminal {
-        let wakeup = BackendCommand::ProcessAlacrittyEvent(AlacrittyEvent::Wakeup);
-        let _ = app.update(Message::Terminal(iced_tterm::Event::BackendCall(id, wakeup)));
+        shown(&mut app, id, "pane");
     }
 
     let mut ui = Simulator::with_size(Default::default(), window, app.view());
@@ -127,6 +125,7 @@ fn selection_and_strikethrough() {
         underline = true
     "#;
     let mut app = super::tab_tests::app_with(config, Hotkeys::default());
+    shown(&mut app, 0, "selected line");
     settle(&mut app, window);
 
     let cell = term_settings::cell_size(&app.settings.font);
@@ -154,6 +153,7 @@ fn search() {
         shell = { program = "sh", args = ["-c", 'printf "cargo test\ntest foo ... ok\ntest bar ... ok\ntest bar_baz ... ok\n"; exec cat'] }
     "#;
     let mut app = super::tab_tests::app_with(config, Hotkeys::default());
+    shown(&mut app, 0, "bar_baz");
     settle(&mut app, window);
 
     let start = iced_tterm::SearchCommand::Start(iced_tterm::SearchDirection::Backward);
@@ -198,6 +198,7 @@ fn vi_mode() {
         shell = { program = "sh", args = ["-c", 'seq 1 20; printf "cargo test\ntest foo ... ok\ntest bar ... ok\n"; exec cat'] }
     "#;
     let mut app = super::tab_tests::app_with(config, Hotkeys::default());
+    shown(&mut app, 0, "test bar");
     settle(&mut app, window);
 
     let commands = [
@@ -243,6 +244,7 @@ fn hints() {
         mouse = { enabled = true }
     "#;
     let mut app = super::tab_tests::app_with(config, Hotkeys::default());
+    shown(&mut app, 0, "here");
     settle(&mut app, window);
 
     let mut send = |command| {
@@ -282,6 +284,7 @@ fn prompt_marks() {
         ''']
     "#;
     let mut app = super::tab_tests::app_with(config, Hotkeys::default());
+    shown(&mut app, 0, "No targets");
     settle(&mut app, window);
     let select = iced_tterm::Command::ProxyToBackend(BackendCommand::SelectCommandOutput);
     app.terminals.get_mut(&0).unwrap().terminal.handle(select);
@@ -322,6 +325,7 @@ fn box_drawing() {
         "#
     );
     let mut app = super::tab_tests::app_with(&config, Hotkeys::default());
+    shown(&mut app, 0, "cursor");
     settle(&mut app, window);
     snapshot(&app, window, &dir, "box-drawing");
 
@@ -390,15 +394,17 @@ fn readme_screenshot() {
     };
     for (id, command) in commands.into_iter().enumerate() {
         // Typed once the prompt is there, as someone would.
-        super::tab_tests::wait_for_text(&app, id as u64, "tankterm$");
+        shown(&mut app, id as u64, "tankterm$");
         write(&mut app, id, &format!("{command}\n"));
     }
 
-    thread::sleep(Duration::from_secs(2));
-    for id in 0..app.next_terminal {
-        let wakeup = BackendCommand::ProcessAlacrittyEvent(AlacrittyEvent::Wakeup);
-        let _ = app.update(Message::Terminal(iced_tterm::Event::BackendCall(id, wakeup)));
+    // Each command has ended once the shell prompts again.
+    for id in 0..commands.len() as u64 {
+        super::tab_tests::handle_until(&mut app, id, "a command never ended", |app| {
+            app.terminals[&id].terminal.text().concat().matches("tankterm$").count() >= 2
+        });
     }
+    super::tab_tests::handle_pending(&mut app);
     snapshot(&app, window, &dir, "readme");
 }
 
@@ -413,11 +419,31 @@ fn settle(app: &mut App, window: Size) {
         let _ = app.update(message);
     }
 
-    thread::sleep(Duration::from_millis(500));
-    for id in 0..app.next_terminal {
-        let wakeup = BackendCommand::ProcessAlacrittyEvent(AlacrittyEvent::Wakeup);
-        let _ = app.update(Message::Terminal(iced_tterm::Event::BackendCall(id, wakeup)));
-    }
+    super::tab_tests::handle_pending(app);
+}
+
+/// The words of `line` outside of the escape sequences in it.
+fn visible_words(line: &str) -> impl Iterator<Item = &str> {
+    line.split('\x1b')
+        .enumerate()
+        // Each piece after an escape starts with the rest of its CSI sequence: parameters and
+        // intermediates up to a final byte from `@` to `~`.
+        .map(|(index, piece)| match index {
+            0 => piece,
+            _ => piece
+                .strip_prefix('[')
+                .and_then(|rest| rest.find(|c: char| ('@'..='~').contains(&c)))
+                .map_or(piece, |end| &piece[end + 2..]),
+        })
+        .flat_map(str::split_whitespace)
+}
+
+/// Let a terminal show what its program printed until it shows `text`.
+fn shown(app: &mut App, terminal: u64, text: &str) {
+    let what = format!("terminal {terminal} never showed {text:?}");
+    super::tab_tests::handle_until(app, terminal, &what, |app| {
+        app.terminals[&terminal].terminal.text().concat().contains(text)
+    });
 }
 
 /// Write a screenshot of the application to `name` in the snapshot directory.
@@ -437,6 +463,15 @@ fn three_panes(config: &str, lines: [&str; 3]) -> App {
     for (id, line) in lines.into_iter().enumerate() {
         let write = BackendCommand::Write(format!("{line}\n").into_bytes());
         let _ = app.update(Message::Terminal(iced_tterm::Event::BackendCall(id as u64, write)));
+    }
+    // The terminal echoes every line, escape sequences as `^[`, and `cat` sends it back: its
+    // first word is shown twice once `cat` did.
+    for (id, line) in lines.into_iter().enumerate() {
+        let Some(word) = visible_words(line).next() else { continue };
+        let what = format!("cat never sent back {line:?}");
+        super::tab_tests::handle_until(&mut app, id as u64, &what, |app| {
+            app.terminals[&(id as u64)].terminal.text().concat().matches(word).count() >= 2
+        });
     }
 
     app

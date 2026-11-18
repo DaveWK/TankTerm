@@ -23,3 +23,7 @@ unicode-width = "0.2.3"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
+
+[features]
+# Lets tests wait for a terminal's events (`Terminal::wait_for_event`).
+testing = []
