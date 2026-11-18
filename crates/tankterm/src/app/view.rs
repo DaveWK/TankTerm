@@ -333,9 +333,7 @@ impl App {
                 if button == TitleButton::Menu {
                     let icon = container(icons::app_icon((size * LINE_HEIGHT).round()))
                         .padding(padding(styles.button.padding));
-                    return mouse_area(icon)
-                        .on_press(Message::TitleBarMenu)
-                        .into();
+                    return mouse_area(icon).on_press(Message::TitleBarMenu).into();
                 }
                 let action = match button {
                     TitleButton::Minimize => AppAction::Minimize,

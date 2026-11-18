@@ -155,7 +155,8 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 ### Changed
 
 - `window.decorations` defaults to `None`: the tab bar is the window's title bar, shown even with
-    one tab; `decorations = "Full"` brings back the system's title bar
+    one tab and whatever `tabs.show` says; `decorations = "Full"` brings back the system's title
+    bar, and with it `tabs.show = "Multiple"` and `"Never"`
 - A tab bar that is the title bar has TankTerm's icon at its left end, or where KDE's or GNOME's
     button layout puts the window menu; clicking it opens the window menu
 - The tab bar's `+`, gear, window buttons and close buttons are drawn as thin line icons

@@ -376,7 +376,9 @@ Unix, for shells with job control, and within about a second.
 
 *show* = _"Always"_ | _"Multiple"_ | _"Never"_
 
-	When the tab bar is shown.
+	When the tab bar is shown. While it is the window's title bar, with
+	*decorations* = _"None"_ (the default), it is always shown, whatever this
+	says; _"Multiple"_ and _"Never"_ need *decorations* = _"Full"_.
 
 	*Always*
 		Always show the tab bar.
@@ -1134,9 +1136,11 @@ belong to a feature it doesn't have yet.
 	primary colors. The background of _tab\_bar_ is the default background of
 	_tab\_inactive_ and _tab\_button_.
 
-	These styles bring back the earlier look of the tab bar, an opaque bar
-	12% of the way from the background to the foreground (here for black
-	text on white) and a filled shown tab:
+	These styles bring back the earlier look of the tab bar, with the
+	options under *[window]*'s _decorations_: a bar 12% of the way from the
+	background to the foreground (here for black text on white), a filled
+	shown tab, solid backgrounds that the mouse doesn't lift, and a number in
+	the tab's color. The bar is opaque only with _window.opacity_ = _1_.
 
 	*[style.tab_bar]*++
 background = _"#e0e0e0"_
@@ -1147,10 +1151,18 @@ border = _"hidden"_++
 padding = _[3, 8]_
 
 	*[style.tab_inactive]*++
+background = _"#e0e0e0"_++
 padding = _[3, 8]_
 
 	*[style.tab_button]*++
+background = _"#e0e0e0"_++
 padding = _[3, 8]_
+
+	*[style.tab_status]*++
+padding = _[3, 8]_
+
+	*[style.tab_index]*++
+faint = _false_
 
 *blurred*
 

@@ -412,8 +412,10 @@ close button under the mouse also with `tab_close_hovered`.
 This brings back the tab bar as it was before TankTerm 0.18.0, under the
 system's title bar, with tabs sharing the bar and always showing their close
 buttons; `dynamic_title = false` also brings back `TankTerm` as the title of
-tabs whose programs set none. The styles in `tankTerm(5)` bring back its
-colors.
+tabs whose programs set none. `tabs.show = "Never"` or `"Multiple"` only hide
+the bar with `decorations = "Full"`, since the title bar is always shown. The
+styles in `tankTerm(5)` bring back its colors, the plain number and solid
+backgrounds.
 
 ```toml
 [window]

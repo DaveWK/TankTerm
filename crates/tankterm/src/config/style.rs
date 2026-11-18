@@ -1271,8 +1271,10 @@ mod tests {
         // The example in tankTerm(5).
         let config = load(
             "[style.tab_bar]\nbackground = '#e0e0e0'\n[style.tab_active]\nbackground = \
-             'CellBackground'\nborder = 'hidden'\npadding = [3, 8]\n[style.tab_inactive]\npadding \
-             = [3, 8]\n[style.tab_button]\npadding = [3, 8]\n",
+             'CellBackground'\nborder = 'hidden'\npadding = [3, \
+             8]\n[style.tab_inactive]\nbackground = '#e0e0e0'\npadding = [3, \
+             8]\n[style.tab_button]\nbackground = '#e0e0e0'\npadding = [3, \
+             8]\n[style.tab_status]\npadding = [3, 8]\n[style.tab_index]\nfaint = false\n",
         );
         let tabs = config.style.resolved().tab_bar(true);
         assert_eq!(tabs.bar.background, Rgb::new(0xe0, 0xe0, 0xe0));
@@ -1282,6 +1284,11 @@ mod tests {
         );
         assert_eq!(tabs.active.border_sides(), Sides::default());
         assert_eq!(tabs.active.with(&tabs.hovered).fill, Fill::Color);
+        // Nothing is lifted under the mouse, and the number isn't faint.
+        assert_eq!(tabs.inactive.with(&tabs.hovered).fill, Fill::Color);
+        assert_eq!(tabs.button.with(&tabs.hovered).fill, Fill::Color);
+        assert!(!tabs.active.with(&tabs.index).attributes.faint);
+        assert_eq!(tabs.status.padding, Spacing::new(3, 8));
         assert_eq!(
             (tabs.inactive.padding, tabs.button.padding),
             (Spacing::new(3, 8), Spacing::new(3, 8))
