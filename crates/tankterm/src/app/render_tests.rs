@@ -43,7 +43,11 @@ fn tabs_and_panes() {
         tabs: config.tabs.clone(),
         status: crate::app::status::segments(&config),
         frameless: config.window.decorations == crate::config::window::Decorations::None,
-        window_buttons: config.window.buttons,
+        // Tests don't depend on the desktop they run on.
+        title_buttons: crate::title_buttons::TitleButtons::new(
+            config.window.buttons,
+            Default::default,
+        ),
         hotkeys: Hotkeys::from_config(&config),
         config_file: None,
         session_file: None,
@@ -705,6 +709,23 @@ fn window_buttons() {
         assert!(hovered.matches_image(dir.join(format!("{name}-hovered"))).unwrap());
     };
 
-    shot("window-buttons-right", "", window.width - 4.);
-    shot("window-buttons-left", "buttons = \"Left\"\n", 4.);
+    shot("window-buttons-right", "buttons = \"Right\"\n", window.width - 12.);
+    shot("window-buttons-left", "buttons = \"Left\"\n", 12.);
+
+    // A maximized window shows the restore icon, and has no edges to resize it by.
+    let config = "[window]\ndecorations = \"None\"\nbuttons = \"Right\"\n";
+    let mut app = super::tab_tests::app_with(config, Hotkeys::default());
+    settle(&mut app, window);
+    let _ = app.update(Message::WindowState { maximized: true, fullscreen: false });
+    snapshot(&app, window, &dir, "window-buttons-maximized");
+
+    // Buttons at both ends, like KDE's `ButtonsOnLeft=X` and `ButtonsOnRight=IA`.
+    use crate::title_buttons::TitleButton::{Close, Maximize, Minimize};
+    let mut app = super::tab_tests::app_with(config, Hotkeys::default());
+    settle(&mut app, window);
+    app.options.title_buttons = Some(crate::title_buttons::TitleButtons {
+        left: vec![Close],
+        right: vec![Minimize, Maximize],
+    });
+    snapshot(&app, window, &dir, "window-buttons-both-ends");
 }

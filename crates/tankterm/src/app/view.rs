@@ -2,11 +2,13 @@
 
 use iced::alignment::Vertical;
 use iced::font::{Style as FontStyle, Weight};
+use iced::mouse::Interaction;
 use iced::widget::pane_grid::{self, PaneGrid};
 use iced::widget::text::{Rich, Wrapping};
 use iced::widget::{
-    button, column, container, hover, keyed_column, mouse_area, row, span, stack, text,
+    Space, button, column, container, hover, keyed_column, mouse_area, row, span, stack, text,
 };
+use iced::window::Direction;
 use iced::{Border, Color, Element, Font, Length, Padding};
 use iced_tterm::TerminalView;
 
@@ -16,10 +18,11 @@ use crate::color::Rgb;
 use crate::config::BindingMode;
 use crate::config::style::{Border as StyleBorder, TabStyle};
 use crate::config::tabs::{ShowTabs, TabsPosition};
-use crate::config::window::{Spacing, WindowButtons};
+use crate::config::window::Spacing;
 use crate::hotkeys::{AppAction, KeyFilter, PANE_LABELS};
 use crate::palette::{self, blend, paste_warning};
 use crate::session::ordered_panes;
+use crate::title_buttons::{TitleButton, TitleButtons};
 
 impl App {
     pub fn view(&self) -> Element<'_, Message> {
@@ -49,7 +52,7 @@ impl App {
 
         // A tab bar that is the title bar is always there.
         let show_tabs = match self.options.tabs.show {
-            _ if self.title_bar().is_some() => true,
+            _ if self.title_buttons().is_some() => true,
             ShowTabs::Always => true,
             ShowTabs::Multiple => self.tabs.len() > 1,
             ShowTabs::Never => false,
@@ -70,7 +73,8 @@ impl App {
         };
         let layers = stack![content]
             .push(self.palette.as_ref().map(|palette| palette.view(appearance)))
-            .push(self.pending_paste.as_ref().map(|paste| paste_warning(&paste.text, appearance)));
+            .push(self.pending_paste.as_ref().map(|paste| paste_warning(&paste.text, appearance)))
+            .push(self.resizable_edges().then(resize_edges));
 
         // The paste warning and the pane labels are answered with a key; nothing typed meanwhile
         // reaches a terminal. The key a vi mode inline search waits for is the character it
@@ -246,8 +250,10 @@ impl App {
 
         // A button on the bar. Content that is as high as the padding leaves the other buttons
         // gets only the horizontal padding.
+        // The window's close button turns red under the mouse.
         let bar_button = |content: &dyn Fn(&TabStyle) -> Element<'static, Message>,
                           vertical_padding: bool,
+                          close: bool,
                           action: AppAction| {
             let view = |style: TabStyle, height: Length| -> Element<'static, Message> {
                 let mut spacing = padding(style.padding);
@@ -262,12 +268,20 @@ impl App {
                     .into()
             };
             let style = styles.button;
-            let hovered = view(style.with(&styles.hovered), Length::Fill);
+            let mut hovered = style.with(&styles.hovered);
+            if close {
+                hovered = hovered.with(&styles.close_hovered);
+            }
+            let hovered = view(hovered, Length::Fill);
             container(hoverable(view(style, Length::Shrink), hovered))
                 .padding(padding(style.margin))
         };
-        let new_tab =
-            bar_button(&|style| label("+".into(), style, font, size), true, AppAction::NewTab);
+        let new_tab = bar_button(
+            &|style| label("+".into(), style, font, size),
+            true,
+            false,
+            AppAction::NewTab,
+        );
         // The gear at the right end opens the configuration file. The font draws it small, so
         // it is larger, in the height the padding leaves the other buttons.
         let gear = |style: &TabStyle| -> Element<'static, Message> {
@@ -280,33 +294,33 @@ impl App {
                 .center()
                 .into()
         };
-        let settings = bar_button(&gear, false, AppAction::OpenConfig);
+        let settings = bar_button(&gear, false, false, AppAction::OpenConfig);
 
         let tabs = TabStrip::new(tabs, new_tab, MAX_TAB_WIDTH, 1.);
         let mut parts: Vec<Element<'_, Message>> =
             vec![tabs.into(), status.into(), settings.into()];
 
-        // In a window without the system's title bar, the tab bar has the window's buttons,
-        // with the close button at the outer end.
-        let title_bar = self.title_bar();
-        if let Some(side) = title_bar {
-            let mut buttons = [
-                (WindowIcon::Minimize, AppAction::Minimize),
-                (WindowIcon::Maximize, AppAction::ToggleMaximized),
-                (WindowIcon::Close, AppAction::Quit),
-            ];
-            if side == WindowButtons::Left {
-                buttons.reverse();
-            }
-            let buttons = buttons.map(|(icon, action)| {
-                let icon = move |style: &TabStyle| window_icon(icon, style, font, size);
-                bar_button(&icon, false, action).into()
+        // In a window without the system's title bar, the tab bar has the window's buttons at
+        // either end.
+        let title_bar = self.title_buttons();
+        let maximized = self.maximized;
+        let group = |buttons: &[TitleButton]| -> Option<Element<'_, Message>> {
+            let buttons = buttons.iter().map(|&button| {
+                let action = match button {
+                    TitleButton::Minimize => AppAction::Minimize,
+                    TitleButton::Maximize => AppAction::ToggleMaximized,
+                    TitleButton::Close => AppAction::Quit,
+                };
+                let icon =
+                    move |style: &TabStyle| window_icon(button, maximized, style, font, size);
+                bar_button(&icon, false, button == TitleButton::Close, action).into()
             });
-            let buttons = row(buttons).spacing(1).align_y(Vertical::Center).into();
-            match side {
-                WindowButtons::Left => parts.insert(0, buttons),
-                _ => parts.push(buttons),
-            }
+            let buttons: Vec<Element<'_, Message>> = buttons.collect();
+            (!buttons.is_empty()).then(|| row(buttons).spacing(1).align_y(Vertical::Center).into())
+        };
+        if let Some(TitleButtons { left, right }) = title_bar {
+            parts.splice(0..0, group(left));
+            parts.extend(group(right));
         }
 
         let bar = styles.bar;
@@ -322,50 +336,98 @@ impl App {
             return bar.into();
         }
 
-        // The window is moved by dragging the bar where nothing else takes the mouse, and
-        // maximized by double-clicking it there.
+        // The window is moved by dragging the bar where nothing else takes the mouse,
+        // maximized by double-clicking it there, and its menu opens with a right click.
         let area = mouse_area(bar)
             .on_press(Message::TitleBarPressed)
             .on_release(Message::TitleBarReleased)
             .on_exit(Message::TitleBarReleased)
-            .on_double_click(Message::TitleBarDoubleClicked);
+            .on_double_click(Message::TitleBarDoubleClicked)
+            .on_right_press(Message::TitleBarMenu);
         match self.title_drag {
             TitleDrag::Released => area.into(),
             _ => area.on_move(Message::TitleBarMoved).into(),
         }
     }
 
-    /// Where the tab bar has the window's buttons, while it is the title bar: in a window
-    /// opened without the system's title bar, unless `window.buttons` is `None`.
-    pub(super) fn title_bar(&self) -> Option<WindowButtons> {
-        let buttons = self.options.window_buttons;
-        (self.frameless && buttons != WindowButtons::None).then_some(buttons)
+    /// The window buttons of the tab bar, while it is the title bar: in a window opened
+    /// without the system's title bar, unless `window.buttons` is `None`.
+    pub(super) fn title_buttons(&self) -> Option<&TitleButtons> {
+        self.options.title_buttons.as_ref().filter(|_| self.frameless)
+    }
+
+    /// Whether dragging the window's edges resizes it: a window without the system's borders
+    /// that isn't maximized or fullscreen.
+    fn resizable_edges(&self) -> bool {
+        self.frameless && !self.maximized && !self.fullscreen
     }
 }
 
-/// The icon of a window button.
-#[derive(Clone, Copy, Debug)]
-enum WindowIcon {
-    Minimize,
-    Maximize,
-    Close,
+/// How far from the window's border its edges can be dragged.
+const EDGE: f32 = 5.;
+
+/// How far along the border its corners reach, so they are easier to catch than the edges.
+const CORNER: f32 = 16.;
+
+/// Strips along the window's edges and corners that resize it when dragged, drawn over
+/// everything else. Between them the mouse goes through to what is below.
+fn resize_edges<'a>() -> Element<'a, Message> {
+    let edge = |direction: Direction, width: Length, height: Length| -> Element<'a, Message> {
+        let interaction = match direction {
+            Direction::North | Direction::South => Interaction::ResizingVertically,
+            Direction::East | Direction::West => Interaction::ResizingHorizontally,
+            Direction::NorthEast | Direction::SouthWest => Interaction::ResizingDiagonallyUp,
+            Direction::NorthWest | Direction::SouthEast => Interaction::ResizingDiagonallyDown,
+        };
+        mouse_area(Space::new().width(width).height(height))
+            .interaction(interaction)
+            .on_press(Message::ResizeWindow(direction))
+            .into()
+    };
+
+    let (band, corner, rest) = (Length::Fixed(EDGE), Length::Fixed(CORNER), CORNER - EDGE);
+    let end = |start: Direction, middle: Direction, end: Direction| {
+        row![edge(start, corner, band), edge(middle, Length::Fill, band), edge(end, corner, band)]
+    };
+    let side = |start: Direction, middle: Direction, end: Direction| {
+        column![
+            edge(start, band, Length::Fixed(rest)),
+            edge(middle, band, Length::Fill),
+            edge(end, band, Length::Fixed(rest)),
+        ]
+    };
+
+    column![
+        end(Direction::NorthWest, Direction::North, Direction::NorthEast),
+        row![
+            side(Direction::NorthWest, Direction::West, Direction::SouthWest),
+            Space::new().width(Length::Fill).height(Length::Fill),
+            side(Direction::NorthEast, Direction::East, Direction::SouthEast),
+        ]
+        .height(Length::Fill),
+        end(Direction::SouthWest, Direction::South, Direction::SouthEast),
+    ]
+    .into()
 }
 
-/// A window button's icon, as high as the gear. The minimize and maximize icons are drawn
-/// rather than taken from the font, so they look the same in every font.
+/// A window button's icon, as high as the gear. The minimize, maximize and restore icons are
+/// drawn rather than taken from the font, so they look the same in every font. The maximize
+/// button of a maximized window shows the restore icon, two overlapping squares.
 fn window_icon(
-    icon: WindowIcon,
+    button: TitleButton,
+    maximized: bool,
     style: &TabStyle,
     font: Font,
     size: f32,
 ) -> Element<'static, Message> {
-    let foreground = color(style.colors().0);
+    let (foreground, background) = style.colors();
+    let (foreground, background) = (color(foreground), color(background));
     let height = size * 1.3 + f32::from(style.padding.top + style.padding.bottom);
     let side = (size * 0.7).round();
 
     let drawn = |width: f32, height: f32, filled: bool| {
         container("").width(width).height(height).style(move |_| container::Style {
-            background: filled.then(|| foreground.into()),
+            background: Some(if filled { foreground } else { background }.into()),
             border: Border {
                 color: foreground,
                 width: if filled { 0. } else { 1. },
@@ -374,10 +436,18 @@ fn window_icon(
             ..Default::default()
         })
     };
-    let content: Element<'static, Message> = match icon {
-        WindowIcon::Minimize => drawn(side, 1., true).into(),
-        WindowIcon::Maximize => drawn(side, side, false).into(),
-        WindowIcon::Close => text("\u{d7}")
+    let content: Element<'static, Message> = match button {
+        TitleButton::Minimize => drawn(side, 1., true).into(),
+        TitleButton::Maximize if maximized => {
+            // The front square covers the back one where they overlap.
+            let offset = (side * 0.25).round();
+            let square = side - offset;
+            let back = container(drawn(square, square, false)).padding(Padding::ZERO.left(offset));
+            let front = container(drawn(square, square, false)).padding(Padding::ZERO.top(offset));
+            stack![back, front].width(side).height(side).into()
+        },
+        TitleButton::Maximize => drawn(side, side, false).into(),
+        TitleButton::Close => text("\u{d7}")
             .font(font)
             .size(size * 1.3)
             .color(foreground)

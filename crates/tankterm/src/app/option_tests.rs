@@ -282,6 +282,10 @@ enum Asked {
     Minimize,
     Close,
     Drag,
+    /// Resizing from an edge or corner, named by its direction.
+    DragResize(String),
+    SystemMenu,
+    IsMaximized,
 }
 
 /// Run a task the way iced's runtime would, with `clipboard` as the text of the regular and of
@@ -337,6 +341,20 @@ fn run_task(
             runtime::Action::Window(runtime::window::Action::Drag(id)) => {
                 assert_eq!(id, window);
                 asked.push(Asked::Drag);
+            },
+            runtime::Action::Window(runtime::window::Action::DragResize(id, direction)) => {
+                assert_eq!(id, window);
+                asked.push(Asked::DragResize(format!("{direction:?}")));
+            },
+            runtime::Action::Window(runtime::window::Action::ShowSystemMenu(id)) => {
+                assert_eq!(id, window);
+                asked.push(Asked::SystemMenu);
+            },
+            // The window is never maximized.
+            runtime::Action::Window(runtime::window::Action::GetMaximized(id, channel)) => {
+                assert_eq!(id, window);
+                let _ = channel.send(false);
+                asked.push(Asked::IsMaximized);
             },
             // Giving a widget keyboard focus needs the widgets.
             runtime::Action::Widget(_) => (),
@@ -1112,4 +1130,129 @@ fn double_clicking_the_tab_bar_maximizes_the_window() {
     let messages: Vec<_> =
         ui.into_messages().filter(|message| !matches!(message, Message::Terminal(_))).collect();
     assert!(matches!(messages[..], [Message::Action(AppAction::SelectTab(0))]), "{messages:?}");
+}
+
+/// The messages a press of the left button at `position` sends, other than the terminals'.
+fn press_at(app: &App, position: (f32, f32)) -> Vec<Message> {
+    use iced::mouse::{Button, Event as MouseEvent};
+
+    let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
+    ui.point_at(position);
+    ui.simulate([Event::Mouse(MouseEvent::ButtonPressed(Button::Left))]);
+    ui.into_messages().filter(|message| !matches!(message, Message::Terminal(_))).collect()
+}
+
+#[test]
+fn the_edges_of_a_frameless_window_resize_it() {
+    let mut app = app_with(FRAMELESS, Hotkeys::default());
+    let resized = |app: &mut App, position| {
+        let mut asked = Vec::new();
+        for message in press_at(app, position) {
+            asked.extend(run_task(app.update(message), [None, None], window::Mode::Windowed).0);
+        }
+        asked
+    };
+    let direction = |name: &str| vec![Asked::DragResize(name.into())];
+
+    assert_eq!(resized(&mut app, (1., 200.)), direction("West"));
+    assert_eq!(resized(&mut app, (798., 200.)), direction("East"));
+    assert_eq!(resized(&mut app, (400., 1.)), direction("North"));
+    assert_eq!(resized(&mut app, (400., 398.)), direction("South"));
+    // Corners reach further along the border than the edges are wide.
+    assert_eq!(resized(&mut app, (1., 1.)), direction("NorthWest"));
+    assert_eq!(resized(&mut app, (12., 2.)), direction("NorthWest"));
+    assert_eq!(resized(&mut app, (2., 390.)), direction("SouthWest"));
+    assert_eq!(resized(&mut app, (790., 398.)), direction("SouthEast"));
+    assert_eq!(resized(&mut app, (798., 12.)), direction("NorthEast"));
+
+    // Inside the edges, the mouse is the terminal's.
+    assert_eq!(resized(&mut app, (400., 200.)), []);
+
+    // A maximized or fullscreen window has no edges to drag.
+    let _ = app.update(Message::WindowState { maximized: true, fullscreen: false });
+    assert_eq!(resized(&mut app, (1., 200.)), []);
+    let _ = app.update(Message::WindowState { maximized: false, fullscreen: true });
+    assert_eq!(resized(&mut app, (1., 200.)), []);
+    let _ = app.update(Message::WindowState { maximized: false, fullscreen: false });
+    assert_eq!(resized(&mut app, (1., 200.)), direction("West"));
+
+    // The system resizes a window that has its borders.
+    let mut framed = app_with("", Hotkeys::default());
+    assert_eq!(resized(&mut framed, (1., 200.)), []);
+}
+
+#[test]
+fn a_frameless_window_asks_whether_it_is_maximized_when_it_is_resized() {
+    let mut app = app_with(FRAMELESS, Hotkeys::default());
+    let (asked, messages) =
+        run_task(app.update(Message::WindowResized), [None, None], window::Mode::Fullscreen);
+    assert_eq!(asked, [Asked::IsMaximized]);
+    assert!(
+        matches!(messages[..], [Message::WindowState { maximized: false, fullscreen: true }]),
+        "{messages:?}"
+    );
+
+    // A window with the system's title bar doesn't need to know.
+    let mut framed = app_with("", Hotkeys::default());
+    let task = framed.update(Message::WindowResized);
+    let (asked, messages) = run_task(task, [None, None], window::Mode::Windowed);
+    assert!(asked.is_empty() && messages.is_empty(), "{asked:?} {messages:?}");
+}
+
+#[test]
+fn the_maximize_button_of_a_maximized_window_shows_the_restore_icon() {
+    let mut app = app_with(FRAMELESS, Hotkeys::default());
+    let windowed = app_with(FRAMELESS, Hotkeys::default());
+
+    let _ = app.update(Message::WindowState { maximized: true, fullscreen: false });
+    assert!(!same_picture(&app, &windowed));
+    let _ = app.update(Message::WindowState { maximized: false, fullscreen: false });
+    assert!(same_picture(&app, &windowed));
+}
+
+#[test]
+fn right_clicking_the_tab_bar_opens_the_window_menu() {
+    use iced::mouse::{Button, Event as MouseEvent};
+
+    let mut app = app_with(FRAMELESS, Hotkeys::default());
+    let y = tab_bar_middle(&app);
+
+    let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
+    ui.point_at((500., y));
+    ui.simulate([Event::Mouse(MouseEvent::ButtonPressed(Button::Right))]);
+    let mut asked = Vec::new();
+    for message in ui.into_messages().collect::<Vec<_>>() {
+        asked.extend(run_task(app.update(message), [None, None], window::Mode::Windowed).0);
+    }
+    assert_eq!(asked, [Asked::SystemMenu]);
+}
+
+#[test]
+fn the_window_buttons_can_be_at_both_ends() {
+    use crate::title_buttons::TitleButton::{Close, Maximize, Minimize};
+    use crate::title_buttons::TitleButtons;
+
+    // Like KDE's `ButtonsOnLeft=X` and `ButtonsOnRight=IA`.
+    let mut app = app_with(FRAMELESS, Hotkeys::default());
+    let buttons = TitleButtons { left: vec![Close], right: vec![Minimize, Maximize] };
+    app.options.title_buttons = Some(buttons);
+
+    assert_eq!(actions_along_the_tab_bar(&app, true)[..2], [
+        AppAction::Quit,
+        AppAction::SelectTab(0)
+    ]);
+    assert_eq!(actions_along_the_tab_bar(&app, false)[..3], [
+        AppAction::ToggleMaximized,
+        AppAction::Minimize,
+        AppAction::OpenConfig,
+    ]);
+
+    // Without any buttons, the tab bar is still the title bar.
+    app.options.title_buttons = Some(TitleButtons { left: vec![], right: vec![] });
+    assert_eq!(actions_along_the_tab_bar(&app, false)[0], AppAction::OpenConfig);
+    assert!(
+        Simulator::with_size(Default::default(), Size::new(800., 400.), app.view())
+            .find("1: test")
+            .is_ok()
+    );
 }

@@ -264,6 +264,8 @@ and `border_foreground`:
 - `tab_bar`: the bar itself.
 - `tab_active` and `tab_inactive`: the shown tab and the others.
 - `tab_button`: the `+` button, the gear and the window buttons.
+- `tab_close_hovered`: changes to the window's close button under the mouse,
+  over `tab_hovered`. It is white on red unless set.
 - `tab_hovered`, `tab_activity` and `tab_attention`: changes to a tab under the
   mouse, a tab marked with `*` and a tab marked with `!`.
 - `tab_status`: the status segments.
@@ -296,19 +298,26 @@ border_foreground = "#00ff00"
 
 With `decorations = "None"` in the `[window]` section the window has no title
 bar of its own, and the tab bar takes its place. It is shown even with a single
-tab and has minimize, maximize and close buttons, at the right end or, with
-`buttons = "Left"`, at the left end. Dragging the bar where there is no tab or
-button moves the window, and double-clicking it there maximizes the window.
-`buttons = "None"` leaves the tab bar as it is, for window managers that move
-windows on their own.
+tab and has minimize, maximize and close buttons where the desktop puts them:
+on KDE as KWin's button layout says, on GNOME as its `button-layout` setting
+says, on the left on macOS and on the right elsewhere. `buttons = "Right"` and
+`buttons = "Left"` put them at one end instead.
+
+Dragging the bar where there is no tab or button moves the window,
+double-clicking it there maximizes the window, and right-clicking it opens the
+window menu. The edges and corners of the window resize it, unless it is
+maximized; the maximize button then shows a restore icon. `buttons = "None"`
+leaves the tab bar as it is, for window managers that move windows on their
+own.
 
 ```toml
 [window]
 decorations = "None"
-buttons = "Right"
+buttons = "Desktop"
 ```
 
-The buttons are drawn with the `tab_button` and `tab_hovered` styles.
+The buttons are drawn with the `tab_button` and `tab_hovered` styles, and the
+close button under the mouse also with `tab_close_hovered`.
 
 [tankTerm(5) manpage]: ../extra/man/tankTerm.5.scd
 [tankTerm-bindings(5) manpage]: ../extra/man/tankTerm-bindings.5.scd

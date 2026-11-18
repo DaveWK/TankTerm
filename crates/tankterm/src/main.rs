@@ -49,6 +49,7 @@ mod session;
 mod setup;
 mod template;
 mod term_settings;
+mod title_buttons;
 mod watch;
 
 use crate::app::App;

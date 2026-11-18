@@ -51,6 +51,7 @@ pub struct StyleConfig {
     pub tab_inactive: Style,
     pub tab_button: Style,
     pub tab_hovered: Style,
+    pub tab_close_hovered: Style,
     pub tab_activity: Style,
     pub tab_attention: Style,
     pub tab_status: Style,
@@ -83,6 +84,7 @@ pub struct BlurredStyleConfig {
     pub tab_inactive: Style,
     pub tab_button: Style,
     pub tab_hovered: Style,
+    pub tab_close_hovered: Style,
     pub tab_activity: Style,
     pub tab_attention: Style,
     pub tab_status: Style,
@@ -124,6 +126,7 @@ impl StyleConfig {
                 inactive: style(&self.tab_inactive),
                 button: style(&self.tab_button),
                 hovered: style(&self.tab_hovered),
+                close_hovered: style(&self.tab_close_hovered),
                 activity: style(&self.tab_activity),
                 attention: style(&self.tab_attention),
                 status: style(&self.tab_status),
@@ -200,6 +203,7 @@ impl StyleConfig {
                 inactive: style(&blurred.tab_inactive),
                 button: style(&blurred.tab_button),
                 hovered: style(&blurred.tab_hovered),
+                close_hovered: style(&blurred.tab_close_hovered),
                 activity: style(&blurred.tab_activity),
                 attention: style(&blurred.tab_attention),
                 status: style(&blurred.tab_status),
@@ -559,6 +563,7 @@ struct TabBlocks {
     inactive: Style,
     button: Style,
     hovered: Style,
+    close_hovered: Style,
     activity: Style,
     attention: Style,
     status: Style,
@@ -577,6 +582,8 @@ pub struct TabBarStyles {
     pub button: TabStyle,
     /// Changes to a tab or button under the mouse.
     pub hovered: TabLayer,
+    /// Changes to the window's close button under the mouse, over `hovered`.
+    pub close_hovered: TabLayer,
     /// Changes to a tab whose terminals printed something since it was last shown.
     pub activity: TabLayer,
     /// Changes to a tab with a terminal that rang the bell or finished a command unseen.
@@ -619,6 +626,12 @@ impl TabBarStyles {
             button: on_bar.with(&layer(&blocks.button)),
             hovered: TabLayer { foreground: Some(foreground), ..TabLayer::default() }
                 .below(&layer(&blocks.hovered)),
+            close_hovered: TabLayer {
+                foreground: Some(defaults::CLOSE_HOVERED.0),
+                background: Some(defaults::CLOSE_HOVERED.1),
+                ..TabLayer::default()
+            }
+            .below(&layer(&blocks.close_hovered)),
             activity: layer(&blocks.activity),
             attention: layer(&blocks.attention),
             status: TabStyle { foreground: bar.foreground, background: bar.background, ..base }
@@ -635,6 +648,7 @@ impl TabBarStyles {
             inactive: self.inactive.with(&layer(&blocks.inactive)),
             button: self.button.with(&layer(&blocks.button)),
             hovered: self.hovered.below(&layer(&blocks.hovered)),
+            close_hovered: self.close_hovered.below(&layer(&blocks.close_hovered)),
             activity: self.activity.below(&layer(&blocks.activity)),
             attention: self.attention.below(&layer(&blocks.attention)),
             status: self.status.with(&layer(&blocks.status)),
@@ -741,6 +755,10 @@ mod defaults {
     pub const HELP_KEY: (Rgb, Rgb) = (Rgb::new(0x90, 0x90, 0x90), Rgb::new(0x62, 0x62, 0x62));
     pub const HELP_DESC: (Rgb, Rgb) = (Rgb::new(0xb2, 0xb2, 0xb2), Rgb::new(0x4a, 0x4a, 0x4a));
     pub const HELP_SEPARATOR: (Rgb, Rgb) = (Rgb::new(0xda, 0xda, 0xda), Rgb::new(0x3c, 0x3c, 0x3c));
+
+    /// Text and background of the window's close button under the mouse: white on the red of
+    /// KDE's Breeze.
+    pub const CLOSE_HOVERED: (Rgb, Rgb) = (Rgb::new(0xff, 0xff, 0xff), Rgb::new(0xda, 0x44, 0x53));
 }
 
 #[cfg(test)]
@@ -1121,6 +1139,28 @@ mod tests {
         assert_eq!(hovered.foreground, focused.inactive.with(&focused.hovered).foreground);
         assert!(hovered.attributes.underline);
         assert!(!focused.inactive.with(&focused.hovered).attributes.underline);
+    }
+
+    #[test]
+    fn the_close_button_turns_red_under_the_mouse() {
+        let close = |config: &str, focused: bool| {
+            let tabs = load(config).style.resolved().tab_bar(focused);
+            tabs.button.with(&tabs.hovered).with(&tabs.close_hovered)
+        };
+
+        let red = close("", true);
+        assert_eq!(red.colors(), (Rgb::new(0xff, 0xff, 0xff), Rgb::new(0xda, 0x44, 0x53)));
+        assert_eq!(close("", false), red);
+
+        // The block changes what it sets, focused and blurred.
+        let config = "[style.tab_close_hovered]\nbackground = \
+                      '#123456'\n\n[style.blurred.tab_close_hovered]\nbold = true\n";
+        let focused = close(config, true);
+        assert_eq!(focused.colors(), (Rgb::new(0xff, 0xff, 0xff), Rgb::new(0x12, 0x34, 0x56)));
+        assert!(!focused.attributes.bold);
+        let blurred = close(config, false);
+        assert_eq!(blurred.background, Rgb::new(0x12, 0x34, 0x56));
+        assert!(blurred.attributes.bold);
     }
 
     #[test]
