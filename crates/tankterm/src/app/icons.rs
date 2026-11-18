@@ -111,6 +111,22 @@ impl<Message> canvas::Program<Message> for Lines {
         let line = |frame: &mut Frame, from: Point, to: Point| {
             frame.stroke(&Path::line(from, to), stroke);
         };
+        // The GPU smooths slanted edges with only a few samples, which leaves them blocky, so
+        // icons with slanted lines are drawn as SVG pictures, which are smoothed exactly, on
+        // whole pixels of the screen, so that they aren't blurred when they are placed.
+        let pixels = (side * scale).round().max(1.);
+        let picture = |frame: &mut Frame, shapes: String| {
+            let onto = |at: f32| (at * scale).round() / scale - at;
+            let square = Rectangle::new(
+                Point::new(onto(bounds.x), onto(bounds.y)),
+                Size::new(pixels / scale, pixels / scale),
+            );
+            let handle = smooth_lines(pixels, width, &shapes);
+            frame.draw_svg(square, Svg::new(handle).color(self.color));
+        };
+        // A share of the picture's side, where a line's middle is so that it covers whole
+        // pixels where it runs straight.
+        let on = |share: f32| (share * pixels - width / 2.).round() + width / 2.;
 
         match self.icon {
             Icon::Plus => {
@@ -118,8 +134,14 @@ impl<Message> canvas::Program<Message> for Lines {
                 line(&mut frame, at(0.1, 0.5), at(0.9, 0.5));
             },
             Icon::Close => {
-                line(&mut frame, at(0.15, 0.15), at(0.85, 0.85));
-                line(&mut frame, at(0.85, 0.15), at(0.15, 0.85));
+                let (near, far) = (on(0.15), on(0.85));
+                picture(
+                    &mut frame,
+                    format!(
+                        "<line x1='{near}' y1='{near}' x2='{far}' y2='{far}'/><line x1='{far}' \
+                         y1='{near}' x2='{near}' y2='{far}'/>"
+                    ),
+                );
             },
             Icon::Minimize => line(&mut frame, at(0.15, 0.5), at(0.85, 0.5)),
             Icon::Maximize => {
@@ -141,18 +163,7 @@ impl<Message> canvas::Program<Message> for Lines {
                 });
                 frame.stroke(&back, stroke);
             },
-            Icon::Gear => {
-                // The GPU smooths the slanted edges of the teeth with only a few samples, which
-                // leaves them blocky, so the cog is drawn as an image that is smoothed exactly,
-                // on whole pixels of the screen, so that it isn't blurred when it is placed.
-                let pixels = (side * scale).round().max(1.);
-                let onto = |at: f32| (at * scale).round() / scale - at;
-                let square = Rectangle::new(
-                    Point::new(onto(bounds.x), onto(bounds.y)),
-                    Size::new(pixels / scale, pixels / scale),
-                );
-                frame.draw_svg(square, Svg::new(cog_svg(pixels, width)).color(self.color));
-            },
+            Icon::Gear => picture(&mut frame, cog_svg(pixels)),
         }
 
         vec![frame.into_geometry()]
@@ -166,21 +177,26 @@ const COG_TIP: f32 = 0.47;
 const COG_ROOT: f32 = 0.33;
 const COG_HOLE: f32 = 0.13;
 
-/// A cog in a square `pixels` wide, with lines `width` wide, as an SVG picture of its rim and the
-/// hole for the axle.
-fn cog_svg(pixels: f32, width: f32) -> svg::Handle {
-    let rim: Vec<String> =
-        cog(pixels).iter().map(|point| format!("{},{}", point.x, point.y)).collect();
-    let center = pixels / 2.;
+/// An SVG picture `pixels` wide and high of the SVG `shapes`, drawn as white lines `width` wide.
+fn smooth_lines(pixels: f32, width: f32, shapes: &str) -> svg::Handle {
     let picture = format!(
         "<svg xmlns='http://www.w3.org/2000/svg' width='{pixels}' height='{pixels}' viewBox='0 0 \
          {pixels} {pixels}'><g fill='none' stroke='white' stroke-width='{width}' \
-         stroke-linejoin='round'><polygon points='{}'/><circle cx='{center}' cy='{center}' \
-         r='{}'/></g></svg>",
-        rim.join(" "),
-        pixels * COG_HOLE,
+         stroke-linejoin='round'>{shapes}</g></svg>"
     );
     svg::Handle::from_memory(picture.into_bytes())
+}
+
+/// The SVG shapes of a cog in a square `pixels` wide: its rim and the hole for the axle.
+fn cog_svg(pixels: f32) -> String {
+    let rim: Vec<String> =
+        cog(pixels).iter().map(|point| format!("{},{}", point.x, point.y)).collect();
+    let center = pixels / 2.;
+    format!(
+        "<polygon points='{}'/><circle cx='{center}' cy='{center}' r='{}'/>",
+        rim.join(" "),
+        pixels * COG_HOLE,
+    )
 }
 
 /// The outline of a cog in a square `side` wide: for every tooth, the root before it, the two
