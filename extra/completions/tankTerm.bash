@@ -513,12 +513,16 @@ _tankTerm() {
             return 0
             ;;
         tankTerm__subcmd__migrate)
-            opts="-c -d -i -s -h --config-file --dry-run --skip-imports --skip-renames --silent --help"
+            opts="-c -f -d -i -s -h --from --config-file --force --dry-run --skip-imports --silent --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
             case "${prev}" in
+                --from)
+                    COMPREPLY=($(compgen -W "alacritty tabby wezterm ghostty crush" -- "${cur}"))
+                    return 0
+                    ;;
                 --config-file)
                     local oldifs
                     if [ -n "${IFS+x}" ]; then

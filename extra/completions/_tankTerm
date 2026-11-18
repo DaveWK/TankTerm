@@ -264,13 +264,15 @@ esac
 ;;
 (migrate)
 _arguments "${_arguments_options[@]}" : \
-'-c+[Path to the configuration file]:CONFIG_FILE:_files' \
-'--config-file=[Path to the configuration file]:CONFIG_FILE:_files' \
-'-d[Only output TOML config to STDOUT]' \
-'--dry-run[Only output TOML config to STDOUT]' \
-'-i[Do not recurse over imports]' \
-'--skip-imports[Do not recurse over imports]' \
-'--skip-renames[Do not move renamed fields to their new location]' \
+'--from=[Terminal to convert from \[default\: the one whose configuration is found\]]:FROM:(alacritty tabby wezterm ghostty crush)' \
+'-c+[Configuration file to convert \[default\: the terminal'\''s own\]]:CONFIG_FILE:_files' \
+'--config-file=[Configuration file to convert \[default\: the terminal'\''s own\]]:CONFIG_FILE:_files' \
+'-f[Replace existing TankTerm files without asking, after backing them up]' \
+'--force[Replace existing TankTerm files without asking, after backing them up]' \
+'-d[Print the files that would be written, and write nothing]' \
+'--dry-run[Print the files that would be written, and write nothing]' \
+'-i[Keep imports pointing at the original files instead of converting them]' \
+'--skip-imports[Keep imports pointing at the original files instead of converting them]' \
 '-s[Do not output to STDOUT]' \
 '--silent[Do not output to STDOUT]' \
 '-h[Print help]' \
@@ -392,7 +394,7 @@ esac
 _tankTerm_commands() {
     local commands; commands=(
 'msg:Send a message to the TankTerm socket' \
-'migrate:Migrate the configuration file' \
+'migrate:Convert another terminal'\''s configuration into TankTerm'\''s' \
 'ssh:Run ssh with a TERM the server has a terminfo entry for' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
@@ -402,7 +404,7 @@ _tankTerm_commands() {
 _tankTerm__subcmd__help_commands() {
     local commands; commands=(
 'msg:Send a message to the TankTerm socket' \
-'migrate:Migrate the configuration file' \
+'migrate:Convert another terminal'\''s configuration into TankTerm'\''s' \
 'ssh:Run ssh with a TERM the server has a terminfo entry for' \
 'help:Print this message or the help of the given subcommand(s)' \
     )

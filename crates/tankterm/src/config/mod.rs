@@ -147,7 +147,12 @@ pub fn load(options: &mut Options) -> UiConfig {
                 from_value(empty, theme.as_deref(), &overrides, None).unwrap_or_default();
             match config_path {
                 Some(config_path) => config.config_paths.push(config_path),
-                None => info!(target: LOG_TARGET_CONFIG, "No config file found; using default"),
+                None => {
+                    info!(target: LOG_TARGET_CONFIG, "No config file found; using default");
+                    if let Some(hint) = crate::migrate::first_start_hint() {
+                        info!(target: LOG_TARGET_CONFIG, "{hint}");
+                    }
+                },
             }
             config
         });
