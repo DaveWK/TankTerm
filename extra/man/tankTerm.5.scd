@@ -210,7 +210,9 @@ This section documents the *[window]* table of the configuration file.
 *buttons* = _"Desktop"_ | _"Right"_ | _"Left"_ | _"None"_
 
 	Where the tab bar has the minimize, maximize and close buttons in a window
-	with *decorations* = _"None"_.
+	with *decorations* = _"None"_. TankTerm's icon, which opens the window menu,
+	goes where the desktop's layout puts the menu (KDE's _M_, GNOME's
+	_appmenu_), or else first at the left end, after any buttons there.
 
 	*Desktop*
 		Where the desktop puts them: on KDE as _ButtonsOnLeft_ and
@@ -223,7 +225,7 @@ This section documents the *[window]* table of the configuration file.
 	*Left*
 		At the left end, with the close button first.
 	*None*
-		Nowhere, and the tab bar is only the tab bar.
+		Nowhere, with no icon, and the tab bar is only the tab bar.
 
 	Unless it is _"None"_, the tab bar is the window's title bar: it is shown
 	even with a single tab, whatever *tabs.show* says. Dragging it where there

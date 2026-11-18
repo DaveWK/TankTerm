@@ -154,6 +154,8 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 
 ### Changed
 
+- A tab bar that is the title bar has TankTerm's icon at its left end, or where KDE's or GNOME's
+    button layout puts the window menu; clicking it opens the window menu
 - The tab bar's `+`, gear, window buttons and close buttons are drawn as thin line icons
     instead of font glyphs, and the gear keeps a gap from the window buttons after it
 - The tab bar is restyled: it has the terminal's background and is as see-through as the

@@ -1267,6 +1267,32 @@ fn right_clicking_the_tab_bar_opens_the_window_menu() {
 }
 
 #[test]
+fn clicking_the_app_icon_opens_the_window_menu_without_moving_the_window() {
+    use crate::title_buttons::TitleButton::Menu;
+
+    let app = app_with(FRAMELESS, Hotkeys::default());
+    assert_eq!(app.title_buttons().unwrap().left, [Menu]);
+    let y = tab_bar_middle(&app);
+
+    // A click and a double click on the icon at the left end.
+    let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
+    let icon = ui.find(super::icons::app_icon_id()).unwrap();
+    let icon = iced_test::selector::Bounded::visible_bounds(&icon).unwrap();
+    assert!(icon.x < 20. && (icon.center_y() - y).abs() < 2., "{icon:?}");
+    ui.point_at(icon.center());
+    ui.simulate(iced_test::simulator::click());
+    ui.simulate(iced_test::simulator::click());
+
+    let messages: Vec<_> = ui.into_messages().collect();
+    let menus = messages.iter().filter(|message| matches!(message, Message::TitleBarMenu));
+    assert!(menus.count() >= 1, "{messages:?}");
+    assert!(!messages.iter().any(|message| matches!(
+        message,
+        Message::TitleBarPressed | Message::TitleBarDoubleClicked
+    )));
+}
+
+#[test]
 fn the_window_buttons_can_be_at_both_ends() {
     use crate::title_buttons::TitleButton::{Close, Maximize, Minimize};
     use crate::title_buttons::TitleButtons;

@@ -3,7 +3,7 @@
 use std::f32::consts::PI;
 
 use iced::widget::canvas::{self, Canvas, Frame, Geometry, Path, Stroke};
-use iced::widget::{Id, container};
+use iced::widget::{Id, container, svg};
 use iced::{Color, Element, Point, Rectangle, Renderer, Size, Theme, mouse};
 
 /// An icon of the tab bar.
@@ -36,6 +36,18 @@ pub fn id(icon: Icon) -> Id {
 /// The ID of the close button of the tab at `index`.
 pub fn close_tab_id(index: usize) -> Id {
     Id::from(format!("close-tab-{index}"))
+}
+
+/// The ID of the app's icon at the end of the title bar.
+pub fn app_icon_id() -> Id {
+    Id::new("app-icon")
+}
+
+/// TankTerm's icon, in a square `size` wide.
+pub fn app_icon<'a, Message: 'a>(size: f32) -> Element<'a, Message> {
+    static LOGO: &[u8] = include_bytes!("../../extra/logo/tankterm-small.svg");
+    let logo = svg(svg::Handle::from_memory(LOGO)).width(size).height(size);
+    container(logo).id(app_icon_id()).into()
 }
 
 /// `icon` drawn in `color` with lines a pixel wide, in a square `size` wide.

@@ -328,10 +328,21 @@ impl App {
         let maximized = self.maximized;
         let group = |buttons: &[TitleButton]| -> Option<Element<'_, Message>> {
             let buttons = buttons.iter().map(|&button| {
+                // The app's icon opens the window menu, and isn't a button: the bar doesn't
+                // take the press, so the window doesn't move.
+                if button == TitleButton::Menu {
+                    let icon = container(icons::app_icon((size * LINE_HEIGHT).round()))
+                        .padding(padding(styles.button.padding));
+                    return mouse_area(icon)
+                        .on_press(Message::TitleBarMenu)
+                        .on_double_click(Message::TitleBarMenu)
+                        .into();
+                }
                 let action = match button {
                     TitleButton::Minimize => AppAction::Minimize,
                     TitleButton::Maximize => AppAction::ToggleMaximized,
                     TitleButton::Close => AppAction::Quit,
+                    TitleButton::Menu => unreachable!("the app's icon isn't a button"),
                 };
                 let icon = move |style: &TabStyle| window_icon(button, maximized, style, size);
                 bar_button(&icon, button == TitleButton::Close, action).into()
@@ -488,6 +499,7 @@ fn window_icon(
         TitleButton::Maximize if maximized => Icon::Restore,
         TitleButton::Maximize => Icon::Maximize,
         TitleButton::Close => Icon::Close,
+        TitleButton::Menu => unreachable!("the app's icon isn't drawn as a line icon"),
     };
     bar_icon(icon, style, size)
 }

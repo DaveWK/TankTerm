@@ -390,6 +390,9 @@ on KDE as KWin's button layout says, on GNOME as its `button-layout` setting
 says, on the left on macOS and on the right elsewhere. `buttons = "Right"` and
 `buttons = "Left"` put them at one end instead.
 
+TankTerm's icon sits at the left end of the bar, or where the desktop's
+layout puts the window menu, and clicking it opens that menu.
+
 Dragging the bar where there is no tab or button moves the window,
 double-clicking it there maximizes the window, and right-clicking it opens the
 window menu. The edges and corners of the window resize it, unless it is
