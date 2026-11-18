@@ -25,6 +25,7 @@ use crate::title_buttons::TitleButtons;
 mod actions;
 #[cfg(all(test, unix))]
 mod hint_tests;
+mod hover_swap;
 #[cfg(unix)]
 mod ipc;
 #[cfg(all(test, unix))]

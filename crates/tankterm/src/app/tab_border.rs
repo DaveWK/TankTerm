@@ -378,6 +378,7 @@ mod tests {
             width: None,
             max_width: None,
             gap: 1,
+            fill: Default::default(),
         }
     }
 

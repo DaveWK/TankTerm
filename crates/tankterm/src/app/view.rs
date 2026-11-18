@@ -6,19 +6,20 @@ use iced::mouse::Interaction;
 use iced::widget::pane_grid::{self, PaneGrid};
 use iced::widget::text::{Rich, Wrapping};
 use iced::widget::{
-    Space, button, column, container, hover, keyed_column, mouse_area, row, span, stack, text,
+    Space, button, column, container, keyed_column, mouse_area, row, span, stack, text,
 };
 use iced::window::Direction;
-use iced::{Border, Color, Element, Font, Length, Padding};
+use iced::{Background, Border, Color, Element, Font, Length, Padding};
 use iced_tterm::TerminalView;
 use unicode_width::UnicodeWidthStr;
 
+use super::hover_swap::HoverSwap;
 use super::tab_border::{BoxBorder, bordered};
 use super::tab_strip::{TabStrip, TabWidth};
 use super::{App, Layout, MAX_TAB_WIDTH, Message, Shell, TitleDrag};
 use crate::color::Rgb;
 use crate::config::BindingMode;
-use crate::config::style::TabStyle;
+use crate::config::style::{Fill, TabStyle};
 use crate::config::tabs::{CloseButton, ShowTabs, Side, TabSizing, TabsPosition};
 use crate::config::window::Spacing;
 use crate::hotkeys::{AppAction, KeyFilter, PANE_LABELS};
@@ -366,7 +367,7 @@ impl App {
             .width(Length::Fill)
             .padding(padding(bar.padding))
             .style(move |_| container::Style {
-                background: Some(color(bar.colors().1).into()),
+                background: Some(self.bar_background().into()),
                 border: border(&bar),
                 ..Default::default()
             });
@@ -387,6 +388,13 @@ impl App {
             TitleDrag::Released => area.into(),
             _ => area.on_move(Message::TitleBarMoved).into(),
         }
+    }
+
+    /// The color behind the tab bar: its style's background, as see-through as the terminals'.
+    pub(super) fn bar_background(&self) -> Color {
+        let [focused, blurred] = self.options.layout.tab_bar;
+        let bar = if self.window_focused { focused } else { blurred }.bar;
+        Color { a: self.opacity(), ..color(bar.colors().1) }
     }
 
     /// The window buttons of the tab bar, while it is the title bar: in a window opened
@@ -416,7 +424,7 @@ impl App {
             let segment = container(label(content, &style, font, size))
                 .padding(padding(style.padding))
                 .style(move |_| container::Style {
-                    background: Some(color(style.colors().1).into()),
+                    background: fill(&style),
                     border: border(&style),
                     ..Default::default()
                 });
@@ -523,7 +531,8 @@ fn window_icon(
     container(content).center_x(size).center_y(height).into()
 }
 
-/// `normal`, drawn as `hovered` while the mouse is over it.
+/// `normal`, drawn as `hovered` while the mouse is over it, and not under it: parts of the bar
+/// are see-through.
 ///
 /// `hovered` is laid out in the place of `normal`, so it has the same size, and it gets the
 /// mouse first.
@@ -531,7 +540,7 @@ fn hoverable<'a>(
     normal: Element<'a, Message>,
     hovered: Element<'a, Message>,
 ) -> Element<'a, Message> {
-    hover(normal, container(hovered).width(Length::Fill).height(Length::Fill))
+    HoverSwap::new(normal, container(hovered).width(Length::Fill).height(Length::Fill)).into()
 }
 
 /// Text in a tab bar style, on one line.
@@ -561,12 +570,24 @@ fn label<'a>(content: String, style: &TabStyle, font: Font, size: f32) -> Elemen
 
 /// How a button of the tab bar looks in `style`, whatever the mouse does.
 fn button_style(style: &TabStyle) -> button::Style {
-    let (foreground, background) = style.colors();
+    let (foreground, _) = style.colors();
     button::Style {
-        background: Some(color(background).into()),
+        background: fill(style),
         text_color: color(foreground),
         border: border(style),
         ..Default::default()
+    }
+}
+
+/// The background of a part of the tab bar in `style`, if it has one of its own.
+pub(super) fn fill(style: &TabStyle) -> Option<Background> {
+    let (foreground, background) = style.colors();
+    match style.fill {
+        Fill::Color => Some(color(background).into()),
+        Fill::Bar => None,
+        Fill::Lift(percent) => {
+            Some(Color { a: f32::from(percent) / 100., ..color(foreground) }.into())
+        },
     }
 }
 

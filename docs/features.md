@@ -319,8 +319,11 @@ The tab bar is styled with `[style.tab_*]` blocks, which take the same Lip Gloss
 properties as the other `[style]` blocks, plus Lip Gloss's box properties:
 `padding`, `margin`, `border`, `border_foreground`, `width` and `max_width`:
 
-- `tab_bar`: the bar itself.
-- `tab_active` and `tab_inactive`: the shown tab and the others.
+- `tab_bar`: the bar itself. Its background is as see-through as the
+  terminals', by `window.opacity`.
+- `tab_active` and `tab_inactive`: the shown tab and the others. By default
+  they have no background of their own; the shown tab is lifted off the bar a
+  little and has a line along its top. A `background` set here is drawn solid.
 - `tab_button`: the `+` button, the gear and the window buttons.
 - `tab_close_hovered`: changes to the window's close button under the mouse,
   over `tab_hovered`. It is white on red unless set.

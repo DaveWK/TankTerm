@@ -988,6 +988,28 @@ fn window_opacity_makes_the_background_transparent() {
 }
 
 #[test]
+fn the_tab_bar_is_as_see_through_as_the_terminal() {
+    use iced::Background;
+
+    let app = app_with_background("#c02020", 0.5);
+    assert_eq!(app.bar_background().a, 0.5);
+    assert_eq!(app_with_background("#c02020", 1.).bar_background().a, 1.);
+
+    // Tabs on the bar let it show through; a background someone sets is solid.
+    let [tabs, _] = app.options.layout.tab_bar;
+    assert_eq!(super::view::fill(&tabs.inactive), None);
+    let Some(Background::Color(lift)) = super::view::fill(&tabs.active) else { panic!() };
+    assert!((lift.a - 0.05).abs() < 1e-6, "{lift:?}");
+
+    let mut config = UiConfig::default();
+    config.style = toml::from_str("[tab_inactive]\nbackground = '#123456'\n").unwrap();
+    config.style.resolve(&config.colors);
+    let tabs = config.style.resolved().tab_bar(true);
+    let Some(Background::Color(solid)) = super::view::fill(&tabs.inactive) else { panic!() };
+    assert_eq!(solid, Color::from_rgb8(0x12, 0x34, 0x56));
+}
+
+#[test]
 fn window_is_only_cleared_to_a_color_when_it_is_opaque() {
     let transparent = app_with_background("#c02020", 0.5);
     assert_eq!(transparent.style(&Theme::Dark).background_color, Color::TRANSPARENT);
@@ -1013,7 +1035,7 @@ fn tab_bar_middle(app: &App) -> f32 {
 fn actions_along_the_tab_bar(app: &App, from_left: bool) -> Vec<AppAction> {
     let y = tab_bar_middle(app);
     let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
-    for step in 0..60 {
+    for step in 0..150 {
         let x = 2. * step as f32 + 1.;
         ui.point_at((if from_left { x } else { 800. - x }, y));
         ui.simulate(iced_test::simulator::click());

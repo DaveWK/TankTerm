@@ -154,6 +154,10 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 
 ### Changed
 
+- The tab bar is restyled: it has the terminal's background and is as see-through as the
+    terminals, the shown tab is lifted off the bar a little with a line along its top, other
+    tabs and buttons have no background of their own, and the bar is taller (`padding = [9, 14]`)
+- A hovered tab or button is drawn in place of the normal one rather than over it
 - The default `tabs.title` is `"{index}  {title}{zoom}{marker}"`, without the colon, and the
     tab's number is drawn faint, in the new `[style.tab_index]`
 - A tab shows its close button only while the mouse is over it; `tabs.close_button = "Always"`

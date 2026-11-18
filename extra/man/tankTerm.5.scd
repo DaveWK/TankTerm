@@ -1056,16 +1056,20 @@ belong to a feature it doesn't have yet.
 		The tab bar. Its padding goes around everything on the bar, and its
 		_gap_ is the space between the tabs.
 
-		Default: the primary colors, with the background a little towards the
-		foreground, no padding, and a _gap_ of _1_.
+		Default: the primary colors, no padding, and a _gap_ of _1_. Its
+		background is as see-through as the terminals', by _window.opacity_,
+		whether it is the default or set here.
 
 	*tab_active*, *tab_inactive*
 		The shown tab, and every other tab. A tab is a button holding its title
 		and its close button.
 
-		Default: the shown tab has the primary colors, the others the bar's
-		background and a dimmer foreground. Both have a _padding_ of _[3, 8]_,
-		and are as wide as _tabs.width_ says.
+		Default: no background of their own, so the bar shows through, and the
+		others a dimmer foreground. The shown tab is lifted off the bar by its
+		foreground at 5% opacity, and has a _thick_ line in its foreground along
+		its top, unless its style sets a _border_ or a border side. Both have a
+		_padding_ of _[9, 14]_ and are as wide as _tabs.width_ says. A
+		_background_ set in a tab bar style is drawn solid, as it is.
 
 	*tab_button*
 		The new tab button, the gear, and the window buttons of a tab bar that is
@@ -1078,7 +1082,8 @@ belong to a feature it doesn't have yet.
 		in the place of the tab: its _margin_, _width_ and _max\_width_ are
 		ignored, and its _padding_ moves the content without resizing the tab.
 
-		Default: the primary foreground.
+		Default: the primary foreground, lifted off the bar by it at 8%
+		opacity.
 
 	*tab_close_hovered*
 		Changes to the window's close button under the mouse, applied over
@@ -1098,7 +1103,8 @@ belong to a feature it doesn't have yet.
 		The status segments, see _tabs.status_. Each segment's own _style_
 		changes it for that segment.
 
-		Default: the bar's colors, and a _padding_ of _[3, 8]_.
+		Default: the bar's colors with no background of its own, and a
+		_padding_ of _[9, 14]_.
 
 	*tab_index*
 		Changes to the tab's number, the text of _{index}_ in _tabs.title_,
@@ -1110,6 +1116,24 @@ belong to a feature it doesn't have yet.
 	In the tab bar styles, _CellForeground_ and _CellBackground_ refer to the
 	primary colors. The background of _tab\_bar_ is the default background of
 	_tab\_inactive_ and _tab\_button_.
+
+	These styles bring back the earlier look of the tab bar, an opaque bar
+	12% of the way from the background to the foreground (here for black
+	text on white) and a filled shown tab:
+
+	*[style.tab_bar]*++
+background = _"#e0e0e0"_
+
+	*[style.tab_active]*++
+background = _"CellBackground"_++
+border = _"hidden"_++
+padding = _[3, 8]_
+
+	*[style.tab_inactive]*++
+padding = _[3, 8]_
+
+	*[style.tab_button]*++
+padding = _[3, 8]_
 
 *blurred*
 

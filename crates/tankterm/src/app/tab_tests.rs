@@ -1840,7 +1840,7 @@ fn tab_widths_are_in_cells() {
 
     // The shown tab is 20 cells wide, then a pixel, then the new tab button's padding.
     let plus = text_x(&app, "+");
-    assert!((plus - (20. * cell).floor() - 1. - 8.).abs() < 1., "{plus} {cell}");
+    assert!((plus - (20. * cell).floor() - 1. - 14.).abs() < 1., "{plus} {cell}");
 
     // The second tab is shown, and the first is 10 cells wide.
     perform(&mut app, &[AppAction::NewTab]);
