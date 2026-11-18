@@ -42,6 +42,7 @@ mod render_tests;
 #[cfg(all(test, unix))]
 mod search_tests;
 pub mod status;
+mod tab_border;
 mod tab_strip;
 #[cfg(all(test, unix))]
 mod tab_tests;
@@ -60,7 +61,8 @@ const RESIZE_STEP: f32 = 0.05;
 /// Smallest and largest share of a split its first pane can be resized to with the keyboard.
 const RESIZE_LIMITS: (f32, f32) = (0.1, 0.9);
 
-/// Widest a tab gets in the tab bar, in logical pixels.
+/// Widest a tab gets in the tab bar, margin included, in logical pixels, unless its style has a
+/// `max_width`.
 const MAX_TAB_WIDTH: f32 = 240.;
 
 /// How far the mouse moves with the button down on the tab bar before the window moves.

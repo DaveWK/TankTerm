@@ -914,17 +914,19 @@ belong to a feature it doesn't have yet.
 		backgrounds, on the primary background.
 
 	*tab_bar*
-		The tab bar. Its padding goes around everything on the bar.
+		The tab bar. Its padding goes around everything on the bar, and its
+		_gap_ is the space between the tabs.
 
 		Default: the primary colors, with the background a little towards the
-		foreground, and no padding.
+		foreground, no padding, and a _gap_ of _1_.
 
 	*tab_active*, *tab_inactive*
 		The shown tab, and every other tab. A tab is a button holding its title
 		and its close button.
 
 		Default: the shown tab has the primary colors, the others the bar's
-		background and a dimmer foreground. Both have a _padding_ of _[3, 8]_.
+		background and a dimmer foreground. Both have a _padding_ of _[3, 8]_,
+		and share the bar evenly up to 240 pixels each.
 
 	*tab_button*
 		The new tab button, the gear, and the window buttons of a tab bar that is
@@ -934,8 +936,8 @@ belong to a feature it doesn't have yet.
 
 	*tab_hovered*
 		Changes to a tab or button under the mouse. The hovered tab is drawn
-		in the place of the tab: its _margin_ is ignored, and its _padding_
-		moves the content without resizing the tab.
+		in the place of the tab: its _margin_, _width_ and _max\_width_ are
+		ignored, and its _padding_ moves the content without resizing the tab.
 
 		Default: the primary foreground.
 
@@ -1007,19 +1009,51 @@ belong to a feature it doesn't have yet.
 		sides, 2 set vertical and horizontal, 3 set top, horizontal and bottom,
 		and 4 set top, right, bottom and left. Only the tab bar uses them.
 
-	*border* = _"Normal"_ | _"Rounded"_ | _"Thick"_ | _"Hidden"_
+	*border* = _"Normal"_ | _"Rounded"_ | _"Thick"_ | _"Double"_ | _"Block"_ | _"ASCII"_ | _"Hidden"_
 
-		A border, named after Lip Gloss's: a thin line, a thin line with rounded
-		corners, a thick line, or none. The border is drawn over the edge of the
+		A border, named after Lip Gloss's. Lip Gloss draws borders with
+		characters; the tab bar draws them in pixels: _Normal_ is a 1 pixel
+		line, _Rounded_ the same with rounded corners, _Thick_ a 2 pixel line,
+		_Double_ two 1 pixel lines a pixel apart, _Block_ a solid 4 pixel band
+		and _ASCII_ a dashed 1 pixel line, like rows of _-_ and _|_ joined by
+		_+_. _Hidden_ draws none. The border is drawn over the edge of the
 		padding and takes no space of its own. Only the tab bar uses it.
 
 		Default: _"Hidden"_
+
+	*border_top*, *border_right*, *border_bottom*, *border_left* = _true_ | _false_
+
+		Which sides of the border are drawn, like Lip Gloss's _BorderTop_ and
+		so on. While none of them is set, all four sides are drawn; once any of
+		them is set, only the sides set to _true_ are. _border\_bottom = true_
+		draws a line under the element. Corners are drawn, and rounded, only
+		where two drawn sides meet.
 
 	*border_foreground* = _"<color>"_ | _"CellForeground"_ | _"CellBackground"_
 
 		Color of the border.
 
 		Default: the primary foreground
+
+	*border_top_foreground*, *border_right_foreground*, *border_bottom_foreground*, *border_left_foreground* = _"<color>"_ | _"CellForeground"_ | _"CellBackground"_
+
+		Color of one side of the border, in place of _border\_foreground_. As in
+		Lip Gloss, the corners take the color of the top and bottom sides. A
+		style's _border\_foreground_ takes the place of the side colors of the
+		styles it inherits from or is applied over.
+
+	*width*, *max_width* = _<integer>_
+
+		Width of a tab, and the widest a tab gets, in terminal cells, like Lip
+		Gloss's _Width_ and _MaxWidth_. Both include the padding and leave out
+		the margin. A tab with a _width_ keeps it while there is room for it;
+		the other tabs share the rest of the bar evenly, each up to its
+		_max\_width_, or 240 pixels without one. _0_ is the same as not set.
+		Only tabs use them.
+
+	*gap* = _<integer>_
+
+		Space between the tabs, in logical pixels. Only _tab\_bar_ uses it.
 
 Example:
 	*[style.defs.accent]*++

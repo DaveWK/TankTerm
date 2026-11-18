@@ -1,5 +1,5 @@
-//! The row of tabs in the tab bar: every tab as wide as the others, up to a widest, and a
-//! button after them.
+//! The row of tabs in the tab bar: tabs with a width of their own, the others sharing the rest
+//! of the room evenly, each up to its widest, and a button after them.
 //!
 //! iced's rows give every child that fills its share of the room the whole share, whatever
 //! its maximum width, so a single tab would fill the bar and leave no empty space in it.
@@ -14,21 +14,65 @@ use iced_core::{
 pub struct TabStrip<'a, Message, Theme, Renderer> {
     /// The tabs, then the button after them.
     children: Vec<Element<'a, Message, Theme, Renderer>>,
-    max_tab_width: f32,
+    /// How wide every tab gets.
+    widths: Vec<TabWidth>,
     spacing: f32,
+}
+
+/// How wide a tab gets, in logical pixels.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TabWidth {
+    /// A width of its own, which the tab keeps while there is room for it.
+    pub fixed: Option<f32>,
+    /// Widest the tab gets while it shares the room with the other tabs.
+    pub max: f32,
 }
 
 impl<'a, Message, Theme, Renderer> TabStrip<'a, Message, Theme, Renderer> {
     pub fn new(
-        tabs: impl IntoIterator<Item = Element<'a, Message, Theme, Renderer>>,
+        tabs: impl IntoIterator<Item = (Element<'a, Message, Theme, Renderer>, TabWidth)>,
         after: impl Into<Element<'a, Message, Theme, Renderer>>,
-        max_tab_width: f32,
         spacing: f32,
     ) -> Self {
-        let mut children: Vec<_> = tabs.into_iter().collect();
+        let (mut children, widths): (Vec<_>, Vec<_>) = tabs.into_iter().unzip();
         children.push(after.into());
-        Self { children, max_tab_width, spacing }
+        Self { children, widths, spacing }
     }
+}
+
+/// The width of every tab in `room` logical pixels.
+///
+/// Tabs with a fixed width get it, and the other tabs share what is left evenly, each up to its
+/// widest. Where the fixed widths alone don't fit, they shrink by the same share and leave
+/// nothing for the others.
+fn tab_widths(room: f32, tabs: &[TabWidth]) -> Vec<f32> {
+    let room = room.max(0.);
+    let fixed: f32 = tabs.iter().filter_map(|tab| tab.fixed).sum();
+    let scale = if fixed > room { room / fixed } else { 1. };
+
+    // The flexible tabs fill the room left up to a level, like water: tabs whose widest is
+    // below it stop there, and the rest share what they leave.
+    let mut left = (room - fixed).max(0.);
+    let mut caps: Vec<f32> =
+        tabs.iter().filter(|tab| tab.fixed.is_none()).map(|tab| tab.max.max(0.)).collect();
+    caps.sort_by(f32::total_cmp);
+    let mut level = 0.;
+    for (index, cap) in caps.iter().enumerate() {
+        let share = left / (caps.len() - index) as f32;
+        if *cap > share {
+            level = share;
+            break;
+        }
+        left -= cap;
+        level = *cap;
+    }
+
+    tabs.iter()
+        .map(|tab| match tab.fixed {
+            Some(width) => (width * scale).floor(),
+            None => tab.max.min(level).max(0.).floor(),
+        })
+        .collect()
 }
 
 impl<Message, Theme, Renderer> Widget<Message, Theme, Renderer>
@@ -61,13 +105,16 @@ where
         let after = after.as_widget_mut().layout(after_tree, renderer, &limits.loose());
         let count = tabs.len() as f32;
         let room = max.width - after.size().width - self.spacing * count;
-        let width = (room / count).min(self.max_tab_width).max(0.).floor();
+        let widths = tab_widths(room, &self.widths);
 
-        let tab_limits = Limits::new(Size::new(width, 0.), Size::new(width, max.height));
         let mut nodes: Vec<Node> = tabs
             .iter_mut()
             .zip(tab_trees)
-            .map(|(tab, tree)| tab.as_widget_mut().layout(tree, renderer, &tab_limits))
+            .zip(widths)
+            .map(|((tab, tree), width)| {
+                let limits = Limits::new(Size::new(width, 0.), Size::new(width, max.height));
+                tab.as_widget_mut().layout(tree, renderer, &limits)
+            })
             .collect();
         nodes.push(after);
 
@@ -180,5 +227,42 @@ where
 {
     fn from(strip: TabStrip<'a, Message, Theme, Renderer>) -> Self {
         Element::new(strip)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn flexible(max: f32) -> TabWidth {
+        TabWidth { fixed: None, max }
+    }
+
+    fn fixed(width: f32) -> TabWidth {
+        TabWidth { fixed: Some(width), max: width }
+    }
+
+    #[test]
+    fn flexible_tabs_share_the_room_up_to_their_widest() {
+        assert_eq!(tab_widths(1000., &[flexible(240.); 2]), [240., 240.]);
+        assert_eq!(tab_widths(300., &[flexible(240.); 3]), [100., 100., 100.]);
+        assert_eq!(tab_widths(-5., &[flexible(240.)]), [0.]);
+    }
+
+    #[test]
+    fn narrow_tabs_leave_their_share_to_the_others() {
+        let tabs = [flexible(50.), flexible(240.), flexible(240.)];
+        assert_eq!(tab_widths(400., &tabs), [50., 175., 175.]);
+        assert_eq!(tab_widths(90., &tabs), [30., 30., 30.]);
+    }
+
+    #[test]
+    fn fixed_tabs_keep_their_width() {
+        let tabs = [fixed(150.), flexible(240.), flexible(240.)];
+        assert_eq!(tab_widths(1000., &tabs), [150., 240., 240.]);
+        assert_eq!(tab_widths(350., &tabs), [150., 100., 100.]);
+
+        // Without room for them, they shrink and the others get nothing.
+        assert_eq!(tab_widths(100., &[fixed(100.), fixed(100.), flexible(240.)]), [50., 50., 0.]);
     }
 }

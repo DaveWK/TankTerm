@@ -1518,3 +1518,81 @@ fn tabs_share_the_bar_evenly_up_to_the_widest_tab() {
     let crowded = new_tab_button(&app);
     assert!((600. ..800.).contains(&crowded), "{crowded}");
 }
+
+/// Where the text `text` starts in the window, 800 wide.
+fn text_x(app: &App, text: &str) -> f32 {
+    let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
+    let found = ui.find(text).unwrap();
+    iced_test::selector::Bounded::visible_bounds(&found).unwrap().x
+}
+
+#[test]
+fn tab_widths_are_in_cells() {
+    let config = "[tabs]\nshow = \"Always\"\n[style.tab_active]\nwidth = \
+                  20\n[style.tab_inactive]\nmax_width = 10\n";
+    let mut app = app_with(config, Hotkeys::default());
+    let cell = app.settings.font.cell_size().width;
+
+    // The shown tab is 20 cells wide, then a pixel, then the new tab button's padding.
+    let plus = text_x(&app, "+");
+    assert!((plus - (20. * cell).floor() - 1. - 8.).abs() < 1., "{plus} {cell}");
+
+    // The second tab is shown, and the first is 10 cells wide.
+    perform(&mut app, &[AppAction::NewTab]);
+    let second = text_x(&app, "2: test") - text_x(&app, "1: test");
+    assert!((second - (10. * cell).floor() - 1.).abs() < 1., "{second} {cell}");
+}
+
+#[test]
+fn tabs_with_a_width_keep_it_in_a_crowded_bar() {
+    let config = "[tabs]\nshow = \"Always\"\n[style.tab_active]\nwidth = 30\n";
+    let mut app = app_with(config, Hotkeys::default());
+    perform(&mut app, &vec![AppAction::NewTab; 9]);
+    perform(&mut app, &[AppAction::SelectTab(0)]);
+    let cell = app.settings.font.cell_size().width;
+
+    let shown = text_x(&app, "2: test") - text_x(&app, "1: test");
+    assert!((shown - (30. * cell).floor() - 1.).abs() < 1., "{shown} {cell}");
+
+    // The other tabs share what is left.
+    let other = text_x(&app, "3: test") - text_x(&app, "2: test");
+    assert!(other < shown / 2., "{other} {shown}");
+}
+
+#[test]
+fn bordered_tabs_and_buttons_take_clicks() {
+    // Every kind of border, on single sides, on everything with a border.
+    for kind in ["Normal", "Rounded", "Thick", "Double", "Block", "ASCII"] {
+        let config = format!(
+            "[tabs]\nshow = \"Always\"\n[style.defs.lined]\nborder = \"{kind}\"\nborder_bottom = \
+             true\nborder_left = true\nborder_left_foreground = \
+             \"#ff0000\"\n[style.tab_bar]\ninherit = \"lined\"\n[style.tab_active]\ninherit = \
+             \"lined\"\n[style.tab_inactive]\ninherit = \"lined\"\n[style.tab_button]\ninherit = \
+             \"lined\"\n"
+        );
+        let mut app = app_with(&config, Hotkeys::default());
+        perform(&mut app, &[AppAction::NewTab]);
+
+        let click = |text: &str| {
+            let mut ui =
+                Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
+            ui.click(text).unwrap();
+            ui.into_messages()
+                .filter(|message| !matches!(message, Message::Terminal(_)))
+                .collect::<Vec<_>>()
+        };
+        assert!(matches!(click("1: test")[..], [Message::Action(AppAction::SelectTab(0))]));
+        assert!(matches!(click("+")[..], [Message::Action(AppAction::NewTab)]));
+        assert!(matches!(click("\u{d7}")[..], [Message::CloseTab(0)]));
+    }
+}
+
+#[test]
+fn gap_is_the_space_between_tabs() {
+    let config = "[tabs]\nshow = \"Always\"\n[style.tab_bar]\ngap = 12\n";
+    let mut app = app_with(config, Hotkeys::default());
+    perform(&mut app, &[AppAction::NewTab]);
+
+    let step = text_x(&app, "2: test") - text_x(&app, "1: test");
+    assert!((step - MAX_TAB_WIDTH - 12.).abs() < 1., "{step}");
+}
