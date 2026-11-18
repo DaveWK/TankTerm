@@ -2,7 +2,7 @@
 
 use iced::widget::pane_grid::{Axis, Node};
 
-use super::tab_tests::{app_with, focused, perform, wait_for_text};
+use super::tab_tests::{app_with, focused, forget_directories, perform, wait_for_text};
 use super::*;
 use crate::cli::{
     ActivateTabOptions, GetTextOptions, IpcGetConfig, ListOptions, PaneOptions, ProgramOptions,
@@ -78,6 +78,7 @@ fn panes_are_listed_tab_by_tab() {
         .collect();
     assert_eq!(summary, [(0, 0, 0, true, false), (1, 1, 1, false, false), (1, 1, 2, true, true)]);
 
+    forget_directories(&mut app);
     let pane = &panes(&mut app)[0];
     assert_eq!((pane.title.as_str(), pane.tab_title.as_str()), ("test", "test"));
     assert!(!pane.is_active_tab && pane.size.rows > 0 && pane.size.cols > 0, "{pane:?}");
@@ -319,7 +320,8 @@ fn set_tab_title_names_a_tab_until_the_title_is_empty() {
     let mut set = |pane_id, tab_id, title: &str| {
         let options = SetTabTitleOptions { pane_id, tab_id, title: title.into() };
         assert_eq!(answer(&mut app, SocketMessage::SetTabTitle(options)), SocketReply::Done);
-        app.tabs.iter().map(|tab| app.tab_title(tab).to_owned()).collect::<Vec<_>>()
+        forget_directories(&mut app);
+        app.tabs.iter().map(|tab| app.tab_title(tab).into_owned()).collect::<Vec<_>>()
     };
 
     assert_eq!(set(None, None, "logs"), ["test", "logs"]);

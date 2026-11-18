@@ -8,9 +8,11 @@ pub enum TitleButton {
     Minimize,
     Maximize,
     Close,
+    /// The app's icon, which opens the window menu.
+    Menu,
 }
 
-use TitleButton::{Close, Maximize, Minimize};
+use TitleButton::{Close, Maximize, Menu, Minimize};
 
 /// The window buttons at each end of the tab bar, in the order they are drawn from left to
 /// right.
@@ -30,15 +32,27 @@ impl Default for TitleButtons {
 impl TitleButtons {
     /// The buttons `window.buttons` asks for, or `None` if the tab bar isn't the title bar.
     /// `desktop` gives the buttons for `"Desktop"`.
+    /// The app's icon is where the layout puts it, or else first on the left, after any window
+    /// buttons there.
     pub fn new(buttons: WindowButtons, desktop: impl FnOnce() -> Self) -> Option<Self> {
-        match buttons {
+        let buttons = match buttons {
             WindowButtons::Desktop => Some(desktop()),
             WindowButtons::Right => Some(Self::default()),
             WindowButtons::Left => {
                 Some(Self { left: vec![Close, Maximize, Minimize], right: Vec::new() })
             },
             WindowButtons::None => None,
+        };
+        buttons.map(Self::with_menu)
+    }
+
+    /// These buttons, with the app's icon first on the left after the buttons there unless they
+    /// have it.
+    fn with_menu(mut self) -> Self {
+        if !self.left.contains(&Menu) && !self.right.contains(&Menu) {
+            self.left.push(Menu);
         }
+        self
     }
 
     /// The buttons where the desktop puts them.
@@ -91,12 +105,14 @@ impl TitleButtons {
     }
 
     /// The buttons of KWin's `ButtonsOnLeft` and `ButtonsOnRight`, where `I` is minimize,
-    /// `A` maximize and `X` close. Its other buttons aren't drawn.
+    /// `A` maximize, `X` close and `M` the menu, the app's icon. Its other buttons aren't
+    /// drawn.
     fn kde(left: &str, right: &str) -> Self {
         let button = |code| match code {
             'I' => Some(Minimize),
             'A' => Some(Maximize),
             'X' => Some(Close),
+            'M' => Some(Menu),
             _ => None,
         };
         Self::from_sides(left.chars().filter_map(button), right.chars().filter_map(button))
@@ -114,6 +130,7 @@ impl TitleButtons {
                     "minimize" => Some(Minimize),
                     "maximize" => Some(Maximize),
                     "close" => Some(Close),
+                    "appmenu" => Some(Menu),
                     _ => None,
                 })
                 .collect::<Vec<_>>()
@@ -206,15 +223,20 @@ mod tests {
 
     #[test]
     fn configured_sides() {
+        // The app's icon opens the window menu, first on the left unless the layout puts it
+        // somewhere.
         let desktop = || buttons(&[Close], &[]);
+        let shown = TitleButtons::new(WindowButtons::Desktop, desktop);
+        assert_eq!(shown, Some(buttons(&[Close, Menu], &[])));
+        let desktop = || buttons(&[], &[Menu, Close]);
         assert_eq!(TitleButtons::new(WindowButtons::Desktop, desktop), Some(desktop()));
         assert_eq!(
             TitleButtons::new(WindowButtons::Right, unused),
-            Some(buttons(&[], &[Minimize, Maximize, Close]))
+            Some(buttons(&[Menu], &[Minimize, Maximize, Close]))
         );
         assert_eq!(
             TitleButtons::new(WindowButtons::Left, unused),
-            Some(buttons(&[Close, Maximize, Minimize], &[]))
+            Some(buttons(&[Close, Maximize, Minimize, Menu], &[]))
         );
         assert_eq!(TitleButtons::new(WindowButtons::None, unused), None);
     }
@@ -236,18 +258,19 @@ mod tests {
         let read = || vec![user.to_owned(), system.to_owned()];
         assert_eq!(
             TitleButtons::for_desktop("KDE", read, unused),
-            buttons(&[Minimize, Maximize, Close], &[])
+            buttons(&[Minimize, Maximize, Close], &[Menu])
         );
+        // KWin's defaults have the menu, which is the app's icon, on the left.
         assert_eq!(
             TitleButtons::for_desktop("KDE", Vec::new, unused),
-            buttons(&[], &[Minimize, Maximize, Close])
+            buttons(&[Menu], &[Minimize, Maximize, Close])
         );
 
         // The key has to be in KWin's decoration group.
         let other = "[Windows]\nButtonsOnLeft=X\n";
         assert_eq!(
             TitleButtons::for_desktop("KDE", || vec![other.to_owned()], unused),
-            buttons(&[], &[Minimize, Maximize, Close])
+            buttons(&[Menu], &[Minimize, Maximize, Close])
         );
     }
 
@@ -256,11 +279,11 @@ mod tests {
         let layout = |value: &'static str| {
             TitleButtons::for_desktop("ubuntu:GNOME", unused, || Some(value.to_owned()))
         };
-        assert_eq!(layout("'appmenu:close'\n"), buttons(&[], &[Close]));
-        assert_eq!(layout("'close,minimize:appmenu'"), buttons(&[Close, Minimize], &[]));
+        assert_eq!(layout("'appmenu:close'\n"), buttons(&[Menu], &[Close]));
+        assert_eq!(layout("'close,minimize:appmenu'"), buttons(&[Close, Minimize], &[Menu]));
         assert_eq!(
             layout("'appmenu:minimize,maximize,close'"),
-            buttons(&[], &[Minimize, Maximize, Close])
+            buttons(&[Menu], &[Minimize, Maximize, Close])
         );
         // Each button is drawn once.
         assert_eq!(layout("'close:close,maximize'"), buttons(&[Close], &[Maximize]));

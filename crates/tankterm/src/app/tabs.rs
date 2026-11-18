@@ -137,12 +137,12 @@ impl App {
                 ));
             },
             AppAction::ShowTabNavigator => {
-                let titles = self.tabs.iter().map(|tab| self.tab_title(tab).to_owned());
+                let titles = self.tabs.iter().map(|tab| self.tab_title(tab).into_owned());
                 self.palette = Some(Palette::tabs(titles.collect::<Vec<_>>(), self.active));
             },
             AppAction::RenameTab => {
                 let tab = &self.tabs[self.active];
-                let shown = self.pane_title(tab).to_owned();
+                let shown = self.pane_title(tab).into_owned();
                 self.palette = Some(Palette::rename(tab.title.as_deref(), &shown));
             },
             AppAction::OpenConfig => {
@@ -429,18 +429,26 @@ impl App {
 
     /// Title of a tab: the one it was given, the one its focused terminal set, or the window
     /// title.
-    pub(super) fn tab_title<'a>(&'a self, tab: &'a Tab) -> &'a str {
+    pub(super) fn tab_title<'a>(&'a self, tab: &'a Tab) -> Cow<'a, str> {
         match &tab.title {
-            Some(title) => title,
+            Some(title) => title.into(),
             None => self.pane_title(tab),
         }
     }
 
-    /// What the tab at `index` shows in the tab bar: the `tabs.title` format filled in.
+    /// What the tab at `index` shows in the tab bar, in one piece.
+    #[cfg(test)]
+    pub(super) fn tab_label(&self, index: usize, tab: &Tab) -> String {
+        let parts = self.tab_label_parts(index, tab).into_iter();
+        parts.map(|(text, _)| text).collect()
+    }
+
+    /// What the tab at `index` shows in the tab bar: the `tabs.title` format filled in, in
+    /// parts, `true` for the tab's number, which the tab bar draws in the `tab_index` style.
     ///
     /// Placeholders without a value, like the directory where it can't be told, are left
     /// empty; placeholders the format shouldn't have stay as they are written.
-    pub(super) fn tab_label(&self, index: usize, tab: &Tab) -> String {
+    pub(super) fn tab_label_parts(&self, index: usize, tab: &Tab) -> Vec<(String, bool)> {
         let focused = tab.panes.get(tab.focus).and_then(|id| self.terminals.get(id));
         let directory = focused.and_then(|shell| shell.working_directory.as_deref());
         let attention = tab
@@ -448,10 +456,10 @@ impl App {
             .iter()
             .any(|(_, id)| self.terminals.get(id).is_some_and(|shell| shell.attention));
 
-        let label = self.options.tabs.title.template().render(|name| {
+        let label = self.options.tabs.title.template().render_parts("index", |name| {
             let value: Cow<'_, str> = match name {
                 "index" => (index + 1).to_string().into(),
-                "title" => self.tab_title(tab).into(),
+                "title" => self.tab_title(tab),
                 "panes" => tab.panes.len().to_string().into(),
                 "cwd" => directory.map(status::basename).unwrap_or_default().into(),
                 "path" => directory.map(status::display_path).unwrap_or_default().into(),
@@ -473,15 +481,52 @@ impl App {
     }
 
     /// The title of a tab without one given to it: that of its focused pane.
-    pub(super) fn pane_title<'a>(&'a self, tab: &'a Tab) -> &'a str {
-        let title = tab
-            .panes
-            .get(tab.focus)
-            .and_then(|id| self.terminals.get(id))
-            .and_then(|shell| shell.title.as_deref());
-
-        title.filter(|_| self.options.dynamic_title).unwrap_or(&self.options.title)
+    pub(super) fn pane_title<'a>(&'a self, tab: &'a Tab) -> Cow<'a, str> {
+        match tab.panes.get(tab.focus).and_then(|id| self.terminals.get(id)) {
+            Some(shell) => self.shell_title(shell),
+            None => self.options.title.as_str().into(),
+        }
     }
+
+    /// The title of a terminal: the one its programs set, or else where its shell is, as
+    /// `user@host:path`, while titles are dynamic; the configured title otherwise.
+    pub(super) fn shell_title<'a>(&'a self, shell: &'a Shell) -> Cow<'a, str> {
+        if !self.options.dynamic_title {
+            return self.options.title.as_str().into();
+        }
+        match &shell.title {
+            Some(title) => title.into(),
+            None => fallback_title(shell).map_or(self.options.title.as_str().into(), Cow::Owned),
+        }
+    }
+}
+
+/// Where a shell is, as `user@host:path`, like the titles many shells set: `None` while its
+/// directory isn't known, and while it runs `ssh`, whose local directory says nothing about
+/// the remote one.
+fn fallback_title(shell: &Shell) -> Option<String> {
+    let directory = current_directory(
+        shell.reported_directory.as_deref(),
+        shell.working_directory.as_deref(),
+        cfg!(target_os = "linux"),
+    )?;
+    if shell.process.as_deref() == Some("ssh") {
+        return None;
+    }
+    let (user, host) = (status::user_name()?, status::host_name()?);
+    Some(format!("{user}@{host}:{}", status::display_path(directory)))
+}
+
+/// The directory a shell is in, as far as it is kept up to date: the last one known where the
+/// process's directory is `looked_up` with the ticks, and else only the one the shell
+/// `reported`, since the one it was `last_known` to be in, like where it started, may be long
+/// left.
+fn current_directory<'a>(
+    reported: Option<&'a Path>,
+    last_known: Option<&'a Path>,
+    looked_up: bool,
+) -> Option<&'a Path> {
+    if looked_up { last_known } else { reported }
 }
 
 /// What a configuration file starts with when `OpenConfig` creates it.
@@ -546,4 +591,23 @@ pub(super) fn nearest_split(
 
     let child = [a, b].into_iter().find(|child| ordered_panes(child).contains(&pane))?;
     nearest_split(child, pane, axis).or_else(|| (*split_axis == axis).then_some((*id, *ratio)))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use super::*;
+
+    #[test]
+    fn only_directories_that_are_kept_up_to_date_name_a_tab() {
+        let (reported, started) = (Some(Path::new("/srv")), Some(Path::new("/home")));
+
+        // Where the process's directory is looked up, the last one known.
+        assert_eq!(current_directory(None, started, true), started);
+        assert_eq!(current_directory(reported, reported, true), reported);
+        // Elsewhere only what the shell reports: the one it started in may be long left.
+        assert_eq!(current_directory(None, started, false), None);
+        assert_eq!(current_directory(reported, started, false), reported);
+    }
 }

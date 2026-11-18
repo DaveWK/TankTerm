@@ -212,8 +212,15 @@ shells that have job control.
 `title` in the `[tabs]` section sets what each tab shows, with placeholders in
 braces: `{index}`, `{title}`, `{panes}`, `{cwd}` (the last part of the
 directory), `{path}`, `{process}` (the program that has the terminal),
-`{marker}` (` !` or ` *`) and `{zoom}` (` Z` while a pane is zoomed). The
-default is `"{index}: {title}{zoom}{marker}"`; this shows the program and the
+`{marker}` (` !` or ` *`) and `{zoom}` (` Z` while a pane is zoomed).
+`{title}` is the title the pane's programs set or, while they haven't set one,
+where its shell is: `user@host:~/src`, like the titles many shells set; with
+`dynamic_title = false` in `[window]` it is always the configured title.
+A tab's close button shows while the mouse is over it; `close_button` in
+`[tabs]` set to `"Always"` shows it on every tab, and `"Never"` leaves it out.
+The
+default is `"{index}  {title}{zoom}{marker}"`, with the number drawn faint
+(`[style.tab_index]`); this shows the program and the
 directory instead:
 
 ```toml
@@ -312,14 +319,19 @@ The tab bar is styled with `[style.tab_*]` blocks, which take the same Lip Gloss
 properties as the other `[style]` blocks, plus Lip Gloss's box properties:
 `padding`, `margin`, `border`, `border_foreground`, `width` and `max_width`:
 
-- `tab_bar`: the bar itself.
-- `tab_active` and `tab_inactive`: the shown tab and the others.
+- `tab_bar`: the bar itself. Its background is as see-through as the
+  terminals', by `window.opacity`.
+- `tab_active` and `tab_inactive`: the shown tab and the others. By default
+  they have no background of their own; the shown tab is lifted off the bar a
+  little and has a line along its top. A `background` set here is drawn solid.
 - `tab_button`: the `+` button, the gear and the window buttons.
 - `tab_close_hovered`: changes to the window's close button under the mouse,
   over `tab_hovered`. It is white on red unless set.
 - `tab_hovered`, `tab_activity` and `tab_attention`: changes to a tab under the
   mouse, a tab marked with `*` and a tab marked with `!`.
 - `tab_status`: the status segments.
+- `tab_index`: changes to the tab's number, over the rest of its style. It is
+  faint unless set.
 
 Like the other styles, they can `inherit` from `[style.defs]`, and
 `[style.blurred.tab_*]` blocks change them while the window doesn't have focus.
@@ -350,7 +362,8 @@ Borders are named after Lip Gloss's: `Normal`, `Rounded`, `Thick`, `Double`,
 corners, a 2 pixel line, two thin lines, a solid band and a dashed line. As in
 Lip Gloss, `border_top`, `border_right`, `border_bottom` and `border_left`
 draw single sides, and `border_top_foreground` and so on color them. Tabs are
-`width` cells wide, or share the bar up to `max_width` cells, and `gap` in
+`width` cells wide, or else as wide as their titles (`width = "Shared"` in
+`[tabs]` has them share the bar evenly instead), up to `max_width` cells, and `gap` in
 `[style.tab_bar]` is the space between them in pixels. This draws a green line
 under the shown tab, and makes it 24 cells wide:
 
@@ -370,12 +383,15 @@ max_width = 16
 
 ### The tab bar as title bar
 
-With `decorations = "None"` in the `[window]` section the window has no title
-bar of its own, and the tab bar takes its place. It is shown even with a single
+By default (`decorations = "None"` in the `[window]` section) the window has no
+title bar of its own, and the tab bar takes its place. It is shown even with a single
 tab and has minimize, maximize and close buttons where the desktop puts them:
 on KDE as KWin's button layout says, on GNOME as its `button-layout` setting
 says, on the left on macOS and on the right elsewhere. `buttons = "Right"` and
 `buttons = "Left"` put them at one end instead.
+
+TankTerm's icon sits at the left end of the bar, or where the desktop's
+layout puts the window menu, and clicking it opens that menu.
 
 Dragging the bar where there is no tab or button moves the window,
 double-clicking it there maximizes the window, and right-clicking it opens the
@@ -392,6 +408,25 @@ buttons = "Desktop"
 
 The buttons are drawn with the `tab_button` and `tab_hovered` styles, and the
 close button under the mouse also with `tab_close_hovered`.
+
+This brings back the tab bar as it was before TankTerm 0.18.0, under the
+system's title bar, with tabs sharing the bar and always showing their close
+buttons; `dynamic_title = false` also brings back `TankTerm` as the title of
+tabs whose programs set none. `tabs.show = "Never"` or `"Multiple"` only hide
+the bar with `decorations = "Full"`, since the title bar is always shown. The
+styles in `tankTerm(5)` bring back its colors, the plain number and solid
+backgrounds.
+
+```toml
+[window]
+decorations = "Full"
+dynamic_title = false
+
+[tabs]
+title = "{index}: {title}{zoom}{marker}"
+width = "Shared"
+close_button = "Always"
+```
 
 [tankTerm(5) manpage]: ../extra/man/tankTerm.5.scd
 [tankTerm-bindings(5) manpage]: ../extra/man/tankTerm-bindings.5.scd

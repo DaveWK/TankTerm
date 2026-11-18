@@ -160,10 +160,11 @@ pub enum StartupMode {
 
 #[derive(ConfigDeserialize, Serialize, Default, Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Decorations {
-    #[default]
     Full,
     Transparent,
     Buttonless,
+    /// No title bar or borders from the system: the tab bar is the title bar.
+    #[default]
     None,
 }
 

@@ -69,6 +69,31 @@ impl Template {
         }
         Some(rendered)
     }
+
+    /// The text like [`Template::render`] gives it, in parts: `true` for text that the
+    /// placeholder `field` gave, `false` for the rest. Parts next to each other are joined, and
+    /// empty ones left out.
+    pub fn render_parts<'a>(
+        &self,
+        field: &str,
+        value: impl Fn(&str) -> Option<Cow<'a, str>>,
+    ) -> Option<Vec<(String, bool)>> {
+        let mut parts: Vec<(String, bool)> = Vec::new();
+        for piece in &self.pieces {
+            let (text, from_field) = match piece {
+                Piece::Text(text) => (Cow::Borrowed(text.as_str()), false),
+                Piece::Field(name) => (value(name)?, name == field),
+            };
+            if text.is_empty() {
+                continue;
+            }
+            match parts.last_mut() {
+                Some((last, kind)) if *kind == from_field => last.push_str(&text),
+                _ => parts.push((text.into_owned(), from_field)),
+            }
+        }
+        Some(parts)
+    }
 }
 
 #[cfg(test)]
@@ -81,6 +106,22 @@ mod tests {
             "index" => Some("2".into()),
             _ => None,
         })
+    }
+
+    #[test]
+    fn parts_say_which_text_a_field_produced() {
+        let value = |name: &str| match name {
+            "index" => Some("2".into()),
+            "title" => Some("vim".into()),
+            _ => None,
+        };
+        let parts = Template::parse("{index}  {title}!").render_parts("index", value);
+        assert_eq!(parts.unwrap(), [("2".into(), true), ("  vim!".into(), false)]);
+
+        // Pieces next to each other are joined, and a placeholder without a value is `None`.
+        let parts = Template::parse("[{index}{index}]").render_parts("index", value);
+        assert_eq!(parts.unwrap(), [("[".into(), false), ("22".into(), true), ("]".into(), false)]);
+        assert_eq!(Template::parse("{nope}").render_parts("index", value), None);
     }
 
     #[test]

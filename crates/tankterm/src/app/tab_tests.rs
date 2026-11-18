@@ -11,6 +11,7 @@ use iced_test::simulator::{self, Simulator};
 use iced_tterm::settings::BackendSettings;
 use iced_tterm::{AlacrittyEvent, BackendCommand, TermMode};
 
+use super::icons::{self, Icon};
 use super::*;
 use crate::cli::Options;
 use crate::config::UiConfig;
@@ -29,7 +30,13 @@ pub(super) fn app_from(
     session_file: Option<PathBuf>,
     first: impl FnOnce(&mut Settings),
 ) -> App {
-    let mut config: UiConfig = toml::from_str(config).unwrap();
+    let text = config;
+    let mut config: UiConfig = toml::from_str(text).unwrap();
+    // Tests not about the tab bar keep the system's title bar, so a single tab shows no tab bar
+    // and the terminal fills the window.
+    if !text.contains("decorations") {
+        config.window.decorations = crate::config::window::Decorations::Full;
+    }
     // Loading a configuration resolves its styles.
     config.style.resolve(&config.colors);
     let mut settings = term_settings::settings(&config, &Options::default());
@@ -49,7 +56,7 @@ pub(super) fn app_from(
 
     let options = AppOptions {
         title: "test".into(),
-        dynamic_title: true,
+        dynamic_title: config.window.dynamic_title,
         layout: Layout {
             padding: Padding::ZERO,
             background: term_settings::background(&config),
@@ -111,6 +118,26 @@ pub(super) fn focused(app: &App) -> u64 {
 pub(super) fn has_text(app: &App, text: &str) -> bool {
     let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
     ui.find(text).is_ok()
+}
+
+/// The text the tab bar shows for the tab at `index`, to find the tab by: its label without
+/// the tab's number, which is drawn on its own.
+pub(super) fn tab_text(app: &App, index: usize) -> String {
+    let parts = app.tab_label_parts(index, &app.tabs[index]).into_iter();
+    parts.filter(|(_, number)| !number).map(|(text, _)| text).collect()
+}
+
+/// Whether the tab bar shows the tab at `index`.
+pub(super) fn shows_tab(app: &App, index: usize) -> bool {
+    has_text(app, &tab_text(app, index))
+}
+
+/// Forget where the shells are, so tabs nothing titled show the configured title, `test`,
+/// until the next tick looks again.
+pub(super) fn forget_directories(app: &mut App) {
+    for shell in app.terminals.values_mut() {
+        shell.working_directory = None;
+    }
 }
 
 #[test]
@@ -369,6 +396,7 @@ fn actions_do_nothing_after_the_last_tab_is_closed() {
 #[test]
 fn titles_follow_the_focused_terminal() {
     let mut app = app();
+    forget_directories(&mut app);
     assert_eq!(app.title(), "test");
 
     let title = |id, title: &str| {
@@ -383,12 +411,67 @@ fn titles_follow_the_focused_terminal() {
     assert_eq!(app.title(), "first");
 
     perform(&mut app, &[AppAction::Split(Axis::Vertical)]);
+    forget_directories(&mut app);
     assert_eq!(app.title(), "test");
     let _ = app.update(title(1, "second"));
     assert_eq!(app.title(), "second");
 
     perform(&mut app, &[AppAction::FocusPane(Direction::Left)]);
     assert_eq!(app.title(), "first");
+}
+
+#[test]
+fn untitled_shells_are_named_after_where_they_are() {
+    let mut app = app();
+    let focused = app.focused_terminal().unwrap();
+    let home = home::home_dir().unwrap();
+    let (user, host) = (status::user_name().unwrap(), status::host_name().unwrap());
+
+    // Until the directory is known, the configured title.
+    app.terminals.get_mut(&focused).unwrap().working_directory = None;
+    assert_eq!(app.tab_title(&app.tabs[0]), "test");
+
+    let shell = app.terminals.get_mut(&focused).unwrap();
+    shell.working_directory = Some(home.join("src"));
+    shell.process = Some("bash".into());
+    assert_eq!(app.tab_title(&app.tabs[0]), format!("{user}@{host}:~/src"));
+    assert_eq!(app.title(), format!("{user}@{host}:~/src"));
+
+    // ssh's local directory says nothing about the remote one.
+    app.terminals.get_mut(&focused).unwrap().process = Some("ssh".into());
+    assert_eq!(app.tab_title(&app.tabs[0]), "test");
+}
+
+#[test]
+fn titles_programs_set_win_over_the_directory() {
+    let mut app = app();
+    let focused = app.focused_terminal().unwrap();
+    let event = AlacrittyEvent::Title("vim".into());
+    let _ = app.update(Message::Terminal(iced_tterm::Event::BackendCall(
+        focused,
+        BackendCommand::ProcessAlacrittyEvent(event),
+    )));
+
+    app.terminals.get_mut(&focused).unwrap().working_directory = Some("/etc".into());
+    assert_eq!(app.tab_title(&app.tabs[0]), "vim");
+}
+
+#[test]
+fn without_dynamic_titles_the_configured_title_stays() {
+    let mut app = app_with("[window]\ndynamic_title = false\n", Hotkeys::default());
+    let focused = app.focused_terminal().unwrap();
+    app.terminals.get_mut(&focused).unwrap().working_directory = Some("/etc".into());
+    assert_eq!(app.tab_title(&app.tabs[0]), "test");
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn directories_and_processes_are_polled_for_the_fallback_title() {
+    let mut app = app();
+    tick_until(&mut app, "the directory and process to be known", |app| {
+        let shell = &app.terminals[&app.focused_terminal().unwrap()];
+        shell.working_directory.is_some() && shell.process.is_some()
+    });
 }
 
 #[test]
@@ -404,18 +487,18 @@ fn background_tabs_show_activity_and_bells() {
     perform(&mut app, &[AppAction::NewTab]);
 
     let _ = app.update(event(0, AlacrittyEvent::Wakeup));
-    assert!(has_text(&app, "1: test *") && !has_text(&app, "1: test"));
+    assert!(tab_text(&app, 0).ends_with(" *") && shows_tab(&app, 0));
     let _ = app.update(event(0, AlacrittyEvent::Bell));
-    assert!(has_text(&app, "1: test !"));
+    assert!(tab_text(&app, 0).ends_with(" !") && shows_tab(&app, 0));
 
     // Output of the tab that is shown isn't pointed out.
     let _ = app.update(event(1, AlacrittyEvent::Wakeup));
     let _ = app.update(event(1, AlacrittyEvent::Bell));
-    assert!(has_text(&app, "2: test"));
+    assert!(!tab_text(&app, 1).ends_with(['*', '!']) && shows_tab(&app, 1));
 
     // Showing a tab clears its markers.
     perform(&mut app, &[AppAction::SelectTab(0)]);
-    assert!(has_text(&app, "1: test") && has_text(&app, "2: test"));
+    assert!(!tab_text(&app, 0).ends_with(['*', '!']) && shows_tab(&app, 0) && shows_tab(&app, 1));
 }
 
 #[test]
@@ -446,7 +529,7 @@ fn tabs_and_panes_are_restored_from_the_session_file() {
     // The first prompt of a restored shell isn't activity.
     let wakeup = BackendCommand::ProcessAlacrittyEvent(AlacrittyEvent::Wakeup);
     let _ = app.update(Message::Terminal(iced_tterm::Event::BackendCall(3, wakeup)));
-    assert!(has_text(&app, "2: test"));
+    assert!(!tab_text(&app, 1).ends_with(['*', '!']) && shows_tab(&app, 1));
 
     // Closing the window's last tab leaves that tab to come back to.
     perform(&mut app, &[AppAction::CloseTab, AppAction::CloseTab]);
@@ -1019,12 +1102,12 @@ fn finished_commands_are_pointed_out_unless_looked_at() {
     // A command finishes in the tab that isn't shown.
     run_to_the_end(&mut app, 0);
     assert!(app.terminals[&0].attention);
-    assert!(has_text(&app, "1: test !"));
+    assert!(tab_text(&app, 0).ends_with(" !") && shows_tab(&app, 0));
 
     // Looking at it is enough.
     perform(&mut app, &[AppAction::SelectTab(0)]);
     assert!(!app.terminals[&0].attention);
-    assert!(has_text(&app, "1: test"));
+    assert!(!tab_text(&app, 0).ends_with(['*', '!']) && shows_tab(&app, 0));
 
     // What finishes in front of the user isn't pointed out.
     run_to_the_end(&mut app, 0);
@@ -1034,7 +1117,7 @@ fn finished_commands_are_pointed_out_unless_looked_at() {
     perform(&mut app, &[AppAction::Split(Axis::Vertical)]);
     run_to_the_end(&mut app, 0);
     assert!(app.terminals[&0].attention && !app.terminals[&2].attention);
-    assert!(has_text(&app, "1: test !"));
+    assert!(tab_text(&app, 0).ends_with(" !") && shows_tab(&app, 0));
     perform(&mut app, &[AppAction::FocusPane(Direction::Left)]);
     assert!(!app.terminals[&0].attention);
 
@@ -1181,7 +1264,9 @@ fn directories_are_looked_up_with_the_ticks_for_the_session_file() {
     assert_eq!(Session::load(&file), Some(app.session()));
 
     // Without a session file there is nothing to look the directories up for.
-    let mut app = app_with(INTERACTIVE_SHELL, Hotkeys::default());
+    // Nor for the tab titles, without dynamic titles.
+    let config = format!("[window]\ndynamic_title = false\n{INTERACTIVE_SHELL}");
+    let mut app = app_with(&config, Hotkeys::default());
     change_directory(&mut app, 0, &path);
     let _ = app.update(Message::Tick);
     assert_ne!(saved(&app), Some(path));
@@ -1221,26 +1306,26 @@ fn restored_panes_start_in_their_directories() {
 #[test]
 fn tab_bar_is_shown_with_more_than_one_tab() {
     let mut app = app();
-    assert!(!has_text(&app, "1: test"));
+    assert!(!shows_tab(&app, 0));
 
     perform(&mut app, &[AppAction::NewTab]);
-    assert!(has_text(&app, "1: test") && has_text(&app, "2: test"));
+    assert!(shows_tab(&app, 0) && shows_tab(&app, 1));
 
     perform(&mut app, &[AppAction::CloseTab]);
-    assert!(!has_text(&app, "1: test"));
+    assert!(!shows_tab(&app, 0));
 }
 
 #[test]
 fn tab_bar_visibility_is_configurable() {
     let mut always =
         app_with("[tabs]\nshow = \"Always\"\nposition = \"Bottom\"\n", Hotkeys::default());
-    assert!(has_text(&always, "1: test"));
+    assert!(shows_tab(&always, 0));
     perform(&mut always, &[AppAction::NewTab]);
-    assert!(has_text(&always, "2: test"));
+    assert!(shows_tab(&always, 1));
 
     let mut never = app_with("[tabs]\nshow = \"Never\"\n", Hotkeys::default());
     perform(&mut never, &[AppAction::NewTab]);
-    assert!(!has_text(&never, "1: test"));
+    assert!(!shows_tab(&never, 0));
 }
 
 #[test]
@@ -1248,21 +1333,11 @@ fn tab_bar_buttons_select_close_and_add_tabs() {
     let mut app = app();
     perform(&mut app, &[AppAction::NewTab]);
 
-    let click = |app: &App, text: &str| {
-        let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
-        ui.click(text).unwrap();
-        // The terminal also publishes its size when it is laid out.
-        ui.into_messages()
-            .filter(|message| !matches!(message, Message::Terminal(_)))
-            .collect::<Vec<_>>()
-    };
-
-    let messages = click(&app, "1: test");
+    let messages = click_on(&app, tab_text(&app, 0));
     assert!(matches!(messages[..], [Message::Action(AppAction::SelectTab(0))]));
-    let messages = click(&app, "+");
+    let messages = click_on(&app, icons::id(Icon::Plus));
     assert!(matches!(messages[..], [Message::Action(AppAction::NewTab)]));
-    // Both tabs have a close button; the first one found belongs to the first tab.
-    let messages = click(&app, "\u{d7}");
+    let messages = click_on(&app, icons::close_tab_id(0));
     assert!(matches!(messages[..], [Message::CloseTab(0)]));
 }
 
@@ -1276,7 +1351,7 @@ fn hovered_tabs_handle_a_click_once() {
     perform(&mut app, &[AppAction::NewTab, AppAction::NewTab]);
 
     let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
-    let tab = ui.find("2: test").unwrap();
+    let tab = ui.find(tab_text(&app, 1)).unwrap();
     ui.point_at(iced_test::selector::Bounded::visible_bounds(&tab).unwrap().center());
     ui.simulate([
         iced::Event::Mouse(MouseEvent::ButtonPressed(Button::Middle)),
@@ -1336,15 +1411,18 @@ fn status_segments_show_while_they_have_something_to_show() {
 fn tab_titles_follow_the_title_format() {
     let mut app = app();
     perform(&mut app, &[AppAction::Split(Axis::Vertical), AppAction::NewTab]);
+    forget_directories(&mut app);
 
     // The default shows the position, the title and the markers.
-    assert_eq!(app.tab_label(0, &app.tabs[0]), "1: test");
+    assert_eq!(app.tab_label(0, &app.tabs[0]), "1  test");
+    let parts = app.tab_label_parts(0, &app.tabs[0]);
+    assert_eq!(parts, [("1".into(), true), ("  test".into(), false)]);
     app.tabs[0].activity = true;
-    assert_eq!(app.tab_label(0, &app.tabs[0]), "1: test *");
+    assert_eq!(app.tab_label(0, &app.tabs[0]), "1  test *");
     perform(&mut app, &[AppAction::SelectTab(0), AppAction::ToggleZoom]);
-    assert_eq!(app.tab_label(0, &app.tabs[0]), "1: test Z");
+    assert_eq!(app.tab_label(0, &app.tabs[0]), "1  test Z");
     app.terminals.get_mut(&0).unwrap().attention = true;
-    assert_eq!(app.tab_label(0, &app.tabs[0]), "1: test Z !");
+    assert_eq!(app.tab_label(0, &app.tabs[0]), "1  test Z !");
 
     let config = "[tabs]\nshow = \"Always\"\ntitle = \"{{{index}}} {process}@{cwd} [{panes}] \
                   {path} {nope}\"\n";
@@ -1355,7 +1433,12 @@ fn tab_titles_follow_the_title_format() {
     shell.working_directory = Some("/srv/www".into());
     shell.process = Some("vim".into());
     assert_eq!(app.tab_label(0, &app.tabs[0]), "{1} vim@www [2] /srv/www {nope}");
-    assert!(has_text(&app, "{1} vim@www [2] /srv/www {nope}"));
+    // The number is drawn on its own, between the rest.
+    assert!(
+        has_text(&app, "{")
+            && has_text(&app, "1")
+            && has_text(&app, "} vim@www [2] /srv/www {nope}")
+    );
 
     // What can't be told is left empty.
     let shell = app.terminals.get_mut(&focused).unwrap();
@@ -1367,7 +1450,8 @@ fn tab_titles_follow_the_title_format() {
 #[cfg(target_os = "linux")]
 #[test]
 fn process_names_are_looked_at_with_the_ticks_while_the_title_shows_them() {
-    let mut app = app();
+    // Without dynamic titles, which fall back to where the shells are unless they run `ssh`.
+    let mut app = app_with("[window]\ndynamic_title = false\n", Hotkeys::default());
     let _ = app.update(Message::Tick);
     assert_eq!(app.terminals[&0].process, None);
 
@@ -1499,7 +1583,7 @@ fn status_segments_go_to_either_end_of_the_tab_bar() {
         let found = ui.find(text).unwrap();
         iced_test::selector::Bounded::visible_bounds(&found).unwrap().x
     };
-    let (left, tab, right) = (x("left of the tabs"), x("1: test"), x("right of the tabs"));
+    let (left, tab, right) = (x("left of the tabs"), x(&tab_text(&app, 0)), x("right of the tabs"));
     assert!(left < tab && tab < right, "{left} {tab} {right}");
 }
 
@@ -1681,12 +1765,13 @@ fn tabs_share_the_bar_evenly_up_to_the_widest_tab() {
     // Where the button after the tabs starts, in a window 800 wide.
     let new_tab_button = |app: &App| {
         let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
-        let plus = ui.find("+").unwrap();
+        let plus = ui.find(icons::id(Icon::Plus)).unwrap();
         iced_test::selector::Bounded::visible_bounds(&plus).unwrap().x
     };
 
     // A few tabs are as wide as a tab gets, and leave the rest of the bar empty.
-    let mut app = app_with("[tabs]\nshow = \"Always\"\n", Hotkeys::default());
+    let config = "[tabs]\nshow = \"Always\"\nwidth = \"Shared\"\n";
+    let mut app = app_with(config, Hotkeys::default());
     let one = new_tab_button(&app);
     assert!((MAX_TAB_WIDTH..MAX_TAB_WIDTH + 20.).contains(&one), "{one}");
     perform(&mut app, &[AppAction::NewTab]);
@@ -1699,11 +1784,65 @@ fn tabs_share_the_bar_evenly_up_to_the_widest_tab() {
     assert!((600. ..800.).contains(&crowded), "{crowded}");
 }
 
-/// Where the text `text` starts in the window, 800 wide.
-fn text_x(app: &App, text: &str) -> f32 {
+#[test]
+fn tabs_are_as_wide_as_their_titles_by_default() {
+    let mut app = app();
+    perform(&mut app, &[AppAction::NewTab]);
+    app.tabs[0].title = Some("a".into());
+    app.tabs[1].title = Some("a much longer title".into());
+
+    let (first, second) = (text_x(&app, tab_text(&app, 0)), text_x(&app, tab_text(&app, 1)));
+    let plus = text_x(&app, icons::id(Icon::Plus));
+    let (first, second) = (second - first, plus - second);
+    assert!(first < second && first < 100., "{first} {second}");
+    assert!(second < MAX_TAB_WIDTH, "{second}");
+
+    // The whole title shows.
+    let label = tab_text(&app, 1);
     let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
-    let found = ui.find(text).unwrap();
+    let shown = iced_test::selector::Bounded::visible_bounds(&ui.find(label.as_str()).unwrap());
+    let cell = app.settings.font.cell_size().width;
+    let shown = shown.unwrap().width;
+    assert!(shown >= label.chars().count() as f32 * cell - 1., "{shown} {cell}");
+}
+
+#[test]
+fn long_titles_and_crowded_bars_keep_the_buttons_on_the_bar() {
+    let mut app = app_with("[tabs]\nshow = \"Always\"\n", Hotkeys::default());
+    app.tabs[0].title = Some("x".repeat(200));
+    let tab = text_x(&app, icons::id(Icon::Plus)) - text_x(&app, tab_text(&app, 0));
+    assert!(tab <= MAX_TAB_WIDTH + 2., "{tab}");
+
+    // Twelve tabs share the bar, and the button after them stays on it.
+    perform(&mut app, &vec![AppAction::NewTab; 11]);
+    let plus = text_x(&app, icons::id(Icon::Plus));
+    assert!(plus < 790., "{plus}");
+    let step = text_x(&app, tab_text(&app, 11)) - text_x(&app, tab_text(&app, 10));
+    assert!(step < 800. / 12., "{step}");
+}
+
+/// Where what `selector` finds, like a text or a drawn icon's ID, starts in the window, 800
+/// wide.
+pub(super) fn text_x<S>(app: &App, selector: S) -> f32
+where
+    S: iced_test::selector::Selector + Send,
+    S::Output: iced_test::selector::Bounded + Clone + Send,
+{
+    let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
+    let found = ui.find(selector).unwrap();
     iced_test::selector::Bounded::visible_bounds(&found).unwrap().x
+}
+
+/// The messages a click on what `selector` finds sends, apart from the terminals'.
+pub(super) fn click_on<S>(app: &App, selector: S) -> Vec<Message>
+where
+    S: iced_test::selector::Selector + Send,
+    S::Output: iced_test::selector::Bounded + Clone + Send + Sync + 'static,
+{
+    let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
+    ui.click(selector).unwrap();
+    // The terminal also publishes its size when it is laid out.
+    ui.into_messages().filter(|message| !matches!(message, Message::Terminal(_))).collect()
 }
 
 #[test]
@@ -1713,13 +1852,16 @@ fn tab_widths_are_in_cells() {
     let mut app = app_with(config, Hotkeys::default());
     let cell = app.settings.font.cell_size().width;
 
-    // The shown tab is 20 cells wide, then a pixel, then the new tab button's padding.
-    let plus = text_x(&app, "+");
-    assert!((plus - (20. * cell).floor() - 1. - 8.).abs() < 1., "{plus} {cell}");
+    // The shown tab is 20 cells wide, then a pixel, then the new tab button's padding, and its
+    // icon is centered in a square as wide as the font is high.
+    let size = app.settings.font.size;
+    let centered = (size - (size * 0.75).round()) / 2.;
+    let plus = text_x(&app, icons::id(Icon::Plus)) - centered;
+    assert!((plus - (20. * cell).floor() - 1. - 14.).abs() < 1., "{plus} {cell}");
 
     // The second tab is shown, and the first is 10 cells wide.
     perform(&mut app, &[AppAction::NewTab]);
-    let second = text_x(&app, "2: test") - text_x(&app, "1: test");
+    let second = text_x(&app, tab_text(&app, 1)) - text_x(&app, tab_text(&app, 0));
     assert!((second - (10. * cell).floor() - 1.).abs() < 1., "{second} {cell}");
 }
 
@@ -1731,12 +1873,103 @@ fn tabs_with_a_width_keep_it_in_a_crowded_bar() {
     perform(&mut app, &[AppAction::SelectTab(0)]);
     let cell = app.settings.font.cell_size().width;
 
-    let shown = text_x(&app, "2: test") - text_x(&app, "1: test");
+    let shown = text_x(&app, tab_text(&app, 1)) - text_x(&app, tab_text(&app, 0));
     assert!((shown - (30. * cell).floor() - 1.).abs() < 1., "{shown} {cell}");
 
     // The other tabs share what is left.
-    let other = text_x(&app, "3: test") - text_x(&app, "2: test");
+    let other = text_x(&app, tab_text(&app, 2)) - text_x(&app, tab_text(&app, 1));
     assert!(other < shown / 2., "{other} {shown}");
+}
+
+/// Whether two applications draw the same picture with the mouse at `at`, if anywhere.
+fn same_picture_at(one: &App, other: &App, at: Option<(f32, f32)>) -> bool {
+    let window = Size::new(800., 400.);
+    let directory = tempfile::tempdir().unwrap();
+    let picture = directory.path().join("picture");
+    let snapshot = |app: &App| {
+        let mut ui = Simulator::with_size(Default::default(), window, app.view());
+        if let Some(at) = at {
+            ui.point_at(at);
+        }
+        ui.snapshot(&Theme::Dark).unwrap()
+    };
+
+    // The first picture is kept as what the second one is compared with.
+    assert!(snapshot(one).matches_hash(&picture).unwrap());
+    snapshot(other).matches_hash(&picture).unwrap()
+}
+
+/// Where the close button of the first tab is, in a bar that shows it.
+fn close_button_center(app: &App) -> iced::Point {
+    let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
+    let close = ui.find(icons::close_tab_id(0)).unwrap();
+    iced_test::selector::Bounded::visible_bounds(&close).unwrap().center()
+}
+
+#[test]
+fn close_buttons_show_under_the_mouse() {
+    let hover = app_with("[tabs]\nshow = \"Always\"\n", Hotkeys::default());
+    let always =
+        app_with("[tabs]\nshow = \"Always\"\nclose_button = \"Always\"\n", Hotkeys::default());
+
+    // The room for the close button is kept.
+    assert_eq!(text_x(&hover, icons::id(Icon::Plus)), text_x(&always, icons::id(Icon::Plus)));
+
+    // It is only drawn under the mouse.
+    let close = close_button_center(&always);
+    assert!(!same_picture_at(&hover, &always, None));
+    assert!(same_picture_at(&hover, &always, Some((close.x, close.y))));
+}
+
+#[test]
+fn a_hidden_close_button_closes_its_tab_with_one_click() {
+    let mut app = app_with("[tabs]\nshow = \"Always\"\n", Hotkeys::default());
+    perform(&mut app, &[AppAction::NewTab]);
+    let mut always =
+        app_with("[tabs]\nshow = \"Always\"\nclose_button = \"Always\"\n", Hotkeys::default());
+    perform(&mut always, &[AppAction::NewTab]);
+    let close = close_button_center(&always);
+
+    let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
+    ui.point_at(close);
+    ui.simulate(simulator::click());
+    let messages: Vec<_> =
+        ui.into_messages().filter(|message| !matches!(message, Message::Terminal(_))).collect();
+    assert!(matches!(messages[..], [Message::CloseTab(0)]), "{messages:?}");
+}
+
+#[test]
+fn close_buttons_can_be_left_out() {
+    use iced::mouse::{Button, Event as MouseEvent};
+
+    let hover = app_with("[tabs]\nshow = \"Always\"\n", Hotkeys::default());
+    let never =
+        app_with("[tabs]\nshow = \"Always\"\nclose_button = \"Never\"\n", Hotkeys::default());
+    assert!(text_x(&never, icons::id(Icon::Plus)) < text_x(&hover, icons::id(Icon::Plus)));
+
+    // Nothing along the tab closes it, but a middle click still does.
+    let start = text_x(&never, tab_text(&never, 0));
+    let end = text_x(&never, icons::id(Icon::Plus));
+    let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), never.view());
+    let y = iced_test::selector::Bounded::visible_bounds(&ui.find(tab_text(&never, 0)).unwrap())
+        .unwrap()
+        .center_y();
+    let mut x = start;
+    while x < end - 2. {
+        ui.point_at((x, y));
+        ui.simulate(simulator::click());
+        x += 2.;
+    }
+    let messages: Vec<_> = ui.into_messages().collect();
+    assert!(!messages.iter().any(|message| matches!(message, Message::CloseTab(_))));
+
+    let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), never.view());
+    ui.point_at((start + 4., y));
+    ui.simulate([
+        iced::Event::Mouse(MouseEvent::ButtonPressed(Button::Middle)),
+        iced::Event::Mouse(MouseEvent::ButtonReleased(Button::Middle)),
+    ]);
+    assert!(ui.into_messages().any(|message| matches!(message, Message::CloseTab(0))));
 }
 
 #[test]
@@ -1761,19 +1994,21 @@ fn bordered_tabs_and_buttons_take_clicks() {
                 .filter(|message| !matches!(message, Message::Terminal(_)))
                 .collect::<Vec<_>>()
         };
-        assert!(matches!(click("1: test")[..], [Message::Action(AppAction::SelectTab(0))]));
-        assert!(matches!(click("+")[..], [Message::Action(AppAction::NewTab)]));
-        assert!(matches!(click("\u{d7}")[..], [Message::CloseTab(0)]));
+        let first = tab_text(&app, 0);
+        assert!(matches!(click(&first)[..], [Message::Action(AppAction::SelectTab(0))]));
+        let plus = click_on(&app, icons::id(Icon::Plus));
+        assert!(matches!(plus[..], [Message::Action(AppAction::NewTab)]));
+        assert!(matches!(click_on(&app, icons::close_tab_id(0))[..], [Message::CloseTab(0)]));
     }
 }
 
 #[test]
 fn gap_is_the_space_between_tabs() {
-    let config = "[tabs]\nshow = \"Always\"\n[style.tab_bar]\ngap = 12\n";
+    let config = "[tabs]\nshow = \"Always\"\nwidth = \"Shared\"\n[style.tab_bar]\ngap = 12\n";
     let mut app = app_with(config, Hotkeys::default());
     perform(&mut app, &[AppAction::NewTab]);
 
-    let step = text_x(&app, "2: test") - text_x(&app, "1: test");
+    let step = text_x(&app, tab_text(&app, 1)) - text_x(&app, tab_text(&app, 0));
     assert!((step - MAX_TAB_WIDTH - 12.).abs() < 1., "{step}");
 }
 

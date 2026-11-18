@@ -14,8 +14,8 @@ use iced_winit::runtime;
 
 use super::reload_tests::same_picture;
 use super::tab_tests::{
-    app_with, handle_until, key, perform, type_keys, wait_for_terminal, wait_for_text, wait_until,
-    wakeup,
+    app_with, handle_until, key, perform, tab_text, type_keys, wait_for_terminal, wait_for_text,
+    wait_until, wakeup,
 };
 use super::*;
 use crate::config::UiConfig;
@@ -988,6 +988,28 @@ fn window_opacity_makes_the_background_transparent() {
 }
 
 #[test]
+fn the_tab_bar_is_as_see_through_as_the_terminal() {
+    use iced::Background;
+
+    let app = app_with_background("#c02020", 0.5);
+    assert_eq!(app.bar_background().a, 0.5);
+    assert_eq!(app_with_background("#c02020", 1.).bar_background().a, 1.);
+
+    // Tabs on the bar let it show through; a background someone sets is solid.
+    let [tabs, _] = app.options.layout.tab_bar;
+    assert_eq!(super::view::fill(&tabs.inactive), None);
+    let Some(Background::Color(lift)) = super::view::fill(&tabs.active) else { panic!() };
+    assert!((lift.a - 0.05).abs() < 1e-6, "{lift:?}");
+
+    let mut config = UiConfig::default();
+    config.style = toml::from_str("[tab_inactive]\nbackground = '#123456'\n").unwrap();
+    config.style.resolve(&config.colors);
+    let tabs = config.style.resolved().tab_bar(true);
+    let Some(Background::Color(solid)) = super::view::fill(&tabs.inactive) else { panic!() };
+    assert_eq!(solid, Color::from_rgb8(0x12, 0x34, 0x56));
+}
+
+#[test]
 fn window_is_only_cleared_to_a_color_when_it_is_opaque() {
     let transparent = app_with_background("#c02020", 0.5);
     assert_eq!(transparent.style(&Theme::Dark).background_color, Color::TRANSPARENT);
@@ -1005,7 +1027,7 @@ const FRAMELESS: &str = "[window]\ndecorations = \"None\"\n";
 /// The middle of the tab bar from top to bottom, in a window of 800 by 400.
 fn tab_bar_middle(app: &App) -> f32 {
     let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
-    let tab = ui.find("1: test").unwrap();
+    let tab = ui.find(tab_text(app, 0)).unwrap();
     iced_test::selector::Bounded::visible_bounds(&tab).unwrap().center_y()
 }
 
@@ -1013,7 +1035,7 @@ fn tab_bar_middle(app: &App) -> f32 {
 fn actions_along_the_tab_bar(app: &App, from_left: bool) -> Vec<AppAction> {
     let y = tab_bar_middle(app);
     let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
-    for step in 0..60 {
+    for step in 0..150 {
         let x = 2. * step as f32 + 1.;
         ui.point_at((if from_left { x } else { 800. - x }, y));
         ui.simulate(iced_test::simulator::click());
@@ -1052,11 +1074,28 @@ fn the_tab_bar_of_a_frameless_window_has_the_window_buttons() {
 }
 
 #[test]
+fn the_gear_sits_apart_from_the_window_buttons() {
+    use super::icons::{Icon, id};
+
+    let app = app_with(FRAMELESS, Hotkeys::default());
+    let bounds = |icon| {
+        let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
+        iced_test::selector::Bounded::visible_bounds(&ui.find(id(icon)).unwrap()).unwrap()
+    };
+    let (gear, minimize) = (bounds(Icon::Gear), bounds(Icon::Minimize));
+    assert!(minimize.x - (gear.x + gear.width) >= 2. * minimize.width, "{gear:?} {minimize:?}");
+
+    // With the window buttons on the left, the gear is the last thing on the right.
+    let left = app_with(&format!("{FRAMELESS}buttons = \"Left\"\n"), Hotkeys::default());
+    assert_eq!(actions_along_the_tab_bar(&left, false)[0], AppAction::OpenConfig);
+}
+
+#[test]
 fn the_tab_bar_is_the_title_bar_only_without_the_system_one() {
     let shown = |config: &str| {
         let app = app_with(config, Hotkeys::default());
         let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
-        ui.find("1: test").is_ok()
+        ui.find(tab_text(&app, 0)).is_ok()
     };
 
     // One tab, so the tab bar is only shown as the title bar.
@@ -1126,7 +1165,7 @@ fn double_clicking_the_tab_bar_maximizes_the_window() {
 
     // Clicks on a tab are the tab's.
     let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
-    ui.click("1: test").unwrap();
+    ui.click(tab_text(&app, 0)).unwrap();
     let messages: Vec<_> =
         ui.into_messages().filter(|message| !matches!(message, Message::Terminal(_))).collect();
     assert!(matches!(messages[..], [Message::Action(AppAction::SelectTab(0))]), "{messages:?}");
@@ -1228,6 +1267,33 @@ fn right_clicking_the_tab_bar_opens_the_window_menu() {
 }
 
 #[test]
+fn clicking_the_app_icon_opens_the_window_menu_without_moving_the_window() {
+    use crate::title_buttons::TitleButton::Menu;
+
+    let app = app_with(FRAMELESS, Hotkeys::default());
+    assert_eq!(app.title_buttons().unwrap().left, [Menu]);
+    let y = tab_bar_middle(&app);
+
+    // A click and a double click on the icon at the left end.
+    let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
+    let icon = ui.find(super::icons::app_icon_id()).unwrap();
+    let icon = iced_test::selector::Bounded::visible_bounds(&icon).unwrap();
+    assert!(icon.x < 20. && (icon.center_y() - y).abs() < 2., "{icon:?}");
+    ui.point_at(icon.center());
+    ui.simulate(iced_test::simulator::click());
+    ui.simulate(iced_test::simulator::click());
+
+    // The menu is asked for once a press, also when the presses make a double click.
+    let messages: Vec<_> = ui.into_messages().collect();
+    let menus = messages.iter().filter(|message| matches!(message, Message::TitleBarMenu));
+    assert_eq!(menus.count(), 2, "{messages:?}");
+    assert!(!messages.iter().any(|message| matches!(
+        message,
+        Message::TitleBarPressed | Message::TitleBarDoubleClicked
+    )));
+}
+
+#[test]
 fn the_window_buttons_can_be_at_both_ends() {
     use crate::title_buttons::TitleButton::{Close, Maximize, Minimize};
     use crate::title_buttons::TitleButtons;
@@ -1252,7 +1318,7 @@ fn the_window_buttons_can_be_at_both_ends() {
     assert_eq!(actions_along_the_tab_bar(&app, false)[0], AppAction::OpenConfig);
     assert!(
         Simulator::with_size(Default::default(), Size::new(800., 400.), app.view())
-            .find("1: test")
+            .find(tab_text(&app, 0))
             .is_ok()
     );
 }

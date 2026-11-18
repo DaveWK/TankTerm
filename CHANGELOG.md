@@ -154,6 +154,26 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 
 ### Changed
 
+- `window.decorations` defaults to `None`: the tab bar is the window's title bar, shown even with
+    one tab and whatever `tabs.show` says; `decorations = "Full"` brings back the system's title
+    bar, and with it `tabs.show = "Multiple"` and `"Never"`
+- A tab bar that is the title bar has TankTerm's icon at its left end, or where KDE's or GNOME's
+    button layout puts the window menu; clicking it opens the window menu
+- The tab bar's `+`, gear, window buttons and close buttons are drawn as thin line icons
+    instead of font glyphs, and the gear keeps a gap from the window buttons after it
+- The tab bar is restyled: it has the terminal's background and is as see-through as the
+    terminals, the shown tab is lifted off the bar a little with a line along its top, other
+    tabs and buttons have no background of their own, and the bar is taller (`padding = [9, 14]`)
+- A hovered tab or button is drawn in place of the normal one rather than over it
+- The default `tabs.title` is `"{index}  {title}{zoom}{marker}"`, without the colon, and the
+    tab's number is drawn faint, in the new `[style.tab_index]`
+- A tab shows its close button only while the mouse is over it; `tabs.close_button = "Always"`
+    brings back one on every tab, and `"Never"` leaves it out
+- Tabs are as wide as their titles, up to 240 pixels, instead of sharing the bar evenly;
+    `tabs.width = "Shared"` brings that back
+- A tab whose programs set no title is named after where its shell is, as `user@host:path`,
+    instead of `TankTerm`, while `window.dynamic_title` is on; this is also the window title and
+    the `title` and `tab_title` of `tankTerm msg list`
 - Logs follow Charm's log layout (`<time> <LEVEL> <prefix>: <message>`), styled on a terminal unless
     `NO_COLOR` is set, with JSON and logfmt output through `TANKTERM_LOG_FORMAT`
 - Default config location is now `tankterm/tankterm.toml`; `alacritty` config locations are no

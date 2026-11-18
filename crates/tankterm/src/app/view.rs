@@ -6,19 +6,22 @@ use iced::mouse::Interaction;
 use iced::widget::pane_grid::{self, PaneGrid};
 use iced::widget::text::{Rich, Wrapping};
 use iced::widget::{
-    Space, button, column, container, hover, keyed_column, mouse_area, row, span, stack, text,
+    Space, button, column, container, keyed_column, mouse_area, row, span, stack, text,
 };
 use iced::window::Direction;
-use iced::{Border, Color, Element, Font, Length, Padding};
+use iced::{Background, Border, Color, Element, Font, Length, Padding};
 use iced_tterm::TerminalView;
+use unicode_width::UnicodeWidthStr;
 
+use super::hover_swap::HoverSwap;
+use super::icons::{self, Icon, close_tab_id};
 use super::tab_border::{BoxBorder, bordered};
 use super::tab_strip::{TabStrip, TabWidth};
 use super::{App, Layout, MAX_TAB_WIDTH, Message, Shell, TitleDrag};
 use crate::color::Rgb;
 use crate::config::BindingMode;
-use crate::config::style::TabStyle;
-use crate::config::tabs::{ShowTabs, Side, TabsPosition};
+use crate::config::style::{Fill, TabStyle};
+use crate::config::tabs::{CloseButton, ShowTabs, Side, TabSizing, TabsPosition};
 use crate::config::window::Spacing;
 use crate::hotkeys::{AppAction, KeyFilter, PANE_LABELS};
 use crate::palette::{self, blend, paste_warning};
@@ -206,7 +209,8 @@ impl App {
                 .panes
                 .iter()
                 .any(|(_, id)| self.terminals.get(id).is_some_and(|shell| shell.attention));
-            let title = self.tab_label(index, tab);
+            let parts = self.tab_label_parts(index, tab);
+            let title: String = parts.iter().map(|(text, _)| text.as_str()).collect();
 
             let style = if index == self.active { styles.active } else { styles.inactive };
             let style = match (attention, tab.activity) {
@@ -215,15 +219,29 @@ impl App {
                 (false, false) => style,
             };
 
-            let view = |style: TabStyle, height: Length| -> Element<'_, Message> {
+            // The close button is drawn while `show_close` is set. With `Hover`, a tab not under
+            // the mouse keeps its room, so the tab doesn't change width under the mouse.
+            let close_button = self.options.tabs.close_button;
+            let view = |style: TabStyle,
+                        height: Length,
+                        show_close: bool|
+             -> Element<'_, Message> {
                 let (foreground, _) = style.colors();
-                let title = container(label(title.clone(), &style, font, size)).clip(true);
-                let close = button(text("\u{d7}").font(font).size(size).color(color(foreground)))
-                    .padding(Padding::ZERO.left(8))
-                    .style(|_, _| button::Style::default())
-                    .on_press(Message::CloseTab(index));
+                // The tab's number is drawn in the `tab_index` style, the rest in the tab's.
+                let index_style = style.with(&styles.index);
+                let parts = parts.iter().map(|(text, number)| {
+                    label(text.clone(), if *number { &index_style } else { &style }, font, size)
+                });
+                let title = container(row(parts)).clip(true);
+                let close = (close_button != CloseButton::Never).then(|| {
+                    let glyph = if show_close { color(foreground) } else { Color::TRANSPARENT };
+                    button(icons::icon(Icon::Close, close_size(size), glyph, close_tab_id(index)))
+                        .padding(Padding::ZERO.left(CLOSE_PADDING))
+                        .style(|_, _| button::Style::default())
+                        .on_press_maybe(show_close.then_some(Message::CloseTab(index)))
+                });
 
-                let content = row![title.width(Length::Fill), close].align_y(Vertical::Center);
+                let content = row![title.width(Length::Fill)].push(close).align_y(Vertical::Center);
                 let select = button(content)
                     .padding(padding(style.padding))
                     .width(Length::Fill)
@@ -236,8 +254,9 @@ impl App {
                     .on_middle_press(Message::CloseTab(index))
                     .into()
             };
-            let hovered = view(style.with(&styles.hovered), Length::Fill);
-            let tab = container(hoverable(view(style, Length::Shrink), hovered))
+            let hovered = view(style.with(&styles.hovered), Length::Fill, true);
+            let normal = view(style, Length::Shrink, close_button == CloseButton::Always);
+            let tab = container(hoverable(normal, hovered))
                 .padding(padding(style.margin))
                 .width(Length::Fill);
 
@@ -245,11 +264,24 @@ impl App {
             // tab out with it. A `max_width` narrower than the `width` wins.
             let margin = f32::from(style.margin.left + style.margin.right);
             let max_width = cells(style.max_width);
+            let max = max_width.map_or(MAX_TAB_WIDTH, |width| width + margin);
             let fixed = cells(style.width).map(|width| max_width.unwrap_or(width).min(width));
-            let width = TabWidth {
-                fixed: fixed.map(|width| width + margin),
-                max: max_width.map_or(MAX_TAB_WIDTH, |width| width + margin),
-            };
+            // A tab as wide as its title: the title, in cells of the terminal's font, its
+            // padding and the close button, a cell and its padding, while there is one.
+            let fitted = (self.options.tabs.width == TabSizing::Title).then(|| {
+                let cell = *cell.get_or_init(|| self.settings.font.cell_size().width);
+                let close = match self.options.tabs.close_button {
+                    CloseButton::Never => 0.,
+                    CloseButton::Hover | CloseButton::Always => close_size(size) + CLOSE_PADDING,
+                };
+                let text = title.width() as f32 + 1.;
+                let padding = f32::from(style.padding.left + style.padding.right);
+                (text * cell + padding + close + margin).ceil().min(max)
+            });
+            // A tab as wide as its title is flexible up to that width, so crowded tabs share the
+            // room evenly and tabs with a width of their own keep it.
+            let width =
+                TabWidth { fixed: fixed.map(|width| width + margin), max: fitted.unwrap_or(max) };
             (tab.into(), width)
         });
 
@@ -261,16 +293,11 @@ impl App {
         // gets only the horizontal padding.
         // The window's close button turns red under the mouse.
         let bar_button = |content: &dyn Fn(&TabStyle) -> Element<'static, Message>,
-                          vertical_padding: bool,
                           close: bool,
                           action: AppAction| {
             let view = |style: TabStyle, height: Length| -> Element<'static, Message> {
-                let mut spacing = padding(style.padding);
-                if !vertical_padding {
-                    spacing = spacing.top(0).bottom(0);
-                }
                 let button = button(content(&style))
-                    .padding(spacing)
+                    .padding(padding(style.padding))
                     .height(height)
                     .style(move |_, _| button_style(&style))
                     .on_press(Message::Action(action.clone()));
@@ -285,25 +312,11 @@ impl App {
             container(hoverable(view(style, Length::Shrink), hovered))
                 .padding(padding(style.margin))
         };
-        let new_tab = bar_button(
-            &|style| label("+".into(), style, font, size),
-            true,
-            false,
-            AppAction::NewTab,
-        );
-        // The gear at the right end opens the configuration file. The font draws it small, so
-        // it is larger, in the height the padding leaves the other buttons.
-        let gear = |style: &TabStyle| -> Element<'static, Message> {
-            let height = size * 1.3 + f32::from(style.padding.top + style.padding.bottom);
-            text("\u{2699}")
-                .font(font)
-                .size(size * 1.3)
-                .height(height)
-                .color(color(style.colors().0))
-                .center()
-                .into()
-        };
-        let settings = bar_button(&gear, false, false, AppAction::OpenConfig);
+        let plus = |style: &TabStyle| bar_icon(Icon::Plus, style, size);
+        let new_tab = bar_button(&plus, false, AppAction::NewTab);
+        // The gear opens the configuration file.
+        let gear = |style: &TabStyle| bar_icon(Icon::Gear, style, size);
+        let settings = bar_button(&gear, false, AppAction::OpenConfig);
 
         let tabs = TabStrip::new(tabs, new_tab, styles.bar.gap.into());
         let parts = left.into_iter().chain([tabs.into()]).chain(right).chain([settings.into()]);
@@ -315,20 +328,33 @@ impl App {
         let maximized = self.maximized;
         let group = |buttons: &[TitleButton]| -> Option<Element<'_, Message>> {
             let buttons = buttons.iter().map(|&button| {
+                // The app's icon opens the window menu, and isn't a button: the bar doesn't
+                // take the press, so the window doesn't move.
+                if button == TitleButton::Menu {
+                    let icon = container(icons::app_icon((size * LINE_HEIGHT).round()))
+                        .padding(padding(styles.button.padding));
+                    return mouse_area(icon).on_press(Message::TitleBarMenu).into();
+                }
                 let action = match button {
                     TitleButton::Minimize => AppAction::Minimize,
                     TitleButton::Maximize => AppAction::ToggleMaximized,
                     TitleButton::Close => AppAction::Quit,
+                    TitleButton::Menu => unreachable!("the app's icon isn't a button"),
                 };
-                let icon =
-                    move |style: &TabStyle| window_icon(button, maximized, style, font, size);
-                bar_button(&icon, false, button == TitleButton::Close, action).into()
+                let icon = move |style: &TabStyle| window_icon(button, maximized, style, size);
+                bar_button(&icon, button == TitleButton::Close, action).into()
             });
             let buttons: Vec<Element<'_, Message>> = buttons.collect();
             (!buttons.is_empty()).then(|| row(buttons).spacing(1).align_y(Vertical::Center).into())
         };
         if let Some(TitleButtons { left, right }) = title_bar {
             parts.splice(0..0, group(left));
+            // The gear keeps apart from the window buttons after it, by about two buttons.
+            if !right.is_empty() {
+                let padding = styles.button.padding;
+                let button = size + f32::from(padding.left + padding.right);
+                parts.push(Space::new().width(2. * button).into());
+            }
             parts.extend(group(right));
         }
 
@@ -337,7 +363,7 @@ impl App {
             .width(Length::Fill)
             .padding(padding(bar.padding))
             .style(move |_| container::Style {
-                background: Some(color(bar.colors().1).into()),
+                background: Some(self.bar_background().into()),
                 border: border(&bar),
                 ..Default::default()
             });
@@ -358,6 +384,13 @@ impl App {
             TitleDrag::Released => area.into(),
             _ => area.on_move(Message::TitleBarMoved).into(),
         }
+    }
+
+    /// The color behind the tab bar: its style's background, as see-through as the terminals'.
+    pub(super) fn bar_background(&self) -> Color {
+        let [focused, blurred] = self.options.layout.tab_bar;
+        let bar = if self.window_focused { focused } else { blurred }.bar;
+        Color { a: self.opacity(), ..color(bar.colors().1) }
     }
 
     /// The window buttons of the tab bar, while it is the title bar: in a window opened
@@ -387,7 +420,7 @@ impl App {
             let segment = container(label(content, &style, font, size))
                 .padding(padding(style.padding))
                 .style(move |_| container::Style {
-                    background: Some(color(style.colors().1).into()),
+                    background: fill(&style),
                     border: border(&style),
                     ..Default::default()
                 });
@@ -396,6 +429,12 @@ impl App {
         Some(row(segments).align_y(Vertical::Center).into())
     }
 }
+
+/// Space between a tab's title and its close button.
+const CLOSE_PADDING: f32 = 8.;
+
+/// How high a line of text is, in font sizes: iced's default line height.
+const LINE_HEIGHT: f32 = 1.3;
 
 /// How far from the window's border its edges can be dragged.
 const EDGE: f32 = 5.;
@@ -444,54 +483,37 @@ fn resize_edges<'a>() -> Element<'a, Message> {
     .into()
 }
 
-/// A window button's icon, as high as the gear. The minimize, maximize and restore icons are
-/// drawn rather than taken from the font, so they look the same in every font. The maximize
-/// button of a maximized window shows the restore icon, two overlapping squares.
+/// A window button's icon. The maximize button of a maximized window shows the restore icon,
+/// two overlapping squares.
 fn window_icon(
     button: TitleButton,
     maximized: bool,
     style: &TabStyle,
-    font: Font,
     size: f32,
 ) -> Element<'static, Message> {
-    let (foreground, background) = style.colors();
-    let (foreground, background) = (color(foreground), color(background));
-    let height = size * 1.3 + f32::from(style.padding.top + style.padding.bottom);
-    let side = (size * 0.7).round();
-
-    let drawn = |width: f32, height: f32, filled: bool| {
-        container("").width(width).height(height).style(move |_| container::Style {
-            background: Some(if filled { foreground } else { background }.into()),
-            border: Border {
-                color: foreground,
-                width: if filled { 0. } else { 1. },
-                ..Default::default()
-            },
-            ..Default::default()
-        })
+    let icon = match button {
+        TitleButton::Minimize => Icon::Minimize,
+        TitleButton::Maximize if maximized => Icon::Restore,
+        TitleButton::Maximize => Icon::Maximize,
+        TitleButton::Close => Icon::Close,
+        TitleButton::Menu => unreachable!("the app's icon isn't drawn as a line icon"),
     };
-    let content: Element<'static, Message> = match button {
-        TitleButton::Minimize => drawn(side, 1., true).into(),
-        TitleButton::Maximize if maximized => {
-            // The front square covers the back one where they overlap.
-            let offset = (side * 0.25).round();
-            let square = side - offset;
-            let back = container(drawn(square, square, false)).padding(Padding::ZERO.left(offset));
-            let front = container(drawn(square, square, false)).padding(Padding::ZERO.top(offset));
-            stack![back, front].width(side).height(side).into()
-        },
-        TitleButton::Maximize => drawn(side, side, false).into(),
-        TitleButton::Close => text("\u{d7}")
-            .font(font)
-            .size(size * 1.3)
-            .color(foreground)
-            .wrapping(Wrapping::None)
-            .into(),
-    };
-    container(content).center_x(size).center_y(height).into()
+    bar_icon(icon, style, size)
 }
 
-/// `normal`, drawn as `hovered` while the mouse is over it.
+/// An icon of a button on the bar, in the button's text color, as high as a line of text.
+fn bar_icon(icon: Icon, style: &TabStyle, size: f32) -> Element<'static, Message> {
+    let drawn = icons::icon(icon, (size * 0.75).round(), color(style.colors().0), icons::id(icon));
+    container(drawn).center_x(size).center_y(size * LINE_HEIGHT).into()
+}
+
+/// How wide a tab's close icon is, for a font `size`.
+fn close_size(size: f32) -> f32 {
+    (size * 0.6).round()
+}
+
+/// `normal`, drawn as `hovered` while the mouse is over it, and not under it: parts of the bar
+/// are see-through.
 ///
 /// `hovered` is laid out in the place of `normal`, so it has the same size, and it gets the
 /// mouse first.
@@ -499,7 +521,7 @@ fn hoverable<'a>(
     normal: Element<'a, Message>,
     hovered: Element<'a, Message>,
 ) -> Element<'a, Message> {
-    hover(normal, container(hovered).width(Length::Fill).height(Length::Fill))
+    HoverSwap::new(normal, container(hovered).width(Length::Fill).height(Length::Fill)).into()
 }
 
 /// Text in a tab bar style, on one line.
@@ -529,12 +551,24 @@ fn label<'a>(content: String, style: &TabStyle, font: Font, size: f32) -> Elemen
 
 /// How a button of the tab bar looks in `style`, whatever the mouse does.
 fn button_style(style: &TabStyle) -> button::Style {
-    let (foreground, background) = style.colors();
+    let (foreground, _) = style.colors();
     button::Style {
-        background: Some(color(background).into()),
+        background: fill(style),
         text_color: color(foreground),
         border: border(style),
         ..Default::default()
+    }
+}
+
+/// The background of a part of the tab bar in `style`, if it has one of its own.
+pub(super) fn fill(style: &TabStyle) -> Option<Background> {
+    let (foreground, background) = style.colors();
+    match style.fill {
+        Fill::Color => Some(color(background).into()),
+        Fill::Bar => None,
+        Fill::Lift(percent) => {
+            Some(Color { a: f32::from(percent) / 100., ..color(foreground) }.into())
+        },
     }
 }
 

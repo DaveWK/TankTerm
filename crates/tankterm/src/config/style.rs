@@ -55,6 +55,7 @@ pub struct StyleConfig {
     pub tab_activity: Style,
     pub tab_attention: Style,
     pub tab_status: Style,
+    pub tab_index: Style,
 
     /// Changes to the styles while the window doesn't have focus.
     pub blurred: BlurredStyleConfig,
@@ -88,6 +89,7 @@ pub struct BlurredStyleConfig {
     pub tab_activity: Style,
     pub tab_attention: Style,
     pub tab_status: Style,
+    pub tab_index: Style,
 }
 
 /// Storage for the resolved styles, which can't be set from the configuration itself.
@@ -130,6 +132,7 @@ impl StyleConfig {
                 activity: style(&self.tab_activity),
                 attention: style(&self.tab_attention),
                 status: style(&self.tab_status),
+                index: style(&self.tab_index),
             },
             colors,
         );
@@ -207,6 +210,7 @@ impl StyleConfig {
                 activity: style(&blurred.tab_activity),
                 attention: style(&blurred.tab_attention),
                 status: style(&blurred.tab_status),
+                index: style(&blurred.tab_index),
             },
             colors,
         );
@@ -537,6 +541,20 @@ pub struct TabStyle {
     pub max_width: Option<u16>,
     /// Space between the tabs, in logical pixels.
     pub gap: u16,
+    /// How the background is drawn.
+    pub fill: Fill,
+}
+
+/// How the background of a part of the tab bar is drawn.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Fill {
+    /// In the background color, solid.
+    #[default]
+    Color,
+    /// Not at all: the bar shows through, as see-through as the window.
+    Bar,
+    /// In the text color at this percent of opacity, lifting the part off the bar a little.
+    Lift(u8),
 }
 
 impl TabStyle {
@@ -567,6 +585,11 @@ impl TabStyle {
             width: layer.width.or(self.width),
             max_width: layer.max_width.or(self.max_width),
             gap: layer.gap.unwrap_or(self.gap),
+            // A lift is only drawn where nothing solid is: a background someone set stays.
+            fill: match (layer.fill, self.fill) {
+                (Some(Fill::Lift(_)), Fill::Color) | (None, _) => self.fill,
+                (Some(fill), _) => fill,
+            },
         }
     }
 
@@ -632,6 +655,7 @@ pub struct TabLayer {
     width: Option<u16>,
     max_width: Option<u16>,
     gap: Option<u16>,
+    fill: Option<Fill>,
 }
 
 impl TabLayer {
@@ -668,7 +692,16 @@ impl TabLayer {
             width: style.width,
             max_width: style.max_width,
             gap: style.gap,
+            // A background someone sets is drawn as it is.
+            fill: style.background.map(|_| Fill::Color),
         }
+    }
+
+    /// Whether the layer sets the kind of border or any of its sides.
+    fn sets_border(&self) -> bool {
+        let sides = self.border_sides;
+        self.border.is_some()
+            || [sides.top, sides.right, sides.bottom, sides.left].iter().any(Option::is_some)
     }
 
     /// This layer with the properties `above` sets changed.
@@ -695,6 +728,7 @@ impl TabLayer {
             width: above.width.or(self.width),
             max_width: above.max_width.or(self.max_width),
             gap: above.gap.or(self.gap),
+            fill: above.fill.or(self.fill),
         }
     }
 }
@@ -722,6 +756,7 @@ struct TabBlocks {
     activity: Style,
     attention: Style,
     status: Style,
+    index: Style,
 }
 
 /// Effective styles of the tab bar.
@@ -745,6 +780,8 @@ pub struct TabBarStyles {
     pub attention: TabLayer,
     /// The status segments at the end of the bar.
     pub status: TabStyle,
+    /// Changes to the tab's number, over the rest of the tab's style.
+    pub index: TabLayer,
 }
 
 impl TabBarStyles {
@@ -759,7 +796,7 @@ impl TabBarStyles {
             foreground,
             background,
             attributes: TextAttributes::default(),
-            padding: Spacing::new(3, 8),
+            padding: Spacing::new(9, 14),
             margin: Spacing::default(),
             border: Border::Hidden,
             border_sides: Sides::default(),
@@ -768,27 +805,41 @@ impl TabBarStyles {
             width: None,
             max_width: None,
             gap: 1,
+            fill: Fill::Bar,
         };
-        let bar = TabStyle {
-            background: mix(background, foreground, 0.12),
-            padding: Spacing::default(),
-            ..base
-        }
-        .with(&layer(&blocks.bar));
+        let bar = TabStyle { padding: Spacing::default(), ..base }.with(&layer(&blocks.bar));
 
-        // Tabs and buttons that aren't shown sit on the bar's background.
+        // The shown tab is lifted off the bar a little, with a line in the text color along its
+        // top unless its style draws a border of its own, which then has all four sides unless
+        // it says otherwise, as in Lip Gloss. Tabs and buttons that aren't shown sit on the bar,
+        // with dimmer text.
+        let active = layer(&blocks.active);
+        let shown = match active.sets_border() {
+            true => TabStyle { fill: Fill::Lift(5), ..base },
+            false => TabStyle {
+                fill: Fill::Lift(5),
+                border: Border::Thick,
+                border_sides: Sides { top: Some(true), ..Sides::default() },
+                ..base
+            },
+        };
         let dim = mix(foreground, background, 0.4);
         let on_bar = TabStyle { foreground: dim, background: bar.background, ..base };
         Self {
             bar,
-            active: base.with(&layer(&blocks.active)),
+            active: shown.with(&active),
             inactive: on_bar.with(&layer(&blocks.inactive)),
             button: on_bar.with(&layer(&blocks.button)),
-            hovered: TabLayer { foreground: Some(foreground), ..TabLayer::default() }
-                .below(&layer(&blocks.hovered)),
+            hovered: TabLayer {
+                foreground: Some(foreground),
+                fill: Some(Fill::Lift(8)),
+                ..TabLayer::default()
+            }
+            .below(&layer(&blocks.hovered)),
             close_hovered: TabLayer {
                 foreground: Some(defaults::CLOSE_HOVERED.0),
                 background: Some(defaults::CLOSE_HOVERED.1),
+                fill: Some(Fill::Color),
                 ..TabLayer::default()
             }
             .below(&layer(&blocks.close_hovered)),
@@ -796,6 +847,8 @@ impl TabBarStyles {
             attention: layer(&blocks.attention),
             status: TabStyle { foreground: bar.foreground, background: bar.background, ..base }
                 .with(&layer(&blocks.status)),
+            index: TabLayer { faint: Some(true), ..TabLayer::default() }
+                .below(&layer(&blocks.index)),
         }
     }
 
@@ -812,6 +865,7 @@ impl TabBarStyles {
             activity: self.activity.below(&layer(&blocks.activity)),
             attention: self.attention.below(&layer(&blocks.attention)),
             status: self.status.with(&layer(&blocks.status)),
+            index: self.index.below(&layer(&blocks.index)),
         }
     }
 }
@@ -1169,27 +1223,116 @@ mod tests {
     }
 
     #[test]
-    fn tab_bar_defaults_blend_primary_colors() {
+    fn tab_numbers_are_faint_by_default() {
+        let styles = load("").style.resolved().tab_bar(true);
+        assert!(styles.active.with(&styles.index).attributes.faint);
+        assert!(styles.inactive.with(&styles.index).attributes.faint);
+
+        let config = "[style.tab_index]\nfaint = false\nforeground = '#ff0000'\n";
+        let styles = load(config).style.resolved().tab_bar(true);
+        let index = styles.inactive.with(&styles.index);
+        assert!(!index.attributes.faint);
+        assert_eq!(index.foreground, Rgb::new(0xff, 0, 0));
+
+        let config = "[style.blurred.tab_index]\nbold = true\n";
+        let config = load(config);
+        let styles = config.style.resolved();
+        let bold = |tabs: TabBarStyles| tabs.inactive.with(&tabs.index).attributes.bold;
+        assert!(!bold(styles.tab_bar(true)) && bold(styles.tab_bar(false)));
+    }
+
+    #[test]
+    fn tabs_sit_on_the_bar_with_an_accent_line_on_the_shown_one() {
+        let config = load("");
+        let primary = &config.colors.primary;
+        let tabs = config.style.resolved().tab_bar(true);
+        assert_eq!(tabs.bar.background, primary.background);
+        assert_eq!(tabs.active.fill, Fill::Lift(5));
+        assert_eq!(tabs.inactive.fill, Fill::Bar);
+        assert_eq!(tabs.button.fill, Fill::Bar);
+        assert_eq!(tabs.status.fill, Fill::Bar);
+        assert_eq!(tabs.active.border, Border::Thick);
+        assert_eq!(tabs.active.border_sides(), Sides {
+            top: true,
+            right: false,
+            bottom: false,
+            left: false
+        });
+        assert_eq!(tabs.active.border_foreground, primary.foreground);
+        // The line is drawn over the padding, so the other tabs need none of their own.
+        assert_eq!(tabs.inactive.border, Border::Hidden);
+        assert_eq!(tabs.inactive.padding, tabs.active.padding);
+        // Hovering lifts a tab off the bar a little more.
+        assert_eq!(tabs.inactive.with(&tabs.hovered).fill, Fill::Lift(8));
+    }
+
+    #[test]
+    fn the_earlier_look_comes_back_with_styles() {
+        // The example in tankTerm(5).
+        let config = load(
+            "[style.tab_bar]\nbackground = '#e0e0e0'\n[style.tab_active]\nbackground = \
+             'CellBackground'\nborder = 'hidden'\npadding = [3, \
+             8]\n[style.tab_inactive]\nbackground = '#e0e0e0'\npadding = [3, \
+             8]\n[style.tab_button]\nbackground = '#e0e0e0'\npadding = [3, \
+             8]\n[style.tab_status]\npadding = [3, 8]\n[style.tab_index]\nfaint = false\n",
+        );
+        let tabs = config.style.resolved().tab_bar(true);
+        assert_eq!(tabs.bar.background, Rgb::new(0xe0, 0xe0, 0xe0));
+        assert_eq!(
+            (tabs.active.fill, tabs.active.background),
+            (Fill::Color, config.colors.primary.background)
+        );
+        assert_eq!(tabs.active.border_sides(), Sides::default());
+        assert_eq!(tabs.active.with(&tabs.hovered).fill, Fill::Color);
+        // Nothing is lifted under the mouse, and the number isn't faint.
+        assert_eq!(tabs.inactive.with(&tabs.hovered).fill, Fill::Color);
+        assert_eq!(tabs.button.with(&tabs.hovered).fill, Fill::Color);
+        assert!(!tabs.active.with(&tabs.index).attributes.faint);
+        assert_eq!(tabs.status.padding, Spacing::new(3, 8));
+        assert_eq!(
+            (tabs.inactive.padding, tabs.button.padding),
+            (Spacing::new(3, 8), Spacing::new(3, 8))
+        );
+    }
+
+    #[test]
+    fn a_background_someone_sets_is_drawn_solid() {
+        let config = load("[style.tab_inactive]\nbackground = '#123456'\n");
+        let tabs = config.style.resolved().tab_bar(true);
+        assert_eq!(tabs.inactive.fill, Fill::Color);
+        assert_eq!(tabs.active.fill, Fill::Lift(5));
+        // Under the mouse too: the default lift doesn't take its place.
+        assert_eq!(tabs.inactive.with(&tabs.hovered).fill, Fill::Color);
+        assert_eq!(tabs.active.with(&tabs.hovered).fill, Fill::Lift(8));
+    }
+
+    #[test]
+    fn tab_bar_defaults_follow_primary_colors() {
         let config = load("[colors.primary]\nforeground = '#ffffff'\nbackground = '#000000'\n");
         let tabs = config.style.resolved().tab_bar(true);
 
-        assert_eq!(tabs.bar.background, Rgb::new(31, 31, 31));
+        assert_eq!(tabs.bar.background, Rgb::new(0, 0, 0));
         assert_eq!(tabs.active.foreground, Rgb::new(0xff, 0xff, 0xff));
         assert_eq!(tabs.active.background, Rgb::new(0, 0, 0));
         assert_eq!(tabs.inactive.foreground, Rgb::new(153, 153, 153));
         assert_eq!(tabs.inactive.background, tabs.bar.background);
         assert_eq!(tabs.button, tabs.inactive);
-        assert_eq!(tabs.active.padding, Spacing::new(3, 8));
+        assert_eq!(tabs.active.padding, Spacing::new(9, 14));
         assert_eq!(tabs.bar.padding, Spacing::default());
-        assert_eq!(tabs.active.border, Border::Hidden);
+        assert_eq!(tabs.active.border, Border::Thick);
         assert_eq!(tabs.status, TabStyle {
             foreground: Rgb::new(0xff, 0xff, 0xff),
             ..tabs.inactive
         });
 
-        // Hovering brings the text up to the primary foreground and changes nothing else.
+        // Hovering brings the text up to the primary foreground, lifts the tab off the bar a
+        // little and changes nothing else.
         let hovered = tabs.inactive.with(&tabs.hovered);
-        assert_eq!(hovered, TabStyle { foreground: Rgb::new(0xff, 0xff, 0xff), ..tabs.inactive });
+        assert_eq!(hovered, TabStyle {
+            foreground: Rgb::new(0xff, 0xff, 0xff),
+            fill: Fill::Lift(8),
+            ..tabs.inactive
+        });
         assert_eq!(tabs.inactive.with(&tabs.activity), tabs.inactive);
         assert_eq!(tabs.inactive.with(&tabs.attention), tabs.inactive);
 
@@ -1263,8 +1406,8 @@ mod tests {
         assert_eq!(padding("[1, 2, 3, 4]"), spacing(1, 2, 3, 4));
 
         // Lists of other lengths and negative values keep the default.
-        assert_eq!(padding("[1, 2, 3, 4, 5]"), Spacing::new(3, 8));
-        assert_eq!(padding("-1"), Spacing::new(3, 8));
+        assert_eq!(padding("[1, 2, 3, 4, 5]"), Spacing::new(9, 14));
+        assert_eq!(padding("-1"), Spacing::new(9, 14));
     }
 
     #[test]

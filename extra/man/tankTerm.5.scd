@@ -205,12 +205,27 @@ This section documents the *[window]* table of the configuration file.
 		Title bar, transparent background and no title bar buttons. Currently
 		drawn like _Full_.
 
-	Default: _"Full"_
+	Default: _"None"_
+
+	The tab bar looked like this before TankTerm 0.18.0, under the system's
+	title bar; these options bring that back, with the styles under
+	*[style]*'s _tab\_\*_ elements:
+
+	*[window]*++
+decorations = _"Full"_++
+dynamic_title = _false_ # only for the _"TankTerm"_ tab title too
+
+	*[tabs]*++
+title = _"{index}: {title}{zoom}{marker}"_++
+width = _"Shared"_++
+close_button = _"Always"_
 
 *buttons* = _"Desktop"_ | _"Right"_ | _"Left"_ | _"None"_
 
 	Where the tab bar has the minimize, maximize and close buttons in a window
-	with *decorations* = _"None"_.
+	with *decorations* = _"None"_. TankTerm's icon, which opens the window menu,
+	goes where the desktop's layout puts the menu (KDE's _M_, GNOME's
+	_appmenu_), or else first at the left end, after any buttons there.
 
 	*Desktop*
 		Where the desktop puts them: on KDE as _ButtonsOnLeft_ and
@@ -223,7 +238,7 @@ This section documents the *[window]* table of the configuration file.
 	*Left*
 		At the left end, with the close button first.
 	*None*
-		Nowhere, and the tab bar is only the tab bar.
+		Nowhere, with no icon, and the tab bar is only the tab bar.
 
 	Unless it is _"None"_, the tab bar is the window's title bar: it is shown
 	even with a single tab, whatever *tabs.show* says. Dragging it where there
@@ -286,7 +301,13 @@ This section documents the *[window]* table of the configuration file.
 
 *dynamic_title* = _true_ | _false_
 
-	Allow terminal applications to change TankTerm's window title.
+	Allow terminal applications to change TankTerm's window title. While this
+	is on, a pane whose programs set no title is named after where its shell
+	is, as _user@host:path_, like the titles many shells set; until its
+	directory is known, and while it runs _ssh_, it has _title_. Off Linux
+	the directory is only known when the shell reports it with shell
+	integration. With _false_,
+	every pane has _title_.
 
 	Default: _true_
 
@@ -355,7 +376,9 @@ Unix, for shells with job control, and within about a second.
 
 *show* = _"Always"_ | _"Multiple"_ | _"Never"_
 
-	When the tab bar is shown.
+	When the tab bar is shown. While it is the window's title bar, with
+	*decorations* = _"None"_ (the default), it is always shown, whatever this
+	says; _"Multiple"_ and _"Never"_ need *decorations* = _"Full"_.
 
 	*Always*
 		Always show the tab bar.
@@ -405,7 +428,8 @@ Unix, for shells with job control, and within about a second.
 		The tab's position, from 1.
 	*{title}*
 		The title given with _RenameTab_ or _tankTerm msg set-tab-title_, or
-		else that of the focused pane.
+		else that of the focused pane: the one its programs set, or where its
+		shell is (see _dynamic_title_).
 	*{panes}*
 		The number of panes.
 	*{cwd}*, *{path}*
@@ -426,7 +450,27 @@ Unix, for shells with job control, and within about a second.
 	only works on Linux. The program is read from _/proc_ too, so it is only
 	known on Linux.
 
-	Default: _"{index}: {title}{zoom}{marker}"_
+	The text of _{index}_ is drawn in the _tab\_index_ style.
+
+	Default: _"{index}  {title}{zoom}{marker}"_
+
+*width* = _"Title"_ | _"Shared"_
+
+	How wide the tabs are, unless their style gives them a _width_. _Title_
+	makes every tab as wide as its title, its padding and its close button,
+	up to its _max\_width_ or 240 pixels; when they don't all fit, they share
+	the bar evenly. With _Shared_, the tabs share the bar evenly, each up to
+	its _max\_width_ or 240 pixels.
+
+	Default: _"Title"_
+
+*close_button* = _"Hover"_ | _"Always"_ | _"Never"_
+
+	When tabs show their close button: only while the mouse is over the tab,
+	which keeps the room for it either way; on every tab; or never, which
+	leaves closing tabs to a middle click and the _CloseTab_ binding.
+
+	Default: _"Hover"_
 
 *status* = [{ segment = _"<kind>"_, format = _"<format>"_, side = _"<side>"_, command = _<program>_, interval = _<seconds>_, style = { _<style>_ } }, ...]
 
@@ -1031,16 +1075,20 @@ belong to a feature it doesn't have yet.
 		The tab bar. Its padding goes around everything on the bar, and its
 		_gap_ is the space between the tabs.
 
-		Default: the primary colors, with the background a little towards the
-		foreground, no padding, and a _gap_ of _1_.
+		Default: the primary colors, no padding, and a _gap_ of _1_. Its
+		background is as see-through as the terminals', by _window.opacity_,
+		whether it is the default or set here.
 
 	*tab_active*, *tab_inactive*
 		The shown tab, and every other tab. A tab is a button holding its title
 		and its close button.
 
-		Default: the shown tab has the primary colors, the others the bar's
-		background and a dimmer foreground. Both have a _padding_ of _[3, 8]_,
-		and share the bar evenly up to 240 pixels each.
+		Default: no background of their own, so the bar shows through, and the
+		others a dimmer foreground. The shown tab is lifted off the bar by its
+		foreground at 5% opacity, and has a _thick_ line in its foreground along
+		its top, unless its style sets a _border_ or a border side. Both have a
+		_padding_ of _[9, 14]_ and are as wide as _tabs.width_ says. A
+		_background_ set in a tab bar style is drawn solid, as it is.
 
 	*tab_button*
 		The new tab button, the gear, and the window buttons of a tab bar that is
@@ -1053,7 +1101,8 @@ belong to a feature it doesn't have yet.
 		in the place of the tab: its _margin_, _width_ and _max\_width_ are
 		ignored, and its _padding_ moves the content without resizing the tab.
 
-		Default: the primary foreground.
+		Default: the primary foreground, lifted off the bar by it at 8%
+		opacity.
 
 	*tab_close_hovered*
 		Changes to the window's close button under the mouse, applied over
@@ -1073,11 +1122,47 @@ belong to a feature it doesn't have yet.
 		The status segments, see _tabs.status_. Each segment's own _style_
 		changes it for that segment.
 
-		Default: the bar's colors, and a _padding_ of _[3, 8]_.
+		Default: the bar's colors with no background of its own, and a
+		_padding_ of _[9, 14]_.
+
+	*tab_index*
+		Changes to the tab's number, the text of _{index}_ in _tabs.title_,
+		applied over the rest of the tab's style, hovered and marked too.
+
+		Default: _faint = true_, which draws it halfway between the tab's text
+		and background colors.
 
 	In the tab bar styles, _CellForeground_ and _CellBackground_ refer to the
 	primary colors. The background of _tab\_bar_ is the default background of
 	_tab\_inactive_ and _tab\_button_.
+
+	These styles bring back the earlier look of the tab bar, with the
+	options under *[window]*'s _decorations_: a bar 12% of the way from the
+	background to the foreground (here for black text on white), a filled
+	shown tab, solid backgrounds that the mouse doesn't lift, and a number in
+	the tab's color. The bar is opaque only with _window.opacity_ = _1_.
+
+	*[style.tab_bar]*++
+background = _"#e0e0e0"_
+
+	*[style.tab_active]*++
+background = _"CellBackground"_++
+border = _"hidden"_++
+padding = _[3, 8]_
+
+	*[style.tab_inactive]*++
+background = _"#e0e0e0"_++
+padding = _[3, 8]_
+
+	*[style.tab_button]*++
+background = _"#e0e0e0"_++
+padding = _[3, 8]_
+
+	*[style.tab_status]*++
+padding = _[3, 8]_
+
+	*[style.tab_index]*++
+faint = _false_
 
 *blurred*
 
@@ -1161,8 +1246,9 @@ belong to a feature it doesn't have yet.
 		Width of a tab, and the widest a tab gets, in terminal cells, like Lip
 		Gloss's _Width_ and _MaxWidth_. Both include the padding and leave out
 		the margin. A tab with a _width_ keeps it while there is room for it;
-		the other tabs share the rest of the bar evenly, each up to its
-		_max\_width_, or 240 pixels without one. _0_ is the same as not set.
+		the other tabs are as wide as _tabs.width_ says in the rest of the
+		bar, each up to its _max\_width_, or 240 pixels without one. _0_ is
+		the same as not set.
 		Only tabs use them.
 
 	*gap* = _<integer>_

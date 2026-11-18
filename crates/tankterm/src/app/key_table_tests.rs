@@ -8,7 +8,7 @@ use iced::keyboard::key::Named;
 use iced::widget::pane_grid::Axis;
 use iced_test::simulator::Simulator;
 
-use super::tab_tests::{app_with, focused, has_text, perform, wait_for_text};
+use super::tab_tests::{app_with, focused, has_text, perform, shows_tab, wait_for_text};
 use super::*;
 use crate::config::UiConfig;
 use crate::session::ordered_panes;
@@ -126,7 +126,7 @@ fn tab_navigator_shows_a_tab() {
     let _ = app.update(Message::PaletteSubmit);
 
     perform(&mut app, &[AppAction::ShowTabNavigator]);
-    assert!(has_text(&app, "1: test") && has_text(&app, "3: logs"));
+    assert!(shows_tab(&app, 0) && has_text(&app, "3: logs"));
     // The shown tab is selected to begin with.
     let _ = app.update(Message::PaletteSubmit);
     assert_eq!(app.active, 2);
@@ -246,7 +246,7 @@ fn the_gear_opens_the_configuration_file_in_a_new_tab() {
 
     // The gear is at the end of the tab bar.
     let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
-    ui.click("\u{2699}").unwrap();
+    ui.click(super::icons::id(super::icons::Icon::Gear)).unwrap();
     let actions: Vec<_> = ui
         .into_messages()
         .filter_map(|message| match message {

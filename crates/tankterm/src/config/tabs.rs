@@ -28,6 +28,12 @@ pub struct Tabs {
     /// What every tab shows in the tab bar.
     pub title: TabTitle,
 
+    /// How wide the tabs are.
+    pub width: TabSizing,
+
+    /// When tabs show their close button.
+    pub close_button: CloseButton,
+
     /// Segments at the ends of the tab bar, in order.
     pub status: Vec<StatusSegment>,
 }
@@ -40,9 +46,36 @@ impl Default for Tabs {
             restore: false,
             inherit_working_directory: true,
             title: TabTitle::default(),
+            width: Default::default(),
+            close_button: Default::default(),
             status: vec![StatusSegment::default()],
         }
     }
+}
+
+/// How wide the tabs are, unless their style gives them a `width`.
+#[derive(ConfigDeserialize, Serialize, Default, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TabSizing {
+    /// As wide as the tab's title, up to the widest a tab gets.
+    #[default]
+    Title,
+
+    /// The tabs share the bar evenly, each up to the widest a tab gets.
+    Shared,
+}
+
+/// When tabs show their close button.
+#[derive(ConfigDeserialize, Serialize, Default, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CloseButton {
+    /// Only while the mouse is over the tab; the room for it is always kept.
+    #[default]
+    Hover,
+
+    /// On every tab.
+    Always,
+
+    /// Never; a middle click or a key binding closes a tab.
+    Never,
 }
 
 /// When the tab bar is shown.
@@ -99,7 +132,7 @@ impl TabTitle {
 
 impl Default for TabTitle {
     fn default() -> Self {
-        Self::new("{index}: {title}{zoom}{marker}".into())
+        Self::new("{index}  {title}{zoom}{marker}".into())
     }
 }
 

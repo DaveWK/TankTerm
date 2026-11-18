@@ -17,7 +17,7 @@
 - GUI is tested headlessly with `iced_test::simulator::Simulator` only. Never screenshot or inject input on the desktop. `render_tests.rs` tests are `#[ignore]` manual screenshots; update them so they still compile and run, but they assert nothing.
 - Every new option and style block is documented in `extra/man/tankTerm.5.scd`, `docs/features.md` and `CHANGELOG.md` in the task that adds it.
 - Config enums follow the existing pattern: `#[derive(ConfigDeserialize, Serialize, Default, Clone, Copy, Debug, PartialEq, Eq)]` with `#[default]` on a variant (see `ShowTabs` in `config/tabs.rs`).
-- Test commands: `cargo test -p tankterm <filter>`; full check before each commit: `cargo test -p tankterm && cargo clippy -p tankterm --all-targets -- -D warnings && cargo +nightly fmt --check` (use `cargo fmt --check` if the repo's `rustfmt.toml` doesn't need nightly).
+- Test commands: `cargo test -p tankterm <filter>`; full check before each commit: `cargo test -p tankterm && cargo clippy -p tankterm --all-targets -- -D warnings && cargo +nightly-2026-09-08 fmt --all -- --check` (the toolchain CI pins as `RUSTFMT_TOOLCHAIN`; never plain `+nightly`, which rustup auto-installs).
 
 ## Review Focus
 
