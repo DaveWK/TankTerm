@@ -8,7 +8,7 @@ use iced::keyboard::key::Named;
 use iced::widget::pane_grid::Axis;
 use iced_test::simulator::Simulator;
 
-use super::tab_tests::{app_with, focused, has_text, perform, wait_for_text};
+use super::tab_tests::{app_with, focused, has_text, perform, shows_tab, wait_for_text};
 use super::*;
 use crate::config::UiConfig;
 use crate::session::ordered_panes;
@@ -126,7 +126,7 @@ fn tab_navigator_shows_a_tab() {
     let _ = app.update(Message::PaletteSubmit);
 
     perform(&mut app, &[AppAction::ShowTabNavigator]);
-    assert!(has_text(&app, "1: test") && has_text(&app, "3: logs"));
+    assert!(shows_tab(&app, 0) && has_text(&app, "3: logs"));
     // The shown tab is selected to begin with.
     let _ = app.update(Message::PaletteSubmit);
     assert_eq!(app.active, 2);

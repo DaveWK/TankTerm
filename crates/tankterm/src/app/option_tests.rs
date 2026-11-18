@@ -14,8 +14,8 @@ use iced_winit::runtime;
 
 use super::reload_tests::same_picture;
 use super::tab_tests::{
-    app_with, handle_until, key, perform, type_keys, wait_for_terminal, wait_for_text, wait_until,
-    wakeup,
+    app_with, handle_until, key, perform, tab_text, type_keys, wait_for_terminal, wait_for_text,
+    wait_until, wakeup,
 };
 use super::*;
 use crate::config::UiConfig;
@@ -1005,7 +1005,7 @@ const FRAMELESS: &str = "[window]\ndecorations = \"None\"\n";
 /// The middle of the tab bar from top to bottom, in a window of 800 by 400.
 fn tab_bar_middle(app: &App) -> f32 {
     let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
-    let tab = ui.find("1: test").unwrap();
+    let tab = ui.find(tab_text(app, 0)).unwrap();
     iced_test::selector::Bounded::visible_bounds(&tab).unwrap().center_y()
 }
 
@@ -1056,7 +1056,7 @@ fn the_tab_bar_is_the_title_bar_only_without_the_system_one() {
     let shown = |config: &str| {
         let app = app_with(config, Hotkeys::default());
         let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
-        ui.find("1: test").is_ok()
+        ui.find(tab_text(&app, 0)).is_ok()
     };
 
     // One tab, so the tab bar is only shown as the title bar.
@@ -1126,7 +1126,7 @@ fn double_clicking_the_tab_bar_maximizes_the_window() {
 
     // Clicks on a tab are the tab's.
     let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
-    ui.click("1: test").unwrap();
+    ui.click(tab_text(&app, 0)).unwrap();
     let messages: Vec<_> =
         ui.into_messages().filter(|message| !matches!(message, Message::Terminal(_))).collect();
     assert!(matches!(messages[..], [Message::Action(AppAction::SelectTab(0))]), "{messages:?}");
@@ -1252,7 +1252,7 @@ fn the_window_buttons_can_be_at_both_ends() {
     assert_eq!(actions_along_the_tab_bar(&app, false)[0], AppAction::OpenConfig);
     assert!(
         Simulator::with_size(Default::default(), Size::new(800., 400.), app.view())
-            .find("1: test")
+            .find(tab_text(&app, 0))
             .is_ok()
     );
 }

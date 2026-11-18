@@ -242,7 +242,7 @@ pub(super) fn basename(directory: &Path) -> String {
 }
 
 /// The name of the user TankTerm runs as, from the environment. It is read once.
-fn user_name() -> Option<&'static str> {
+pub(super) fn user_name() -> Option<&'static str> {
     static NAME: OnceLock<Option<String>> = OnceLock::new();
     let variables: &[&str] = if cfg!(windows) { &["USERNAME"] } else { &["USER", "LOGNAME"] };
     let name = || variables.iter().find_map(|name| std::env::var(name).ok());
@@ -250,7 +250,7 @@ fn user_name() -> Option<&'static str> {
 }
 
 /// This computer's host name without its domain.
-fn host_name() -> Option<&'static str> {
+pub(super) fn host_name() -> Option<&'static str> {
     let name = tankterm_terminal::term::shell_integration::local_host_name()?;
     name.split('.').next().filter(|name| !name.is_empty())
 }

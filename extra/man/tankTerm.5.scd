@@ -286,7 +286,11 @@ This section documents the *[window]* table of the configuration file.
 
 *dynamic_title* = _true_ | _false_
 
-	Allow terminal applications to change TankTerm's window title.
+	Allow terminal applications to change TankTerm's window title. While this
+	is on, a pane whose programs set no title is named after where its shell
+	is, as _user@host:path_, like the titles many shells set; until its
+	directory is known, and while it runs _ssh_, it has _title_. With _false_,
+	every pane has _title_.
 
 	Default: _true_
 
@@ -405,7 +409,8 @@ Unix, for shells with job control, and within about a second.
 		The tab's position, from 1.
 	*{title}*
 		The title given with _RenameTab_ or _tankTerm msg set-tab-title_, or
-		else that of the focused pane.
+		else that of the focused pane: the one its programs set, or where its
+		shell is (see _dynamic_title_).
 	*{panes}*
 		The number of panes.
 	*{cwd}*, *{path}*

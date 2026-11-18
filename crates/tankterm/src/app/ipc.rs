@@ -77,7 +77,6 @@ impl App {
                 let Some(id) = tab.panes.get(pane) else { continue };
                 let Some(shell) = self.terminals.get(id) else { continue };
 
-                let title = shell.title.as_deref().filter(|_| self.options.dynamic_title);
                 let cwd = shell.directory().or_else(|| shell.working_directory.clone());
                 panes.push(PaneInfo {
                     window_id: 0,
@@ -88,9 +87,9 @@ impl App {
                         rows: shell.terminal.screen_lines(),
                         cols: shell.terminal.columns(),
                     },
-                    title: title.unwrap_or(&self.options.title).to_owned(),
+                    title: self.shell_title(shell).into_owned(),
                     cwd: cwd.map(|cwd| cwd.display().to_string()).unwrap_or_default(),
-                    tab_title: tab_title.to_owned(),
+                    tab_title: tab_title.clone().into_owned(),
                     is_active: pane == tab.focus,
                     is_zoomed: tab.panes.maximized() == Some(pane),
                     is_active_tab: index == self.active,

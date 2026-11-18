@@ -137,12 +137,12 @@ impl App {
                 ));
             },
             AppAction::ShowTabNavigator => {
-                let titles = self.tabs.iter().map(|tab| self.tab_title(tab).to_owned());
+                let titles = self.tabs.iter().map(|tab| self.tab_title(tab).into_owned());
                 self.palette = Some(Palette::tabs(titles.collect::<Vec<_>>(), self.active));
             },
             AppAction::RenameTab => {
                 let tab = &self.tabs[self.active];
-                let shown = self.pane_title(tab).to_owned();
+                let shown = self.pane_title(tab).into_owned();
                 self.palette = Some(Palette::rename(tab.title.as_deref(), &shown));
             },
             AppAction::OpenConfig => {
@@ -429,9 +429,9 @@ impl App {
 
     /// Title of a tab: the one it was given, the one its focused terminal set, or the window
     /// title.
-    pub(super) fn tab_title<'a>(&'a self, tab: &'a Tab) -> &'a str {
+    pub(super) fn tab_title<'a>(&'a self, tab: &'a Tab) -> Cow<'a, str> {
         match &tab.title {
-            Some(title) => title,
+            Some(title) => title.into(),
             None => self.pane_title(tab),
         }
     }
@@ -451,7 +451,7 @@ impl App {
         let label = self.options.tabs.title.template().render(|name| {
             let value: Cow<'_, str> = match name {
                 "index" => (index + 1).to_string().into(),
-                "title" => self.tab_title(tab).into(),
+                "title" => self.tab_title(tab),
                 "panes" => tab.panes.len().to_string().into(),
                 "cwd" => directory.map(status::basename).unwrap_or_default().into(),
                 "path" => directory.map(status::display_path).unwrap_or_default().into(),
@@ -473,15 +473,36 @@ impl App {
     }
 
     /// The title of a tab without one given to it: that of its focused pane.
-    pub(super) fn pane_title<'a>(&'a self, tab: &'a Tab) -> &'a str {
-        let title = tab
-            .panes
-            .get(tab.focus)
-            .and_then(|id| self.terminals.get(id))
-            .and_then(|shell| shell.title.as_deref());
-
-        title.filter(|_| self.options.dynamic_title).unwrap_or(&self.options.title)
+    pub(super) fn pane_title<'a>(&'a self, tab: &'a Tab) -> Cow<'a, str> {
+        match tab.panes.get(tab.focus).and_then(|id| self.terminals.get(id)) {
+            Some(shell) => self.shell_title(shell),
+            None => self.options.title.as_str().into(),
+        }
     }
+
+    /// The title of a terminal: the one its programs set, or else where its shell is, as
+    /// `user@host:path`, while titles are dynamic; the configured title otherwise.
+    pub(super) fn shell_title<'a>(&'a self, shell: &'a Shell) -> Cow<'a, str> {
+        if !self.options.dynamic_title {
+            return self.options.title.as_str().into();
+        }
+        match &shell.title {
+            Some(title) => title.into(),
+            None => fallback_title(shell).map_or(self.options.title.as_str().into(), Cow::Owned),
+        }
+    }
+}
+
+/// Where a shell is, as `user@host:path`, like the titles many shells set: `None` while its
+/// directory isn't known, and while it runs `ssh`, whose local directory says nothing about
+/// the remote one.
+fn fallback_title(shell: &Shell) -> Option<String> {
+    let directory = shell.working_directory.as_deref()?;
+    if shell.process.as_deref() == Some("ssh") {
+        return None;
+    }
+    let (user, host) = (status::user_name()?, status::host_name()?);
+    Some(format!("{user}@{host}:{}", status::display_path(directory)))
 }
 
 /// What a configuration file starts with when `OpenConfig` creates it.

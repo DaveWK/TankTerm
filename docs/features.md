@@ -212,7 +212,10 @@ shells that have job control.
 `title` in the `[tabs]` section sets what each tab shows, with placeholders in
 braces: `{index}`, `{title}`, `{panes}`, `{cwd}` (the last part of the
 directory), `{path}`, `{process}` (the program that has the terminal),
-`{marker}` (` !` or ` *`) and `{zoom}` (` Z` while a pane is zoomed). The
+`{marker}` (` !` or ` *`) and `{zoom}` (` Z` while a pane is zoomed).
+`{title}` is the title the pane's programs set or, while they haven't set one,
+where its shell is: `user@host:~/src`, like the titles many shells set; with
+`dynamic_title = false` in `[window]` it is always the configured title. The
 default is `"{index}: {title}{zoom}{marker}"`; this shows the program and the
 directory instead:
 

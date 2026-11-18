@@ -154,6 +154,9 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 
 ### Changed
 
+- A tab whose programs set no title is named after where its shell is, as `user@host:path`,
+    instead of `TankTerm`, while `window.dynamic_title` is on; this is also the window title and
+    the `title` and `tab_title` of `tankTerm msg list`
 - Logs follow Charm's log layout (`<time> <LEVEL> <prefix>: <message>`), styled on a terminal unless
     `NO_COLOR` is set, with JSON and logfmt output through `TANKTERM_LOG_FORMAT`
 - Default config location is now `tankterm/tankterm.toml`; `alacritty` config locations are no

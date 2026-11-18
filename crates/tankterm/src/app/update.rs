@@ -321,8 +321,8 @@ impl App {
     }
 
     pub fn title(&self) -> String {
-        let title = self.tabs.get(self.active).map(|tab| self.tab_title(tab));
-        title.unwrap_or(&self.options.title).to_owned()
+        let title = self.tabs.get(self.active).map(|tab| self.tab_title(tab).into_owned());
+        title.unwrap_or_else(|| self.options.title.clone())
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
@@ -787,8 +787,9 @@ impl App {
     /// status segment or tab title to show them in.
     fn poll_directories(&mut self) {
         let title = &self.options.tabs.title;
+        // The tab titles fall back to where the shells are while titles are dynamic.
         let shown = self.shows(SegmentKind::Cwd) || title.uses("cwd") || title.uses("path");
-        if self.options.session_file.is_none() && !shown {
+        if self.options.session_file.is_none() && !shown && !self.options.dynamic_title {
             return;
         }
 
@@ -804,7 +805,9 @@ impl App {
     /// Look up the names of the programs that have the terminals, while the tab titles or a
     /// status segment show them.
     fn poll_process_names(&mut self) {
-        if !self.options.tabs.title.uses("process") && !self.shows(SegmentKind::Process) {
+        // The fallback tab titles leave out shells running `ssh`.
+        let shown = self.options.tabs.title.uses("process") || self.shows(SegmentKind::Process);
+        if !shown && !self.options.dynamic_title {
             return;
         }
 
