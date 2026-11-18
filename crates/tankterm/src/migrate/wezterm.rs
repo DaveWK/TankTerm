@@ -633,7 +633,7 @@ fn ssh_domains(doc: &mut Doc, value: &Expr, line: usize) {
 
         let mut profile = Table::new();
         profile.insert("name", toml_edit::value(name));
-        profile.insert("shell", toml_edit::value(output::program("ssh", &args)));
+        profile.insert("shell", toml_edit::value(output::ssh(&args)));
         doc.push_profile(&from, profile);
     }
 }

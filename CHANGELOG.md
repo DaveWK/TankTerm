@@ -210,10 +210,10 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 - `tankTerm migrate --skip-renames`, and migrating TankTerm's own configuration file in place;
     `migrate` converts other terminals' configurations instead
 - `--daemon`, and the `create-window`, `config` and `get-config` messages of `tankTerm msg`
-- Key bindings to `command`, `chars` and the actions for vi mode, search, hints, the key help,
-    new windows, hiding, minimizing and quitting; mouse bindings other than pasting; hints, vi
-    mode, search and the message bar
-- `--hold`
+- Key bindings to the key help (`ToggleHelp`), new windows (`SpawnNewInstance`,
+    `CreateNewWindow`), `HideOtherApplications`, `ClearLogNotice` and `ToggleSimpleFullscreen`;
+    mouse bindings other than pasting, expanding the selection and selecting a command's output;
+    the message bar
 - `--embed`, `--print-events`, `--ref-test` and the `debug.renderer`, `debug.prefer_egl`,
     `debug.render_timer`, `debug.highlight_damage` and `debug.print_events` options, which only
     applied to the OpenGL front end

@@ -412,6 +412,18 @@ pub fn push_bindings(doc: &mut Doc, preset: Option<&str>, bindings: Vec<(String,
 }
 
 /// A shell program and its arguments as a TankTerm `shell` value.
+/// A profile's shell that connects with ssh to the host in `args`: through `tankTerm ssh`,
+/// which sends a `TERM` the server has, where TankTerm has it.
+pub fn ssh(args: &[String]) -> Value {
+    if cfg!(unix) {
+        let args: Vec<String> =
+            std::iter::once("ssh".to_owned()).chain(args.iter().cloned()).collect();
+        program("tankTerm", &args)
+    } else {
+        program("ssh", args)
+    }
+}
+
 pub fn program(program: &str, args: &[String]) -> Value {
     if args.is_empty() {
         return program.into();

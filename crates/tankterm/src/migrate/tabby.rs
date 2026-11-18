@@ -310,7 +310,7 @@ fn profiles(doc: &mut Doc, profiles: &Yaml) {
                     Some(user) => format!("{user}@{host}"),
                     None => host.to_owned(),
                 });
-                table.insert("shell", toml_edit::value(output::program("ssh", &args)));
+                table.insert("shell", toml_edit::value(output::ssh(&args)));
             },
             Some(kind) => {
                 doc.skip(&from, format!("TankTerm has no {kind} profiles"));
@@ -582,10 +582,12 @@ hacks: {}
 
         assert_eq!(config.profiles.len(), 2);
         assert_eq!(config.profiles[0].env["EDITOR"], "hx");
-        assert!(
-            toml.contains("program = \"ssh\", args = [\"-p\", \"2222\", \"me@build.example.com\"]"),
-            "{toml}"
-        );
+        let ssh = if cfg!(unix) {
+            "program = \"tankTerm\", args = [\"ssh\", \"-p\", \"2222\", \"me@build.example.com\"]"
+        } else {
+            "program = \"ssh\", args = [\"-p\", \"2222\", \"me@build.example.com\"]"
+        };
+        assert!(toml.contains(ssh), "{toml}");
 
         let skipped: Vec<_> = doc.report.skipped.iter().map(|(key, _)| key.as_str()).collect();
         assert!(skipped.contains(&"profiles[2] \"Console\""), "{skipped:?}");
