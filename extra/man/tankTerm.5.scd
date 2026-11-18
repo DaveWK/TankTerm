@@ -443,6 +443,14 @@ Unix, for shells with job control, and within about a second.
 
 	Default: _"Title"_
 
+*close_button* = _"Hover"_ | _"Always"_ | _"Never"_
+
+	When tabs show their close button: only while the mouse is over the tab,
+	which keeps the room for it either way; on every tab; or never, which
+	leaves closing tabs to a middle click and the _CloseTab_ binding.
+
+	Default: _"Hover"_
+
 *status* = [{ segment = _"<kind>"_, format = _"<format>"_, side = _"<side>"_, command = _<program>_, interval = _<seconds>_, style = { _<style>_ } }, ...]
 
 	Segments at the ends of the tab bar, in order. Each is drawn while it has

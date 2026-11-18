@@ -215,7 +215,10 @@ directory), `{path}`, `{process}` (the program that has the terminal),
 `{marker}` (` !` or ` *`) and `{zoom}` (` Z` while a pane is zoomed).
 `{title}` is the title the pane's programs set or, while they haven't set one,
 where its shell is: `user@host:~/src`, like the titles many shells set; with
-`dynamic_title = false` in `[window]` it is always the configured title. The
+`dynamic_title = false` in `[window]` it is always the configured title.
+A tab's close button shows while the mouse is over it; `close_button` in
+`[tabs]` set to `"Always"` shows it on every tab, and `"Never"` leaves it out.
+The
 default is `"{index}: {title}{zoom}{marker}"`; this shows the program and the
 directory instead:
 

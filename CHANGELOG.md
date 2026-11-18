@@ -154,6 +154,8 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 
 ### Changed
 
+- A tab shows its close button only while the mouse is over it; `tabs.close_button = "Always"`
+    brings back one on every tab, and `"Never"` leaves it out
 - Tabs are as wide as their titles, up to 240 pixels, instead of sharing the bar evenly;
     `tabs.width = "Shared"` brings that back
 - A tab whose programs set no title is named after where its shell is, as `user@host:path`,

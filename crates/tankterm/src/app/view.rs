@@ -19,7 +19,7 @@ use super::{App, Layout, MAX_TAB_WIDTH, Message, Shell, TitleDrag};
 use crate::color::Rgb;
 use crate::config::BindingMode;
 use crate::config::style::TabStyle;
-use crate::config::tabs::{ShowTabs, Side, TabSizing, TabsPosition};
+use crate::config::tabs::{CloseButton, ShowTabs, Side, TabSizing, TabsPosition};
 use crate::config::window::Spacing;
 use crate::hotkeys::{AppAction, KeyFilter, PANE_LABELS};
 use crate::palette::{self, blend, paste_warning};
@@ -216,29 +216,38 @@ impl App {
                 (false, false) => style,
             };
 
-            let view = |style: TabStyle, height: Length| -> Element<'_, Message> {
-                let (foreground, _) = style.colors();
-                let title = container(label(title.clone(), &style, font, size)).clip(true);
-                let close = button(text("\u{d7}").font(font).size(size).color(color(foreground)))
-                    .padding(Padding::ZERO.left(CLOSE_PADDING))
-                    .style(|_, _| button::Style::default())
-                    .on_press(Message::CloseTab(index));
+            // The close button is drawn while `show_close` is set. With `Hover`, a tab not under
+            // the mouse keeps its room, so the tab doesn't change width under the mouse.
+            let close_button = self.options.tabs.close_button;
+            let view =
+                |style: TabStyle, height: Length, show_close: bool| -> Element<'_, Message> {
+                    let (foreground, _) = style.colors();
+                    let title = container(label(title.clone(), &style, font, size)).clip(true);
+                    let close = (close_button != CloseButton::Never).then(|| {
+                        let glyph = if show_close { color(foreground) } else { Color::TRANSPARENT };
+                        button(text("\u{d7}").font(font).size(size).color(glyph))
+                            .padding(Padding::ZERO.left(CLOSE_PADDING))
+                            .style(|_, _| button::Style::default())
+                            .on_press_maybe(show_close.then_some(Message::CloseTab(index)))
+                    });
 
-                let content = row![title.width(Length::Fill), close].align_y(Vertical::Center);
-                let select = button(content)
-                    .padding(padding(style.padding))
-                    .width(Length::Fill)
-                    .height(height)
-                    .style(move |_, _| button_style(&style))
-                    .on_press(Message::Action(AppAction::SelectTab(index)));
+                    let content =
+                        row![title.width(Length::Fill)].push(close).align_y(Vertical::Center);
+                    let select = button(content)
+                        .padding(padding(style.padding))
+                        .width(Length::Fill)
+                        .height(height)
+                        .style(move |_, _| button_style(&style))
+                        .on_press(Message::Action(AppAction::SelectTab(index)));
 
-                // Like in browsers, a middle click closes the tab.
-                mouse_area(bordered(select, &style))
-                    .on_middle_press(Message::CloseTab(index))
-                    .into()
-            };
-            let hovered = view(style.with(&styles.hovered), Length::Fill);
-            let tab = container(hoverable(view(style, Length::Shrink), hovered))
+                    // Like in browsers, a middle click closes the tab.
+                    mouse_area(bordered(select, &style))
+                        .on_middle_press(Message::CloseTab(index))
+                        .into()
+                };
+            let hovered = view(style.with(&styles.hovered), Length::Fill, true);
+            let normal = view(style, Length::Shrink, close_button == CloseButton::Always);
+            let tab = container(hoverable(normal, hovered))
                 .padding(padding(style.margin))
                 .width(Length::Fill);
 
@@ -249,12 +258,16 @@ impl App {
             let max = max_width.map_or(MAX_TAB_WIDTH, |width| width + margin);
             let fixed = cells(style.width).map(|width| max_width.unwrap_or(width).min(width));
             // A tab as wide as its title: the title, in cells of the terminal's font, its
-            // padding and the close button, a cell and its padding.
+            // padding and the close button, a cell and its padding, while there is one.
             let fitted = (self.options.tabs.width == TabSizing::Title).then(|| {
                 let cell = *cell.get_or_init(|| self.settings.font.cell_size().width);
+                let close = match self.options.tabs.close_button {
+                    CloseButton::Never => 0.,
+                    CloseButton::Hover | CloseButton::Always => cell + CLOSE_PADDING,
+                };
                 let text = title.width() as f32 + 1.;
                 let padding = f32::from(style.padding.left + style.padding.right);
-                (text * cell + padding + CLOSE_PADDING + margin).ceil().min(max)
+                (text * cell + padding + close + margin).ceil().min(max)
             });
             // A tab as wide as its title is flexible up to that width, so crowded tabs share the
             // room evenly and tabs with a width of their own keep it.

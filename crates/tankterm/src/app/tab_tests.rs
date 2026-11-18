@@ -1855,6 +1855,97 @@ fn tabs_with_a_width_keep_it_in_a_crowded_bar() {
     assert!(other < shown / 2., "{other} {shown}");
 }
 
+/// Whether two applications draw the same picture with the mouse at `at`, if anywhere.
+fn same_picture_at(one: &App, other: &App, at: Option<(f32, f32)>) -> bool {
+    let window = Size::new(800., 400.);
+    let directory = tempfile::tempdir().unwrap();
+    let picture = directory.path().join("picture");
+    let snapshot = |app: &App| {
+        let mut ui = Simulator::with_size(Default::default(), window, app.view());
+        if let Some(at) = at {
+            ui.point_at(at);
+        }
+        ui.snapshot(&Theme::Dark).unwrap()
+    };
+
+    // The first picture is kept as what the second one is compared with.
+    assert!(snapshot(one).matches_hash(&picture).unwrap());
+    snapshot(other).matches_hash(&picture).unwrap()
+}
+
+/// Where the close button of the first tab is, in a bar that shows it.
+fn close_button_center(app: &App) -> iced::Point {
+    let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
+    let close = ui.find("\u{d7}").unwrap();
+    iced_test::selector::Bounded::visible_bounds(&close).unwrap().center()
+}
+
+#[test]
+fn close_buttons_show_under_the_mouse() {
+    let hover = app_with("[tabs]\nshow = \"Always\"\n", Hotkeys::default());
+    let always =
+        app_with("[tabs]\nshow = \"Always\"\nclose_button = \"Always\"\n", Hotkeys::default());
+
+    // The room for the close button is kept.
+    assert_eq!(text_x(&hover, "+"), text_x(&always, "+"));
+
+    // It is only drawn under the mouse.
+    let close = close_button_center(&always);
+    assert!(!same_picture_at(&hover, &always, None));
+    assert!(same_picture_at(&hover, &always, Some((close.x, close.y))));
+}
+
+#[test]
+fn a_hidden_close_button_closes_its_tab_with_one_click() {
+    let mut app = app_with("[tabs]\nshow = \"Always\"\n", Hotkeys::default());
+    perform(&mut app, &[AppAction::NewTab]);
+    let mut always =
+        app_with("[tabs]\nshow = \"Always\"\nclose_button = \"Always\"\n", Hotkeys::default());
+    perform(&mut always, &[AppAction::NewTab]);
+    let close = close_button_center(&always);
+
+    let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
+    ui.point_at(close);
+    ui.simulate(simulator::click());
+    let messages: Vec<_> =
+        ui.into_messages().filter(|message| !matches!(message, Message::Terminal(_))).collect();
+    assert!(matches!(messages[..], [Message::CloseTab(0)]), "{messages:?}");
+}
+
+#[test]
+fn close_buttons_can_be_left_out() {
+    use iced::mouse::{Button, Event as MouseEvent};
+
+    let hover = app_with("[tabs]\nshow = \"Always\"\n", Hotkeys::default());
+    let never =
+        app_with("[tabs]\nshow = \"Always\"\nclose_button = \"Never\"\n", Hotkeys::default());
+    assert!(text_x(&never, "+") < text_x(&hover, "+"));
+
+    // Nothing along the tab closes it, but a middle click still does.
+    let start = text_x(&never, &tab_text(&never, 0));
+    let end = text_x(&never, "+");
+    let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), never.view());
+    let y = iced_test::selector::Bounded::visible_bounds(&ui.find(tab_text(&never, 0)).unwrap())
+        .unwrap()
+        .center_y();
+    let mut x = start;
+    while x < end - 2. {
+        ui.point_at((x, y));
+        ui.simulate(simulator::click());
+        x += 2.;
+    }
+    let messages: Vec<_> = ui.into_messages().collect();
+    assert!(!messages.iter().any(|message| matches!(message, Message::CloseTab(_))));
+
+    let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), never.view());
+    ui.point_at((start + 4., y));
+    ui.simulate([
+        iced::Event::Mouse(MouseEvent::ButtonPressed(Button::Middle)),
+        iced::Event::Mouse(MouseEvent::ButtonReleased(Button::Middle)),
+    ]);
+    assert!(ui.into_messages().any(|message| matches!(message, Message::CloseTab(0))));
+}
+
 #[test]
 fn bordered_tabs_and_buttons_take_clicks() {
     // Every kind of border, on single sides, on everything with a border.
