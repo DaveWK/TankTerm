@@ -455,27 +455,31 @@ pub struct SetTabTitleOptions {
     pub title: String,
 }
 
-/// Migrate the configuration file.
+/// Convert another terminal's configuration into TankTerm's.
 #[derive(Args, Clone, Debug)]
 pub struct MigrateOptions {
-    /// Path to the configuration file.
+    /// Terminal to convert from [default: the one whose configuration is found].
+    #[clap(long, value_enum)]
+    pub from: Option<crate::migrate::Source>,
+
+    /// Configuration file to convert [default: the terminal's own].
     #[clap(short, long, value_hint = ValueHint::FilePath)]
     pub config_file: Option<PathBuf>,
 
-    /// Only output TOML config to STDOUT.
+    /// Replace existing TankTerm files without asking, after backing them up.
+    #[clap(short, long)]
+    pub force: bool,
+
+    /// Print the files that would be written, and write nothing.
     #[clap(short, long)]
     pub dry_run: bool,
 
-    /// Do not recurse over imports.
+    /// Keep imports pointing at the original files instead of converting them.
     #[clap(short = 'i', long)]
     pub skip_imports: bool,
 
-    /// Do not move renamed fields to their new location.
-    #[clap(long)]
-    pub skip_renames: bool,
-
-    #[clap(short, long)]
     /// Do not output to STDOUT.
+    #[clap(short, long)]
     pub silent: bool,
 }
 

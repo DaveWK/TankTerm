@@ -14,6 +14,18 @@ Approved and waiting their turn, in this order.
 
 Nothing below is started; each item lists what has to be decided or built first.
 
+### Rest of `tankTerm migrate`
+
+- SSH profiles from Tabby and WezTerm run `ssh`; switch them to `tankTerm ssh` once it exists.
+- VHS theme JSON (`name`, `background`, `foreground`, `cursor`, `selection`, `black` …
+  `brightWhite`) as a source of colors, if wanted: it is Charm's only file format with a
+  terminal palette. Lip Gloss and CharmTone have no theme files, only Go code.
+- WezTerm's ~1000 built-in color schemes and Crush's built-in themes other than
+  `charmtone-panther` are only known by name; converting them needs their colors bundled.
+- Key sequences (Tabby's multi-stroke hotkeys, Ghostty's `a>b` triggers and key tables) as
+  leader bindings or `[keyboard.tables]`, mouse bindings, and Tabby's per-profile color schemes
+  as profile themes.
+
 ### Rest of `wezterm cli` in `tankTerm msg`
 
 `get-text --escapes`, `split-pane --cells`, `--top-level` and `--move-pane-id`,

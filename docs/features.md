@@ -419,6 +419,27 @@ tankTerm msg get-text --pane-id "$pane"
 
 See `man tankTerm-msg` for all options.
 
+## Coming from another terminal
+
+`tankTerm migrate` converts the configuration of Alacritty, Tabby, WezTerm or
+Ghostty, or Crush's theme, into TankTerm's: colors, fonts, cursor, bell,
+opacity, window settings, profiles, and the key bindings whose actions TankTerm
+has. For Tabby and WezTerm it selects the matching key preset and writes only
+the keys that differ from it. WezTerm's Lua is read without running it, so
+anything computed or conditional is skipped with its line.
+
+The source is never changed. The result goes to TankTerm's configuration file,
+and a summary lists every key that was converted or skipped, and why. Existing
+TankTerm files are replaced only after a yes, or with `--force`, and are backed
+up to `<name>.bak` first.
+
+```sh
+# See what a WezTerm configuration becomes, without writing anything.
+tankTerm migrate --from wezterm --dry-run
+```
+
+See `man tankTerm` for the sources and their options.
+
 ## Multi-Window
 
 TankTerm supports running multiple terminal emulators from the same TankTerm

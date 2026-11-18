@@ -3,7 +3,7 @@
 //! These run the `tankTerm` binary in a subprocess with an isolated environment, so `HOME` and the
 //! XDG variables can be pointed at temporary directories without affecting other tests. The
 //! chosen file is observed through `tankTerm migrate --dry-run`, which prints the path of the
-//! config it found without modifying anything.
+//! config TankTerm reads while it converts an Alacritty config, without writing anything.
 
 #![cfg(not(windows))]
 
@@ -52,14 +52,16 @@ impl Env {
 
     /// Path of the config file `tankTerm` picks by default.
     fn found_config(&self) -> Option<PathBuf> {
-        let output = self.run(&["migrate", "--dry-run"]);
-        if !output.status.success() {
-            return None;
-        }
+        let source = self.home.join("source/alacritty.toml");
+        self.write_config(&source);
+        let output = self.run(&["migrate", "--dry-run", "--config-file", source.to_str().unwrap()]);
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
 
         let stdout = String::from_utf8(output.stdout).unwrap();
-        let line = stdout.lines().find_map(|line| line.strip_prefix("Successfully migrated "))?;
-        Some(PathBuf::from(line.trim_matches('"')))
+        let line = stdout
+            .lines()
+            .find_map(|line| line.strip_prefix("Current TankTerm configuration: "))?;
+        Some(PathBuf::from(line))
     }
 }
 
@@ -107,11 +109,7 @@ fn no_config_found() {
         return;
     }
 
-    let env = Env::new();
-    let output = env.run(&["migrate", "--dry-run"]);
-
-    assert!(!output.status.success());
-    assert!(String::from_utf8_lossy(&output.stderr).contains("No configuration file found"));
+    assert_eq!(Env::new().found_config(), None);
 }
 
 #[test]

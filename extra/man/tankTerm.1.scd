@@ -103,23 +103,90 @@ profiles, set up through a TOML configuration file; see *tankTerm*(5).
 
 *migrate*
 
-	Migrate the configuration file.
+	Convert another terminal's configuration into TankTerm's. The source files
+	are never changed. The result is written to
+	_$XDG_CONFIG_HOME/tankterm/tankterm.toml_ (_%APPDATA%\\tankterm\\tankterm.toml_
+	on Windows), with converted imports next to it, and a summary lists what
+	was converted and what was skipped, with the reason.
+
+	If any of these files exists, migrate lists them and asks before replacing
+	them; each is copied to _<name>.bak_ first (_<name>.bak.1_ and so on if that
+	exists). Without a terminal to ask on, it writes nothing unless *--force* is
+	given.
+
+	Without *--from* and *--config-file*, migrate looks in the standard
+	locations of every source. If it finds one configuration it converts it; if
+	it finds several it asks which one, or without a terminal names them and
+	stops.
+
+	TankTerm doesn't convert anything by itself. When it starts without a
+	configuration file and finds one of these, it logs a line suggesting
+	*tankTerm migrate*.
+
+	Sources:
+
+	_alacritty_
+		_alacritty.toml_ or the older _alacritty.yml_, in Alacritty's order
+		of locations. The options are the same, so they are copied with
+		Alacritty's renames applied, and the options and key bindings
+		TankTerm doesn't have left out. Imports are converted too, into the same places relative
+		to TankTerm's configuration directory, or into _imports/_ for files
+		outside Alacritty's.
+
+	_tabby_
+		_config.yaml_: the color scheme in use, font, cursor, bell,
+		opacity and blur, local and SSH profiles, and the hotkeys whose
+		actions TankTerm has. The _Tabby_ key preset is selected, and only
+		keys that differ from it are written.
+
+	_wezterm_
+		_wezterm.lua_, read without running it: literal assignments to the
+		configuration table and a returned table, _wezterm.font_ and
+		_wezterm.font_with_fallback_, _colors_, color schemes defined in the
+		file or in a _colors/_ directory, window settings, the launch menu,
+		SSH domains, the leader key, _keys_ and _key_tables_. The _WezTerm_
+		key preset is selected. Anything computed or conditional is skipped
+		with its line.
+
+	_ghostty_
+		_config_ and _config.ghostty_ with their _config-file_ includes:
+		fonts, colors and _palette_, _theme_ (from Ghostty's theme
+		directories, with _light:_/_dark:_ themes as light/dark pairs),
+		window settings, _command_ and _keybind_ lines.
+
+	_crush_
+		The theme Crush uses: _options.tui.active_theme_ in Crush's
+		_crush.json_ files (_$XDG_CONFIG_HOME/crush/_, and
+		_~/.local/share/crush/_, where its Themes dialog saves it) and the
+		theme's file in _$XDG_CONFIG_HOME/crush/themes/_, or a theme file
+		given with *--config-file*. Its base colors and 16 ANSI colors are
+		converted; Crush's default theme, which themes without a _base_
+		inherit from, becomes TankTerm's _charm_ theme. Nothing else of
+		these files is read, and _crushrc_ has no theme setting.
+
+	*--from* _<SOURCE>_
+
+		The terminal to convert from: _alacritty_, _tabby_, _wezterm_,
+		_ghostty_ or _crush_.
 
 	*-c, --config-file* _<CONFIG_FILE>_
 
-		Path to the configuration file.
+		The configuration file to convert. Its source is told from its name
+		and contents, unless *--from* names it.
+
+	*-f, --force*
+
+		Replace existing TankTerm files without asking, after backing them up.
 
 	*-d, --dry-run*
 
-		Only output TOML config to STDOUT.
+		Print the files that would be written and the summary, and write
+		nothing.
 
 	*-i, --skip-imports*
 
-		Do not recurse over imports.
-
-	*--skip-renames*
-
-		Do not move renamed fields to their new location.
+		Keep Alacritty imports pointing at the original files instead of
+		converting them.
 
 	*-s, --silent*
 

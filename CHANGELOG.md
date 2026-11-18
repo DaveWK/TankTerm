@@ -112,6 +112,13 @@ Notable changes to the `tankterm_terminal` crate are documented in its
     `hint_end` styles apply, and the URIs of hyperlinks under the mouse or the vi cursor are shown
     at the bottom of the terminal. URLs open with a plain click and with `Control+Shift+O`, as the
     default URL hint says, instead of with `Control`+click
+- `tankTerm migrate` converts the configuration of Alacritty, Tabby, WezTerm or Ghostty, or
+    Crush's theme, into TankTerm's: settings, colors, profiles and the key bindings whose actions
+    TankTerm has, with a summary of what was converted and what was skipped and why. The source
+    is never changed; existing TankTerm files are only replaced after a yes or `--force`, and
+    are backed up to `<name>.bak` first. `--from` picks the source, `--dry-run` prints the result
+- TankTerm logs a hint about `tankTerm migrate` when it starts without a configuration file and
+    finds another terminal's
 
 ### Changed
 
@@ -170,6 +177,8 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 
 ### Removed
 
+- `tankTerm migrate --skip-renames`, and migrating TankTerm's own configuration file in place;
+    `migrate` converts other terminals' configurations instead
 - `--daemon`, and the `create-window`, `config` and `get-config` messages of `tankTerm msg`
 - Key bindings to `command`, `chars` and the actions for vi mode, search, hints, the key help,
     new windows, hiding, minimizing and quitting; mouse bindings other than pasting; hints, vi

@@ -39,7 +39,7 @@ complete -c tankTerm -n "__fish_tankTerm_needs_command" -l hold -d 'Remain open 
 complete -c tankTerm -n "__fish_tankTerm_needs_command" -s h -l help -d 'Print help'
 complete -c tankTerm -n "__fish_tankTerm_needs_command" -s V -l version -d 'Print version'
 complete -c tankTerm -n "__fish_tankTerm_needs_command" -f -a "msg" -d 'Send a message to the TankTerm socket'
-complete -c tankTerm -n "__fish_tankTerm_needs_command" -f -a "migrate" -d 'Migrate the configuration file'
+complete -c tankTerm -n "__fish_tankTerm_needs_command" -f -a "migrate" -d 'Convert another terminal\'s configuration into TankTerm\'s'
 complete -c tankTerm -n "__fish_tankTerm_needs_command" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c tankTerm -n "__fish_tankTerm_using_subcommand msg; and not __fish_seen_subcommand_from list spawn split-pane send-text get-text activate-pane activate-tab kill-pane zoom-pane set-tab-title create-window config get-config help" -s s -l socket -d 'IPC socket connection path override' -r -F
 complete -c tankTerm -n "__fish_tankTerm_using_subcommand msg; and not __fish_seen_subcommand_from list spawn split-pane send-text get-text activate-pane activate-tab kill-pane zoom-pane set-tab-title create-window config get-config help" -s h -l help -d 'Print help'
@@ -122,14 +122,19 @@ complete -c tankTerm -n "__fish_tankTerm_using_subcommand msg; and __fish_seen_s
 complete -c tankTerm -n "__fish_tankTerm_using_subcommand msg; and __fish_seen_subcommand_from help" -f -a "config" -d 'Update the TankTerm configuration (not supported yet)'
 complete -c tankTerm -n "__fish_tankTerm_using_subcommand msg; and __fish_seen_subcommand_from help" -f -a "get-config" -d 'Read runtime TankTerm configuration (not supported yet)'
 complete -c tankTerm -n "__fish_tankTerm_using_subcommand msg; and __fish_seen_subcommand_from help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
-complete -c tankTerm -n "__fish_tankTerm_using_subcommand migrate" -s c -l config-file -d 'Path to the configuration file' -r -F
-complete -c tankTerm -n "__fish_tankTerm_using_subcommand migrate" -s d -l dry-run -d 'Only output TOML config to STDOUT'
-complete -c tankTerm -n "__fish_tankTerm_using_subcommand migrate" -s i -l skip-imports -d 'Do not recurse over imports'
-complete -c tankTerm -n "__fish_tankTerm_using_subcommand migrate" -l skip-renames -d 'Do not move renamed fields to their new location'
+complete -c tankTerm -n "__fish_tankTerm_using_subcommand migrate" -l from -d 'Terminal to convert from [default: the one whose configuration is found]' -r -f -a "alacritty\t''
+tabby\t''
+wezterm\t''
+ghostty\t''
+crush\t''"
+complete -c tankTerm -n "__fish_tankTerm_using_subcommand migrate" -s c -l config-file -d 'Configuration file to convert [default: the terminal\'s own]' -r -F
+complete -c tankTerm -n "__fish_tankTerm_using_subcommand migrate" -s f -l force -d 'Replace existing TankTerm files without asking, after backing them up'
+complete -c tankTerm -n "__fish_tankTerm_using_subcommand migrate" -s d -l dry-run -d 'Print the files that would be written, and write nothing'
+complete -c tankTerm -n "__fish_tankTerm_using_subcommand migrate" -s i -l skip-imports -d 'Keep imports pointing at the original files instead of converting them'
 complete -c tankTerm -n "__fish_tankTerm_using_subcommand migrate" -s s -l silent -d 'Do not output to STDOUT'
 complete -c tankTerm -n "__fish_tankTerm_using_subcommand migrate" -s h -l help -d 'Print help'
 complete -c tankTerm -n "__fish_tankTerm_using_subcommand help; and not __fish_seen_subcommand_from msg migrate help" -f -a "msg" -d 'Send a message to the TankTerm socket'
-complete -c tankTerm -n "__fish_tankTerm_using_subcommand help; and not __fish_seen_subcommand_from msg migrate help" -f -a "migrate" -d 'Migrate the configuration file'
+complete -c tankTerm -n "__fish_tankTerm_using_subcommand help; and not __fish_seen_subcommand_from msg migrate help" -f -a "migrate" -d 'Convert another terminal\'s configuration into TankTerm\'s'
 complete -c tankTerm -n "__fish_tankTerm_using_subcommand help; and not __fish_seen_subcommand_from msg migrate help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c tankTerm -n "__fish_tankTerm_using_subcommand help; and __fish_seen_subcommand_from msg" -f -a "list" -d 'List the tabs and their panes'
 complete -c tankTerm -n "__fish_tankTerm_using_subcommand help; and __fish_seen_subcommand_from msg" -f -a "spawn" -d 'Open a new tab and print the ID of its pane'
