@@ -1283,9 +1283,10 @@ fn clicking_the_app_icon_opens_the_window_menu_without_moving_the_window() {
     ui.simulate(iced_test::simulator::click());
     ui.simulate(iced_test::simulator::click());
 
+    // The menu is asked for once a press, also when the presses make a double click.
     let messages: Vec<_> = ui.into_messages().collect();
     let menus = messages.iter().filter(|message| matches!(message, Message::TitleBarMenu));
-    assert!(menus.count() >= 1, "{messages:?}");
+    assert_eq!(menus.count(), 2, "{messages:?}");
     assert!(!messages.iter().any(|message| matches!(
         message,
         Message::TitleBarPressed | Message::TitleBarDoubleClicked

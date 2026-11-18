@@ -505,12 +505,28 @@ impl App {
 /// directory isn't known, and while it runs `ssh`, whose local directory says nothing about
 /// the remote one.
 fn fallback_title(shell: &Shell) -> Option<String> {
-    let directory = shell.working_directory.as_deref()?;
+    let directory = current_directory(
+        shell.reported_directory.as_deref(),
+        shell.working_directory.as_deref(),
+        cfg!(target_os = "linux"),
+    )?;
     if shell.process.as_deref() == Some("ssh") {
         return None;
     }
     let (user, host) = (status::user_name()?, status::host_name()?);
     Some(format!("{user}@{host}:{}", status::display_path(directory)))
+}
+
+/// The directory a shell is in, as far as it is kept up to date: the last one known where the
+/// process's directory is `looked_up` with the ticks, and else only the one the shell
+/// `reported`, since the one it was `last_known` to be in, like where it started, may be long
+/// left.
+fn current_directory<'a>(
+    reported: Option<&'a Path>,
+    last_known: Option<&'a Path>,
+    looked_up: bool,
+) -> Option<&'a Path> {
+    if looked_up { last_known } else { reported }
 }
 
 /// What a configuration file starts with when `OpenConfig` creates it.
@@ -575,4 +591,23 @@ pub(super) fn nearest_split(
 
     let child = [a, b].into_iter().find(|child| ordered_panes(child).contains(&pane))?;
     nearest_split(child, pane, axis).or_else(|| (*split_axis == axis).then_some((*id, *ratio)))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use super::*;
+
+    #[test]
+    fn only_directories_that_are_kept_up_to_date_name_a_tab() {
+        let (reported, started) = (Some(Path::new("/srv")), Some(Path::new("/home")));
+
+        // Where the process's directory is looked up, the last one known.
+        assert_eq!(current_directory(None, started, true), started);
+        assert_eq!(current_directory(reported, reported, true), reported);
+        // Elsewhere only what the shell reports: the one it started in may be long left.
+        assert_eq!(current_directory(None, started, false), None);
+        assert_eq!(current_directory(reported, started, false), reported);
+    }
 }

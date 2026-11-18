@@ -304,7 +304,9 @@ close_button = _"Always"_
 	Allow terminal applications to change TankTerm's window title. While this
 	is on, a pane whose programs set no title is named after where its shell
 	is, as _user@host:path_, like the titles many shells set; until its
-	directory is known, and while it runs _ssh_, it has _title_. With _false_,
+	directory is known, and while it runs _ssh_, it has _title_. Off Linux
+	the directory is only known when the shell reports it with shell
+	integration. With _false_,
 	every pane has _title_.
 
 	Default: _true_

@@ -293,10 +293,10 @@ struct Shell {
     reported_directory: Option<PathBuf>,
     /// Directory the shell was started in, was in at the last tick or reported last, where that
     /// can be told. Only kept up to date from ticks while there is a session file to remember
-    /// it in or a status segment to show it.
+    /// it in, something shows it, or titles are dynamic and fall back to it.
     working_directory: Option<PathBuf>,
     /// Name of the program that had the terminal at the last tick, where that can be told.
-    /// Only kept up to date while the tab title or a status segment shows it.
+    /// Only kept up to date while something shows it or titles are dynamic.
     process: Option<String>,
     /// The terminal rang the bell or finished a command while nobody was looking at it.
     attention: bool,
