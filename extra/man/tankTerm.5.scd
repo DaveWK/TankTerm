@@ -428,7 +428,7 @@ Unix, for shells with job control, and within about a second.
 
 	Default: _"{index}: {title}{zoom}{marker}"_
 
-*status* = [{ segment = _"<kind>"_, format = _"<format>"_, side = _"<side>"_, style = { _<style>_ } }, ...]
+*status* = [{ segment = _"<kind>"_, format = _"<format>"_, side = _"<side>"_, command = _<program>_, interval = _<seconds>_, style = { _<style>_ } }, ...]
 
 	Segments at the ends of the tab bar, in order. Each is drawn while it has
 	something to show and its text isn't empty, and those that change on their
@@ -436,7 +436,7 @@ Unix, for shells with job control, and within about a second.
 	can join them with separators. They are usually written as
 	*[[tabs.status]]* tables.
 
-	*segment* = _"KeyTable"_ | _"Clock"_ | _"Cwd"_ | _"Battery"_ | _"Zoom"_ | _"Count"_ | _"Text"_ | _"Host"_ | _"Process"_ | _"Load"_
+	*segment* = _"KeyTable"_ | _"Clock"_ | _"Cwd"_ | _"Battery"_ | _"Zoom"_ | _"Count"_ | _"Text"_ | _"Host"_ | _"Process"_ | _"Load"_ | _"Command"_
 
 		*KeyTable*
 			The key table that was activated last, while one is active.
@@ -483,12 +483,41 @@ Unix, for shells with job control, and within about a second.
 			The load average over 1, 5 and 15 minutes, with two decimals.
 			Placeholders: _{load1}_, _{load5}_, _{load15}_. Default format:
 			_"{load1}"_. Not drawn on Windows.
+		*Command*
+			The first line the segment's _command_ printed, run every _interval_
+			seconds, see below. Placeholder: _{output}_. Default format:
+			_"{output}"_.
 
 	*format* = _"<format>"_
 
 		Text with placeholders in braces, like _"{percent}% {status}"_. _{{_ and
 		_}}_ are literal braces. Placeholders the segment doesn't know are
 		reported and drawn as they are written.
+
+	*command* = _"<string>"_ | { program = _"<string>"_, args = [_"<string>"_,] }
+
+		The program a _Command_ segment runs. It runs without a shell; for one,
+		write _{ program = "sh", args = ["-c", "<script>"] }_. It runs in the
+		directory of the focused pane's shell, with _TANKTERM\_PANE\_ID_ set to
+		that pane's ID, and runs again when another pane gets the focus. It gets
+		no input, and what it writes to stderr is dropped.
+
+		The segment shows the first line of the output, without escape
+		sequences and control characters, cut to 200 characters. The last
+		output stays while the program runs again. A program that exits with an
+		error, or runs longer than its _interval_ or 10 seconds, is killed with
+		the processes it started and hides the segment; a warning says why, once
+		until the program works again.
+
+		Only the configuration file and _-o_ can set a command; programs running
+		in a terminal can't.
+
+	*interval* = _<integer>_
+
+		Seconds between the starts of a _Command_ segment's program, at least 1.
+		A program that still runs isn't started again.
+
+		Default: _5_
 
 	*side* = _"Left"_ | _"Right"_
 
@@ -525,6 +554,11 @@ segment = _"Cwd"_
 	*[[tabs.status]]*++
 segment = _"Battery"_++
 format = _"{percent}% {status}"_
+
+	*[[tabs.status]]*++
+segment = _"Command"_++
+command = { program = _"sh"_, args = [_"-c"_, _"git branch --show-current"_] }++
+interval = _10_
 
 	*[[tabs.status]]*++
 segment = _"Clock"_++

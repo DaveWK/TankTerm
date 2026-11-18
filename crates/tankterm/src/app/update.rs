@@ -66,6 +66,7 @@ impl App {
             now: None,
             battery: None,
             load: None,
+            commands: Default::default(),
         };
         app.sample_status();
 
@@ -156,6 +157,9 @@ impl App {
                 shell.terminal.handle(command);
             }
         }
+
+        // The programs of status segments run anew, for the segments as they are now.
+        self.commands.reset();
 
         // Key tables that are gone from the configuration are left.
         let hotkeys = &self.options.hotkeys;
@@ -436,7 +440,8 @@ impl App {
         self.sync_focus();
         self.save_session(tick);
 
-        task
+        // Status commands that are due, also because another pane has the focus now, start.
+        Task::batch([task, self.run_status_commands()])
     }
 
     fn handle(&mut self, message: Message) -> Task<Message> {
@@ -509,6 +514,10 @@ impl App {
                 self.sample_status();
 
                 Task::batch(finished.into_iter().map(|id| self.notify(id)))
+            },
+            Message::StatusOutput(output) => {
+                self.status_output(output);
+                Task::none()
             },
             Message::TitleBarPressed => {
                 self.title_drag = TitleDrag::Pressed;

@@ -7,6 +7,7 @@ use tankterm_config::SerdeReplace;
 use tankterm_config_derive::ConfigDeserialize;
 
 use crate::config::style::Style;
+use crate::config::ui_config::Program;
 use crate::logging::LOG_TARGET_CONFIG;
 use crate::template::Template;
 
@@ -122,7 +123,7 @@ impl<'de> Deserialize<'de> for TabTitle {
 }
 
 /// A segment at an end of the tab bar.
-#[derive(ConfigDeserialize, Serialize, Clone, Debug, Default, PartialEq, Eq)]
+#[derive(ConfigDeserialize, Serialize, Clone, Debug, PartialEq, Eq)]
 pub struct StatusSegment {
     /// What the segment shows.
     pub segment: SegmentKind,
@@ -134,8 +135,27 @@ pub struct StatusSegment {
     /// The end of the tab bar the segment is at.
     pub side: Side,
 
+    /// The program a `Command` segment runs, without a shell.
+    pub command: Option<Program>,
+
+    /// Seconds between the runs of a `Command` segment's program, at least 1.
+    pub interval: u64,
+
     /// Changes to `[style.tab_status]` for this segment.
     pub style: Style,
+}
+
+impl Default for StatusSegment {
+    fn default() -> Self {
+        Self {
+            segment: Default::default(),
+            format: None,
+            side: Default::default(),
+            command: None,
+            interval: 5,
+            style: Default::default(),
+        }
+    }
 }
 
 /// An end of the tab bar.
@@ -184,6 +204,9 @@ pub enum SegmentKind {
 
     /// The load average over 1, 5 and 15 minutes: `{load1}`, `{load5}` and `{load15}`.
     Load,
+
+    /// The first line a program printed, run every `interval` seconds: `{output}`.
+    Command,
 }
 
 impl SegmentKind {
@@ -200,6 +223,7 @@ impl SegmentKind {
             Self::Host => "{user}@{host}",
             Self::Process => "{name}",
             Self::Load => "{load1}",
+            Self::Command => "{output}",
         }
     }
 
@@ -214,6 +238,7 @@ impl SegmentKind {
             Self::Host => &["user", "host", "fqdn"],
             Self::Process => &["name"],
             Self::Load => &["load1", "load5", "load15"],
+            Self::Command => &["output"],
         }
     }
 }
@@ -263,9 +288,25 @@ mod tests {
             (SegmentKind::Load, Side::Right, Some("{load5}"))
         );
 
+        // A command is a program with arguments, run every 5 seconds unless it says otherwise.
+        let config: UiConfig = toml::from_str(
+            "[[tabs.status]]\nsegment = \"Command\"\ncommand = { program = \"sh\", args = \
+             [\"-c\", \"date\"] }\n\n[[tabs.status]]\nsegment = \"Command\"\ncommand = \
+             \"uptime\"\ninterval = 60\n",
+        )
+        .unwrap();
+        let [date, uptime] = &config.tabs.status[..] else { panic!("{:?}", config.tabs.status) };
+        let program = date.command.as_ref().unwrap();
+        assert_eq!(
+            (program.program(), program.args(), date.interval),
+            ("sh", &["-c".to_owned(), "date".to_owned()][..], 5)
+        );
+        assert_eq!(uptime.command, Some(Program::Just("uptime".into())));
+        assert_eq!(uptime.interval, 60);
+
         // Every default format has only placeholders its segment knows.
         use SegmentKind::*;
-        for kind in [KeyTable, Cwd, Battery, Zoom, Count, Text, Host, Process, Load] {
+        for kind in [KeyTable, Cwd, Battery, Zoom, Count, Text, Host, Process, Load, Command] {
             let template = Template::parse(kind.default_format());
             assert!(template.fields().all(|field| kind.fields().contains(&field)), "{kind:?}");
         }

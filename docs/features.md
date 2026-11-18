@@ -239,6 +239,7 @@ tables. Each shows one thing in a format of its own:
 - `Host`: `{user}`, `{host}` and `{fqdn}`.
 - `Process`: the program running in the focused pane, while a command runs.
 - `Load`: the load average, `{load1}`, `{load5}` and `{load15}`.
+- `Command`: the first line a program prints, `{output}`.
 
 Formats use placeholders in braces. A segment with nothing to show, or an empty
 text, isn't drawn. Segments go after the tabs unless they say
@@ -284,6 +285,22 @@ style = { foreground = "#00ff00", background = "#f4d35e" }
 segment = "Clock"
 style = { foreground = "#000000", background = "#00ff00" }
 ```
+
+A `Command` segment runs its `command` every `interval` seconds (5 by
+default), in the directory of the focused pane and with `TANKTERM_PANE_ID` set
+to that pane, and again when another pane gets the focus. The program runs
+without a shell, so a pipeline needs one:
+
+```toml
+[[tabs.status]]
+segment = "Command"
+command = { program = "sh", args = ["-c", "git branch --show-current"] }
+interval = 10
+```
+
+A program that fails, or runs longer than its interval or 10 seconds, hides
+the segment and is logged once. Commands come from the configuration file and
+`-o` only.
 
 Without a `[[tabs.status]]` table, only the key table is shown. The battery and
 the program are only known on Linux, the directory on Linux and with

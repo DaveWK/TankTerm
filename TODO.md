@@ -48,7 +48,6 @@ widgets of their own.
 
 ### More status segments
 
-- `Command`: a program's output, run every N seconds in the focused pane's directory.
 - Powerline arrows drawn by TankTerm, so they don't need a font that has them.
 - The remote host from OSC 7 in the `Host` segment, for a shell on another computer.
 - `Process` on macOS (`proc_name`) and Windows; the program is read from `/proc` on Linux only.

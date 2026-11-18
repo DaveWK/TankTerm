@@ -73,6 +73,8 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 - `Zoom`, `Count`, `Text`, `Host`, `Process` and `Load` status segments, and `side = "Left"` to
     put a segment before the tabs. Segments with an empty text aren't drawn, and segments touch,
     so `Text` segments can join them with separators
+- `Command` status segments show the first line a program prints, run every `interval` seconds
+    in the focused pane's directory
 - With `window.decorations = "None"` the tab bar is the title bar: it is always shown, has
     minimize, maximize and close buttons where `window.buttons` says (`Desktop`, the default,
     follows KDE's and GNOME's button layout; `Right`, `Left`, `None`), moves the window when

@@ -4,12 +4,14 @@
 use std::borrow::Cow;
 use std::path::Path;
 use std::sync::OnceLock;
+use std::time::Duration;
 
 use jiff::Zoned;
 use jiff::fmt::strtime;
 use log::warn;
 
 use super::App;
+use super::status_command::StatusCommand;
 use crate::config::UiConfig;
 use crate::config::style::TabLayer;
 use crate::config::tabs::{SegmentKind, Side};
@@ -26,6 +28,10 @@ pub struct Segment {
     template: Template,
     /// The end of the tab bar the segment is at.
     pub side: Side,
+    /// The program of a `Command` segment.
+    pub command: Option<StatusCommand>,
+    /// The position of the segment among the status segments.
+    index: usize,
     /// Changes to `[style.tab_status]`.
     pub layer: TabLayer,
 }
@@ -33,7 +39,7 @@ pub struct Segment {
 /// The status segments of a configuration. Placeholders a segment doesn't know and clock
 /// formats that can't be used are reported.
 pub fn segments(config: &UiConfig) -> Vec<Segment> {
-    let segments = config.tabs.status.iter().map(|segment| {
+    let segments = config.tabs.status.iter().enumerate().map(|(index, segment)| {
         let kind = segment.segment;
         let format = segment.format.clone().unwrap_or_else(|| kind.default_format().to_owned());
         let template = Template::parse(&format);
@@ -53,8 +59,30 @@ pub fn segments(config: &UiConfig) -> Vec<Segment> {
             resolve_fqdn();
         }
 
+        let command = match (kind, &segment.command) {
+            (SegmentKind::Command, Some(program)) => {
+                if segment.interval < 1 {
+                    warn!(target: LOG_TARGET_CONFIG, "Running status command every second, not 0");
+                }
+                Some(StatusCommand {
+                    program: program.program().to_owned(),
+                    args: program.args().to_vec(),
+                    interval: Duration::from_secs(segment.interval.max(1)),
+                })
+            },
+            (SegmentKind::Command, None) => {
+                warn!(target: LOG_TARGET_CONFIG, "Hiding Command segment without a command");
+                None
+            },
+            (_, Some(_)) => {
+                warn!(target: LOG_TARGET_CONFIG, "Ignoring the command of a {kind:?} segment");
+                None
+            },
+            (_, None) => None,
+        };
+
         let layer = config.style.tab_layer(&segment.style, &config.colors);
-        Segment { kind, format, template, side: segment.side, layer }
+        Segment { kind, format, template, side: segment.side, command, index, layer }
     });
     segments.collect()
 }
@@ -151,6 +179,11 @@ impl App {
                     known(kind, value.map(|value| format!("{value:.2}").into()), name)
                 })
             },
+            // The output is a value; it is never read as a format.
+            SegmentKind::Command => {
+                let output = self.commands.output(segment.index)?;
+                template.render(|name| known(kind, (name == "output").then(|| output.into()), name))
+            },
         }
     }
 
@@ -163,6 +196,7 @@ impl App {
             SegmentKind::Battery,
             SegmentKind::Process,
             SegmentKind::Load,
+            SegmentKind::Command,
         ];
         self.options.status.iter().any(|segment| ticking.contains(&segment.kind))
     }
