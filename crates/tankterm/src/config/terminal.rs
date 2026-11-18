@@ -14,11 +14,31 @@ pub struct Terminal {
     pub shell: Option<Program>,
     /// Ask before pasting text with line breaks into a program without bracketed paste.
     pub confirm_multiline_paste: bool,
+    /// Mark where prompts start at the left edge, for shells with shell integration.
+    pub prompt_marks: bool,
+    /// Whether bash, zsh and fish get the shell integration when TankTerm starts them.
+    pub shell_integration: ShellIntegration,
+}
+
+/// Whether the shells TankTerm starts get the shell integration.
+#[derive(ConfigDeserialize, Serialize, Default, Debug, Copy, Clone, PartialEq, Eq)]
+pub enum ShellIntegration {
+    /// bash, zsh and fish load it, on Unix.
+    #[default]
+    Auto,
+    /// No shell is changed; the scripts can still be sourced by hand.
+    None,
 }
 
 impl Default for Terminal {
     fn default() -> Self {
-        Self { osc52: Default::default(), shell: None, confirm_multiline_paste: true }
+        Self {
+            osc52: Default::default(),
+            shell: None,
+            confirm_multiline_paste: true,
+            prompt_marks: true,
+            shell_integration: Default::default(),
+        }
     }
 }
 

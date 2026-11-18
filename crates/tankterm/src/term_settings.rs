@@ -50,8 +50,12 @@ pub fn settings(config: &UiConfig, options: &Options) -> Settings {
         selection: SelectionSettings {
             semantic_escape_chars: config.selection.semantic_escape_chars.clone(),
         },
-        mouse: MouseSettings { hide_when_typing: config.mouse.hide_when_typing },
+        mouse: MouseSettings {
+            hide_when_typing: config.mouse.hide_when_typing,
+            click_to_move: config.mouse.click_to_move,
+        },
         dynamic_padding: config.window.dynamic_padding,
+        prompt_marks: config.terminal.prompt_marks,
         hints: hint_settings(&config.hints),
     }
 }
@@ -1067,14 +1071,17 @@ mod tests {
             tankterm_terminal::term::SEMANTIC_ESCAPE_CHARS
         );
         assert!(!defaults.mouse.hide_when_typing);
+        assert!(defaults.mouse.click_to_move);
 
         let config: UiConfig = toml::from_str(
-            "[selection]\nsemantic_escape_chars = \" \"\n[mouse]\nhide_when_typing = true\n",
+            "[selection]\nsemantic_escape_chars = \" \"\n[mouse]\nhide_when_typing = \
+             true\nclick_to_move = false\n",
         )
         .unwrap();
         let settings = settings(&config, &Options::default());
         assert_eq!(settings.selection.semantic_escape_chars, " ");
         assert!(settings.mouse.hide_when_typing);
+        assert!(!settings.mouse.click_to_move);
     }
 
     #[test]

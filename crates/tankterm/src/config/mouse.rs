@@ -5,10 +5,18 @@ use tankterm_config_derive::{ConfigDeserialize, SerdeReplace};
 use crate::config::bindings::{self, MouseBinding};
 use crate::config::ui_config;
 
-#[derive(ConfigDeserialize, Serialize, Default, Clone, Debug, PartialEq)]
+#[derive(ConfigDeserialize, Serialize, Clone, Debug, PartialEq)]
 pub struct Mouse {
     pub hide_when_typing: bool,
+    /// Move the cursor of a shell that takes clicks in its command line to a click there.
+    pub click_to_move: bool,
     pub bindings: MouseBindings,
+}
+
+impl Default for Mouse {
+    fn default() -> Self {
+        Self { hide_when_typing: false, click_to_move: true, bindings: Default::default() }
+    }
 }
 
 /// Active mouse bindings and the user's binding entries they were created from.

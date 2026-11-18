@@ -1256,3 +1256,63 @@ fn the_window_buttons_can_be_at_both_ends() {
             .is_ok()
     );
 }
+
+/// `Alt` and a right click select a command's output, and a click in the command line of a shell
+/// that takes clicks moves its cursor there with arrow keys.
+#[test]
+fn mouse_selects_command_output_and_moves_the_cursor_in_the_command_line() {
+    // A command with two lines of output, and a prompt with `echo hi` typed at it. `cat` shows
+    // the keys it is sent, as `^[[D`.
+    let prompt = r"\\033]133;A;cl=m\\007$ \\033]133;B\\007";
+    let script = format!(
+        "printf '{prompt}ls\\\\r\\\\n\\\\033]133;C\\\\007out1\\\\r\\\\nout2\\\\r\\\\n\\\\033]133;\
+         D;0\\\\007{prompt}echo hi'; exec cat"
+    );
+    let shell =
+        format!("[terminal]\nshell = {{ program = \"sh\", args = [\"-c\", \"{script}\"] }}\n");
+    let mut app = app_with(&shell, Hotkeys::default());
+    wait_for_text(&app, 0, "echo hi");
+    let _ = app.update(wakeup(0));
+
+    let cell = crate::term_settings::settings(&UiConfig::default(), &Default::default());
+    let cell = cell.font.cell_size();
+    let (width, height) = (cell.width.trunc(), cell.height.trunc());
+    let at = |line: f32, column: f32| ((column + 0.5) * width, (line + 0.5) * height);
+    let moved = |position: (f32, f32)| {
+        Event::Mouse(mouse::Event::CursorMoved { position: position.into() })
+    };
+    let handle = |app: &mut App, batches: &[((f32, f32), Vec<Event>)]| {
+        let (_, messages) = ui_events(app, batches);
+        for message in messages {
+            let _ = app.update(message);
+        }
+    };
+
+    // Lay the terminal out. Every batch of events starts with a click on the output, which
+    // focuses the terminal and moves no cursor.
+    handle(&mut app, &[((0., 0.), vec![moved((0., 0.))])]);
+    let mut focus = vec![moved(at(1., 10.))];
+    focus.extend(click(mouse::Button::Left));
+    let focus = (at(1., 10.), focus);
+
+    // `Alt` and a right click on the output, or after the command line, select the output.
+    let alt = Event::Keyboard(iced::keyboard::Event::ModifiersChanged(Modifiers::ALT));
+    let none = Event::Keyboard(iced::keyboard::Event::ModifiersChanged(Modifiers::empty()));
+    let right = Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Right));
+    for position in [at(2., 1.), at(0., 30.)] {
+        let alt_right = vec![alt.clone(), moved(position), right.clone(), none.clone()];
+        handle(&mut app, &[focus.clone(), (position, alt_right)]);
+        assert_eq!(app.terminals[&0].terminal.selection().as_deref(), Some("out1\nout2"));
+    }
+
+    // A click on the "c" of "echo" moves the cursor six characters to the left. A click that
+    // drops a selection does nothing else, so the selection goes first.
+    let clear = BackendCommand::ClearSelection;
+    let _ = app.update(Message::Terminal(iced_tterm::Event::BackendCall(0, clear)));
+    let position = at(3., 3.);
+    let mut events = vec![moved(position)];
+    events.extend(click(mouse::Button::Left));
+    handle(&mut app, &[focus, (position, events)]);
+    wait_for_text(&app, 0, &"^[[D".repeat(6));
+    assert!(!app.terminals[&0].terminal.text().concat().contains(&"^[[D".repeat(7)));
+}

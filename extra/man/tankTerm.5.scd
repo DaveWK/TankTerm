@@ -1207,6 +1207,25 @@ Windows: _"powershell"_
 
 	Default: _true_
 
+*prompt_marks* = _true_ | _false_
+
+	Mark where every prompt starts at the left edge of the terminal, in red
+	when the command typed at it failed. Only shells that mark their prompts
+	get marks; see *SHELL INTEGRATION* in *tankTerm*(1). With _false_ the
+	marks are hidden, and the prompt keys and actions still work.
+
+	Default: _true_
+
+*shell_integration* = _"Auto"_ | _"None"_
+
+	With _"Auto"_, bash, zsh and fish load TankTerm's shell integration when
+	TankTerm starts them, with their own startup files read as usual; see
+	*SHELL INTEGRATION* in *tankTerm*(1). Shells started to run a command or
+	a script, and shells told to read no startup files, are left as they are.
+	With _"None"_ no shell is changed. Only on Linux, BSD and macOS.
+
+	Default: _"Auto"_
+
 # MOUSE
 
 This section documents the *[mouse]* table of the configuration file.
@@ -1217,6 +1236,17 @@ This section documents the *[mouse]* table of the configuration file.
 	key is typed into it, until the mouse moves.
 
 	Default: _false_
+
+*click_to_move* = _true_ | _false_
+
+	A click in the command line of a shell that waits at its prompt moves the
+	shell's cursor there, if the shell takes clicks: fish 4.1 or later, and
+	bash and zsh with TankTerm's shell integration. TankTerm sends such shells
+	a mouse click (OSC 133 _click_events_) or the left and right arrow keys
+	(OSC 133 _cl_). Clicks that select text, choose a hint or go to a program
+	that asked for the mouse don't move the cursor.
+
+	Default: _true_
 
 *bindings* = [{ *<mouse>*, *<mods>*, *<mode>*, *<command>* | *<chars>* | *<action>* },]
 
@@ -1240,10 +1270,12 @@ This section documents the *[mouse]* table of the configuration file.
 			it by words or lines; with _Control_ it becomes a block.
 
 	Of the mouse bindings, only those of the middle and right buttons to the
-	_Paste_, _PasteSelection_ and _ExpandSelection_ actions have an effect so
-	far; a _mode_ isn't supported for them. The middle button pastes the
-	selection and the right button expands it by default. Binding either
-	button to another action takes its default away.
+	_Paste_, _PasteSelection_, _ExpandSelection_ and _SelectCommandOutput_
+	actions have an effect so far; a _mode_ isn't supported for them. The
+	middle button pastes the selection and the right button expands it by
+	default, and with _Alt_ the right button selects the output of the command
+	under the mouse. Binding either button to another action takes its default
+	away.
 
 	Example:
 		*[mouse]*++
@@ -1569,8 +1601,9 @@ _https://docs.rs/winit/latest/winit/keyboard/enum.Key.html_
 		*SelectCommandOutput*
 			Select the output of the command whose prompt is at the top of the
 			terminal, or of the last command while the terminal is scrolled to
-			the bottom, and put it on the selection clipboard. Needs a shell that
-			marks its commands.
+			the bottom, and put it on the selection clipboard. Bound to a mouse
+			button, select the output under the mouse, or of the command typed
+			at the prompt under it. Needs a shell that marks its commands.
 		*ClearHistory*
 			Clear the display buffer(s) to remove history.
 		*Hide*

@@ -520,3 +520,36 @@ fn background_set_by_an_application_is_drawn_behind_the_padding_too() {
     assert!(same_picture(&app, &configured.start()));
     assert!(!same_picture(&app, &ConfigFile::new(padding).start()));
 }
+
+#[test]
+fn prompt_marks_are_hidden_and_shown_again() {
+    // A shell that marks its prompt, with the marks shown or hidden.
+    let shell = |marks: bool| {
+        let printf = r"printf '\\033]133;A\\007$ \\033]133;B\\007'; exec cat";
+        let shell =
+            format!("terminal.shell = {{ program = \"sh\", args = [\"-c\", \"{printf}\"] }}\n");
+        format!("{shell}terminal.prompt_marks = {marks}\n")
+    };
+    let started = |marks: bool| {
+        let file = ConfigFile::new("");
+        file.write_raw(&shell(marks));
+        let mut app = file.start();
+        wait_for_text(&app, 0, "$");
+        let _ = app.update(super::tab_tests::wakeup(0));
+        (file, app)
+    };
+
+    let (file, mut app) = started(true);
+    let (_shown, shown) = started(true);
+    let (_hidden, hidden) = started(false);
+    assert!(same_picture(&app, &shown));
+    assert!(!same_picture(&app, &hidden));
+
+    file.write_raw(&shell(false));
+    changed(&mut app);
+    assert!(same_picture(&app, &hidden));
+
+    file.write_raw(&shell(true));
+    changed(&mut app);
+    assert!(same_picture(&app, &shown));
+}

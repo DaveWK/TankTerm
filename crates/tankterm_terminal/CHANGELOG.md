@@ -19,6 +19,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
     `Event::CommandFinished`)
 - `Cell::zone` records the prompt, command line or output a cell was written in;
     `Term::scroll_to_prompt` and `Term::select_command_output` use it
+- `Term::select_command_output_at` selects the output of the command at a point, and
+    `Term::prompt_click` gives what to send a shell for a click in its command line, from the
+    `click_events` and `cl` options of OSC 133 `A` (`PromptClicks`)
 
 ### Changed
 

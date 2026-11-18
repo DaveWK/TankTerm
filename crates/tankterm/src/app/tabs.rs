@@ -318,6 +318,10 @@ impl App {
     pub(super) fn spawn(&mut self, mut settings: Settings, background: Color) -> io::Result<u64> {
         let id = self.next_terminal;
         settings.backend.env.insert(PANE_ID_ENV.into(), id.to_string());
+        #[cfg(unix)]
+        if self.options.shell_integration {
+            crate::shell_integration::apply(&mut settings.backend);
+        }
         let working_directory = settings.backend.working_directory.clone();
         let hold = settings.backend.hold;
         settings.font = zoomed(settings.font, self.font_zoom);

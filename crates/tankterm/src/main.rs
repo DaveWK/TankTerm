@@ -47,6 +47,8 @@ mod palette;
 mod panic;
 mod session;
 mod setup;
+#[cfg(unix)]
+mod shell_integration;
 mod template;
 mod term_settings;
 mod title_buttons;

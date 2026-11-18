@@ -262,8 +262,9 @@ brevity.
 :[
 |  _OSC 133_
 :  Implemented
-:[ Prompt marks _A_, _P_, _B_, _C_ and _D_ with an exit status; options are
-   ignored but for kitty's _k=s_
+:[ Prompt marks _A_, _P_, _B_, _C_ and _D_ with an exit status. Of the
+   options, kitty's _k=s_, and _click_events_ and _cl_ of _A_ for clicks in the
+   command line; the others are ignored
 
 # DCS (Device Control String) - ESC P
 

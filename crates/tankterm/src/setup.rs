@@ -8,6 +8,7 @@ use iced_tterm::settings::Settings;
 use crate::app::{AppOptions, Layout, Profile};
 use crate::bell::Bell;
 use crate::cli::Options;
+use crate::config::terminal::ShellIntegration;
 use crate::config::{self, UiConfig};
 use crate::hotkeys::{self, Hotkeys};
 use crate::title_buttons::TitleButtons;
@@ -111,6 +112,7 @@ pub fn setup(config: &UiConfig, options: &mut Options) -> Setup {
         }),
         profiles,
         confirm_multiline_paste: config.terminal.confirm_multiline_paste,
+        shell_integration: config.terminal.shell_integration == ShellIntegration::Auto,
         copy_on_select: config.selection.save_to_clipboard,
         bindings: hotkeys::mouse_bindings(config.mouse_bindings()),
         bell: Bell::from_config(&config.bell),

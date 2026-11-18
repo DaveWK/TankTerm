@@ -23,6 +23,9 @@ written as { key = _"Paste"_, action = _"Paste"_ } in the configuration file.
 |  _Right_
 :  _Control_
 :  _ExpandSelection_
+|  _Right_
+:  _Alt_
+:  _SelectCommandOutput_
 |  _Middle_
 :  _~Vi_
 :  _PasteSelection_
@@ -703,7 +706,7 @@ applications in the terminal.
 
 ## Leader preset on Windows, Linux, and BSD
 
-Only these keys run their action directly.
+Only these keys and the prompt keys below run their action directly.
 
 [[ *key*
 :[ *mods*
@@ -917,8 +920,8 @@ need no _Shift_, so they don't depend on the keyboard layout.
 
 ## Leader preset on macOS
 
-Only these keys run their action directly; the keys after the leader key are
-listed above.
+Only these keys and the prompt keys below run their action directly; the keys
+after the leader key are listed above.
 
 [[ *key*
 :[ *mods*
@@ -932,6 +935,52 @@ listed above.
 |  _D_
 :  _Command|Shift_
 :  _SplitDown_
+
+## Prompt keys on Windows, Linux, and BSD
+
+These keys scroll to prompts and select a command's output in every preset.
+They need a shell that marks its prompts; see *SHELL INTEGRATION* in
+*tankTerm*(1). The arrows reach the application on the alternate screen. In
+the WezTerm preset the arrows take _Shift_ instead of _Control|Shift_, which
+moves between panes there.
+
+[[ *key*
+:[ *mods*
+:[ *mode*
+:< *action*
+|  _ArrowUp_
+:  _Control|Shift_
+:  _~Alt_
+:  _ScrollToPreviousPrompt_
+|  _ArrowDown_
+:  _Control|Shift_
+:  _~Alt_
+:  _ScrollToNextPrompt_
+|  _G_
+:  _Control|Shift_
+:[
+:  _SelectCommandOutput_
+
+## Prompt keys on macOS
+
+The same in every preset.
+
+[[ *key*
+:[ *mods*
+:[ *mode*
+:< *action*
+|  _ArrowUp_
+:  _Command_
+:  _~Alt_
+:  _ScrollToPreviousPrompt_
+|  _ArrowDown_
+:  _Command_
+:  _~Alt_
+:  _ScrollToNextPrompt_
+|  _A_
+:  _Command|Shift_
+:[
+:  _SelectCommandOutput_
 
 # SEE ALSO
 

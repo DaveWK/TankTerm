@@ -16,7 +16,7 @@ use crate::event::{Event, EventListener};
 use crate::grid::{Dimensions, Grid, Scroll};
 use crate::index::{Column, Direction, Line, Point, Side};
 use crate::selection::{Selection, SelectionType};
-use crate::term::cell::{Cell, CommandStatus, Zone};
+use crate::term::cell::{Cell, CommandStatus, Flags, Zone};
 use crate::term::{Term, TermMode};
 use crate::vte::ansi::Handler;
 
@@ -44,11 +44,17 @@ impl ShellSequence {
 
         let mut fields = payload.strip_prefix(b"133;")?.split(|byte| *byte == b';');
         let mark = match fields.next()? {
-            // kitty marks secondary prompts with an `A` that has `k=s`, other prompt kinds too.
-            b"A" if fields.any(|field| matches!(field, b"k=s" | b"k=c" | b"k=r")) => {
-                PromptMark::Prompt
+            b"A" => {
+                let options: Vec<&[u8]> = fields.collect();
+                // kitty marks secondary prompts with an `A` that has `k=s`, other prompt kinds
+                // too.
+                let kind = |option: &&[u8]| matches!(*option, b"k=s" | b"k=c" | b"k=r");
+                if options.iter().any(kind) {
+                    PromptMark::Prompt
+                } else {
+                    PromptMark::PromptStart(PromptClicks::from_options(&options))
+                }
             },
-            b"A" => PromptMark::PromptStart,
             b"P" => PromptMark::Prompt,
             b"B" => PromptMark::CommandStart,
             b"C" => PromptMark::OutputStart,
@@ -66,8 +72,9 @@ impl ShellSequence {
 /// A mark a shell puts around its prompts and commands with OSC 133.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PromptMark {
-    /// `A`: a prompt starts, on a line of its own.
-    PromptStart,
+    /// `A`: a prompt starts, on a line of its own, and its shell takes clicks in its command line
+    /// like this.
+    PromptStart(PromptClicks),
     /// `P`: more of a prompt follows, such as a continuation or right prompt.
     Prompt,
     /// `B`: the prompt ends and the command line starts.
@@ -78,6 +85,38 @@ pub enum PromptMark {
     CommandEnd(Option<i32>),
 }
 
+/// How a shell takes a click in its command line, to move its cursor there, as the options of its
+/// `A` mark say.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PromptClicks {
+    /// It doesn't.
+    #[default]
+    None,
+    /// `cl`: as the left and right arrow keys that move the cursor there, over the lines of the
+    /// command line, or only on the cursor's line with `cl=line`.
+    Arrows { multiple_lines: bool },
+    /// `click_events`: as a click of the left button in the SGR mouse encoding, on the line of
+    /// the screen (`1`) or of the prompt (`2`).
+    Events { relative: bool },
+}
+
+impl PromptClicks {
+    /// How the options of an `A` mark say clicks are taken.
+    fn from_options(options: &[&[u8]]) -> Self {
+        let value = |name: &[u8]| {
+            options.iter().find_map(|option| option.strip_prefix(name)?.strip_prefix(b"="))
+        };
+
+        match (value(b"click_events"), value(b"cl")) {
+            (Some(b"1"), _) => Self::Events { relative: false },
+            (Some(b"2"), _) => Self::Events { relative: true },
+            (_, Some(b"line")) => Self::Arrows { multiple_lines: false },
+            (_, Some(b"m" | b"v" | b"w")) => Self::Arrows { multiple_lines: true },
+            _ => Self::None,
+        }
+    }
+}
+
 /// What a terminal keeps of the shell integration sequences.
 #[derive(Debug, Default)]
 pub(crate) struct ShellState {
@@ -85,6 +124,8 @@ pub(crate) struct ShellState {
     pub(crate) zone: Zone,
     /// A command started (`C`) and didn't finish yet.
     running: bool,
+    /// How the shell takes clicks in the command line of its last prompt.
+    clicks: PromptClicks,
     /// The directory the shell reported last.
     directory: Option<PathBuf>,
 }
@@ -108,9 +149,10 @@ impl<T: EventListener> Term<T> {
 
     fn prompt_mark(&mut self, mark: PromptMark) {
         match mark {
-            PromptMark::PromptStart => {
+            PromptMark::PromptStart(clicks) => {
                 // A command that didn't say it ended did when the next prompt starts.
                 self.end_command(None);
+                self.shell.clicks = clicks;
 
                 // The prompt starts on a line of its own, after output that didn't end one.
                 if self.grid.cursor.point.column != 0 || self.grid.cursor.input_needs_wrap {
@@ -216,6 +258,128 @@ impl<T: EventListener> Term<T> {
         selection.update(end, Side::Right);
         self.selection = Some(selection);
         true
+    }
+
+    /// Select the output of the command at `point`: the output `point` is in, or the output of
+    /// the command typed at the prompt it is in.
+    ///
+    /// Returns whether there was output to select.
+    pub fn select_command_output_at(&mut self, point: Point) -> bool {
+        if self.mode.contains(TermMode::ALT_SCREEN) {
+            return false;
+        }
+
+        let Some(anchor) = self.output_at(point) else { return false };
+        let (start, end) = output_around(&self.grid, anchor);
+        let mut selection = Selection::new(SelectionType::Simple, start, Side::Left);
+        selection.update(end, Side::Right);
+        self.selection = Some(selection);
+        true
+    }
+
+    /// A cell of the output `point` is in, or of the output of the command typed at the prompt
+    /// `point` is in.
+    fn output_at(&self, point: Point) -> Option<Point> {
+        // The last cell that was written at or before the point tells what it is in, also for
+        // empty cells in the output or after a command line.
+        let mut current = Some(point);
+        let written = loop {
+            let point = current?;
+            if self.grid[point].zone != Zone::None {
+                break point;
+            }
+            current = before(&self.grid, point);
+        };
+        if self.grid[written].zone == Zone::Output {
+            return Some(written);
+        }
+
+        // A prompt or a command line: the output follows, up to the next prompt.
+        let mut current = after(&self.grid, written);
+        while let Some(point) = current {
+            match self.grid[point].zone {
+                Zone::Output => return Some(point),
+                Zone::PromptStart(_) => return None,
+                _ => (),
+            }
+            current = after(&self.grid, point);
+        }
+
+        None
+    }
+
+    /// What to send the shell for a click at `point` to move its cursor there, if the shell
+    /// takes clicks in its command line and waits at a prompt the click is in.
+    ///
+    /// Only clicks on the primary screen count, while no program asked for the mouse, at or
+    /// below the line where the last prompt starts.
+    pub fn prompt_click(&self, point: Point) -> Option<Vec<u8>> {
+        let modes = TermMode::ALT_SCREEN | TermMode::MOUSE_MODE;
+        let at_prompt = match self.shell.zone {
+            Zone::Input => true,
+            // fish 4.1 and 4.2 mark no command line (`B`); a shell that takes click events finds
+            // the place in its command line itself.
+            Zone::PromptStart(_) | Zone::Prompt => {
+                matches!(self.shell.clicks, PromptClicks::Events { .. })
+            },
+            Zone::None | Zone::Output => false,
+        };
+        if self.mode.intersects(modes) || !at_prompt || self.shell.running || point.line < 0 {
+            return None;
+        }
+
+        let cursor = self.grid.cursor.point;
+        let prompt = last_prompt_start(&self.grid, cursor)?;
+        if point.line < prompt.line || point.line > self.bottommost_line() {
+            return None;
+        }
+
+        match self.shell.clicks {
+            PromptClicks::None => None,
+            PromptClicks::Events { relative } => {
+                let line = if relative { point.line - prompt.line } else { point.line };
+                Some(format!("\x1b[<0;{};{}M", point.column.0 + 1, line.0 + 1).into_bytes())
+            },
+            PromptClicks::Arrows { multiple_lines } => {
+                if !multiple_lines && point.line != cursor.line {
+                    return None;
+                }
+                self.arrows_to(cursor, point)
+            },
+        }
+    }
+
+    /// The arrow keys that move a cursor at `cursor` through the command line to `point`: one
+    /// for every character typed between them, which is every cell of the command line but the
+    /// spacers after wide characters.
+    fn arrows_to(&self, cursor: Point, mut point: Point) -> Option<Vec<u8>> {
+        // A click on the right half of a wide character is on the character.
+        if self.grid[point].flags.contains(Flags::WIDE_CHAR_SPACER) {
+            point = before(&self.grid, point)?;
+        }
+
+        let (from, to, key) = match point.cmp(&cursor) {
+            std::cmp::Ordering::Equal => return None,
+            std::cmp::Ordering::Less => (point, cursor, b'D'),
+            std::cmp::Ordering::Greater => (cursor, point, b'C'),
+        };
+
+        let mut characters = 0;
+        let mut current = Some(from);
+        while let Some(point) = current.filter(|point| *point < to) {
+            let cell = &self.grid[point];
+            if cell.zone == Zone::Input && !cell.flags.contains(Flags::WIDE_CHAR_SPACER) {
+                characters += 1;
+            }
+            current = after(&self.grid, point);
+        }
+        if characters == 0 {
+            return None;
+        }
+
+        let introducer: &[u8] =
+            if self.mode.contains(TermMode::APP_CURSOR) { b"\x1bO" } else { b"\x1b[" };
+        Some([introducer, &[key]].concat().repeat(characters))
     }
 
     /// A cell of the last command's output: of the command running at the cursor, or of the
@@ -656,6 +820,106 @@ mod tests {
     }
 
     #[test]
+    fn selects_the_output_of_the_command_at_a_point() {
+        let mut shell = Shell::new(20, 10);
+        shell.command("ls", "a\r\n\r\nb\r\n", 0).command("true", "", 0);
+        shell.command("seq 2", "1\r\n2\r\n", 0).prompt();
+        let mut select = |line, column| {
+            let selected =
+                shell.term.select_command_output_at(Point::new(Line(line), Column(column)));
+            selected.then(|| shell.term.selection_to_string().unwrap())
+        };
+
+        // In the output, on an empty line of it, and after its text.
+        assert_eq!(select(1, 0).as_deref(), Some("a\n\nb"));
+        assert_eq!(select(2, 5).as_deref(), Some("a\n\nb"));
+        assert_eq!(select(3, 15).as_deref(), Some("a\n\nb"));
+        // On a prompt or after a command line, the output of that command.
+        assert_eq!(select(0, 0).as_deref(), Some("a\n\nb"));
+        assert_eq!(select(5, 10).as_deref(), Some("1\n2"));
+        // A command that printed nothing, and the prompt waiting for one.
+        assert_eq!(select(4, 1), None);
+        assert_eq!(select(8, 0), None);
+    }
+
+    #[test]
+    fn clicks_in_the_command_line_move_the_cursor_with_arrows() {
+        let mut shell = Shell::new(20, 10);
+        shell.feed("\x1b]133;A;cl=m\x07$ \x1b]133;B\x07echo 漢字 ok");
+        let click = |shell: &Shell, line, column| {
+            let keys = shell.term.prompt_click(Point::new(Line(line), Column(column)))?;
+            Some(String::from_utf8(keys).unwrap())
+        };
+
+        // The cursor is at the end, after 12 cells and 10 characters of the command line.
+        assert_eq!(shell.term.grid.cursor.point, Point::new(Line(0), Column(14)));
+        assert_eq!(click(&shell, 0, 2).as_deref(), Some("\x1b[D".repeat(10).as_str()));
+        // Both halves of a wide character are that character.
+        assert_eq!(click(&shell, 0, 7).as_deref(), Some("\x1b[D".repeat(5).as_str()));
+        assert_eq!(click(&shell, 0, 8).as_deref(), Some("\x1b[D".repeat(5).as_str()));
+        // On the prompt: to the start of the command line. On the cursor: nowhere.
+        assert_eq!(click(&shell, 0, 0).as_deref(), Some("\x1b[D".repeat(10).as_str()));
+        assert_eq!(click(&shell, 0, 14), None);
+        // Past the end: to the end.
+        assert_eq!(click(&shell, 3, 5), None);
+
+        shell.feed("\x1b[3D");
+        assert_eq!(click(&shell, 0, 19).as_deref(), Some("\x1b[C".repeat(3).as_str()));
+        shell.feed("\x1b[?1h");
+        assert_eq!(click(&shell, 0, 19).as_deref(), Some("\x1bOC".repeat(3).as_str()));
+        shell.feed("\x1b[?1l");
+
+        // Not while a program asked for the mouse, nor on the alternate screen.
+        shell.feed("\x1b[?1000h");
+        assert_eq!(click(&shell, 0, 2), None);
+        shell.feed("\x1b[?1000l\x1b[?1049h");
+        assert_eq!(click(&shell, 0, 2), None);
+        shell.feed("\x1b[?1049l");
+        assert!(click(&shell, 0, 2).is_some());
+
+        // Not above the prompt, nor while a command runs.
+        shell.feed("\r\n\x1b]133;C\x07");
+        assert_eq!(click(&shell, 0, 2), None);
+        shell.feed("\x1b]133;D;0\x07\x1b]133;A;cl=line\x07$ \x1b]133;B\x07ls");
+        assert_eq!(click(&shell, 0, 2), None);
+        assert_eq!(click(&shell, 1, 2).as_deref(), Some("\x1b[D\x1b[D"));
+        // With `cl=line` only on the cursor's line.
+        assert_eq!(click(&shell, 2, 0), None);
+
+        // A shell that doesn't take clicks.
+        shell.prompt().feed("ls");
+        assert_eq!(click(&shell, 2, 0), None);
+    }
+
+    #[test]
+    fn clicks_in_the_command_line_are_sent_as_click_events() {
+        let mut shell = Shell::new(20, 10);
+        shell.feed("out\r\n\x1b]133;A;click_events=1\x07> \x1b]133;B\x07ls -l\r\n  \x1b[A");
+        let click = |shell: &Shell, line, column| {
+            let keys = shell.term.prompt_click(Point::new(Line(line), Column(column)))?;
+            Some(String::from_utf8(keys).unwrap())
+        };
+
+        // One-based columns and lines of the screen, below the prompt too.
+        assert_eq!(click(&shell, 1, 4).as_deref(), Some("\x1b[<0;5;2M"));
+        assert_eq!(click(&shell, 5, 0).as_deref(), Some("\x1b[<0;1;6M"));
+        assert_eq!(click(&shell, 0, 0), None);
+
+        // Lines of the prompt.
+        shell.feed("\r\n\x1b]133;A;click_events=2\x07> \x1b]133;B\x07");
+        assert_eq!(click(&shell, 2, 4).as_deref(), Some("\x1b[<0;5;1M"));
+        assert_eq!(click(&shell, 3, 0).as_deref(), Some("\x1b[<0;1;2M"));
+
+        // fish 4.1 and 4.2 don't mark where the command line starts.
+        shell.feed("\r\n\x1b]133;C\x07\x1b]133;D;0\x07\x1b]133;A;click_events=1\x07> ls");
+        assert_eq!(click(&shell, 2, 4), None);
+        assert_eq!(click(&shell, 3, 4).as_deref(), Some("\x1b[<0;5;4M"));
+        // Nor while a command runs.
+        shell.feed("\r\n\x1b]133;C\x07");
+        assert_eq!(click(&shell, 3, 4), None);
+    }
+
+    #[test]
     fn reports_working_directories_when_they_change() {
         let mut shell = Shell::new(20, 10);
         shell.feed("\x1b]7;file:///tmp\x07\x1b]7;file:///tmp\x07");
@@ -668,8 +932,22 @@ mod tests {
         let parse = |payload: &[u8]| ShellSequence::parse(payload);
         let mark = |mark| Some(ShellSequence::Prompt(mark));
 
-        assert_eq!(parse(b"133;A"), mark(PromptMark::PromptStart));
-        assert_eq!(parse(b"133;A;aid=12;cl=m"), mark(PromptMark::PromptStart));
+        let start = |clicks| mark(PromptMark::PromptStart(clicks));
+        assert_eq!(parse(b"133;A"), start(PromptClicks::None));
+        assert_eq!(parse(b"133;A;aid=12"), start(PromptClicks::None));
+        assert_eq!(
+            parse(b"133;A;aid=12;cl=m"),
+            start(PromptClicks::Arrows { multiple_lines: true })
+        );
+        assert_eq!(parse(b"133;A;cl=line"), start(PromptClicks::Arrows { multiple_lines: false }));
+        assert_eq!(parse(b"133;A;cl=nope"), start(PromptClicks::None));
+        // fish 4's mark; click events win over arrows.
+        assert_eq!(parse(b"133;A;click_events=1"), start(PromptClicks::Events { relative: false }));
+        assert_eq!(
+            parse(b"133;A;cl=m;click_events=2"),
+            start(PromptClicks::Events { relative: true })
+        );
+        assert_eq!(parse(b"133;A;click_events=0"), start(PromptClicks::None));
         assert_eq!(parse(b"133;A;k=s"), mark(PromptMark::Prompt));
         assert_eq!(parse(b"133;P;k=r"), mark(PromptMark::Prompt));
         assert_eq!(parse(b"133;B"), mark(PromptMark::CommandStart));

@@ -12,7 +12,7 @@ const DEFAULT_SHELL: &str = "wsl.exe";
 #[cfg(not(target_os = "windows"))]
 const DEFAULT_SHELL: &str = "/bin/bash";
 
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct Settings {
     pub font: FontSettings,
     pub theme: ThemeSettings,
@@ -25,8 +25,28 @@ pub struct Settings {
     /// by whole cells evenly between both sides, instead of leaving it all
     /// at the right and the bottom.
     pub dynamic_padding: bool,
+    /// Mark where prompts start at the left edge, in red after a failed
+    /// command, for shells that mark their prompts (OSC 133).
+    pub prompt_marks: bool,
     /// Text found in the view to act on, and hyperlinks.
     pub hints: HintSettings,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            font: FontSettings::default(),
+            theme: ThemeSettings::default(),
+            backend: BackendSettings::default(),
+            scroll: ScrollSettings::default(),
+            cursor: CursorSettings::default(),
+            selection: SelectionSettings::default(),
+            mouse: MouseSettings::default(),
+            dynamic_padding: false,
+            prompt_marks: true,
+            hints: HintSettings::default(),
+        }
+    }
 }
 
 /// How text is selected with the mouse.
@@ -45,11 +65,23 @@ impl Default for SelectionSettings {
 }
 
 /// How the mouse pointer behaves over the terminal.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MouseSettings {
     /// Hide the pointer when a key is typed into the terminal, until the
     /// mouse moves.
     pub hide_when_typing: bool,
+    /// Move the cursor of a shell that takes clicks in its command line
+    /// (OSC 133 `click_events` or `cl`) to a click there.
+    pub click_to_move: bool,
+}
+
+impl Default for MouseSettings {
+    fn default() -> Self {
+        Self {
+            hide_when_typing: false,
+            click_to_move: true,
+        }
+    }
 }
 
 /// How the cursor looks and blinks.

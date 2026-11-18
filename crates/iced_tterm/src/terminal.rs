@@ -55,6 +55,8 @@ pub enum Command {
     /// Change whether the grid is centred in the widget; see
     /// [`Settings::dynamic_padding`].
     ChangeDynamicPadding(bool),
+    /// Change whether prompts are marked; see [`Settings::prompt_marks`].
+    ChangePromptMarks(bool),
     /// Change the hints. Labels shown for the old ones are taken away.
     ChangeHints(HintSettings),
     /// Tell the terminal whether it has the keyboard focus. Without it the
@@ -86,6 +88,8 @@ pub struct Terminal {
     pub(crate) mouse: MouseSettings,
     /// Centre the grid in the widget.
     pub(crate) dynamic_padding: bool,
+    /// Mark where prompts start.
+    pub(crate) prompt_marks: bool,
     /// Whether the window the terminal is in has focus.
     pub(crate) window_focused: bool,
     pub(crate) backend: backend::Backend,
@@ -122,6 +126,7 @@ impl Terminal {
             cursor,
             mouse: settings.mouse,
             dynamic_padding: settings.dynamic_padding,
+            prompt_marks: settings.prompt_marks,
             window_focused: true,
             cache: Cache::default(),
             backend,
@@ -322,6 +327,7 @@ impl Terminal {
             Command::ChangeDynamicPadding(dynamic) => {
                 self.dynamic_padding = dynamic;
             },
+            Command::ChangePromptMarks(marks) => self.prompt_marks = marks,
             Command::ChangeHints(hints) => self.backend.set_hints(hints),
             Command::WindowFocus(focused) => self.window_focused = focused,
             Command::Focus(focused) => {
