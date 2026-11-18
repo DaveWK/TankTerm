@@ -719,9 +719,10 @@ impl Hotkeys {
 
 /// Widget bindings for the config's mouse bindings to the middle and right buttons.
 ///
-/// `Paste`, `PasteSelection` and `ExpandSelection` are the actions the terminal widget knows for
-/// these buttons. A button bound to anything else does nothing, which takes the middle button's
-/// paste away if the config rebinds it. Bindings limited to a terminal mode aren't supported.
+/// `Paste`, `PasteSelection`, `ExpandSelection` and `SelectCommandOutput` are the actions the
+/// terminal widget knows for these buttons. A button bound to anything else does nothing, which
+/// takes the middle button's paste away if the config rebinds it. Bindings limited to a terminal
+/// mode aren't supported.
 pub fn mouse_bindings(bindings: &[MouseBinding]) -> Vec<(WidgetBinding<InputKind>, BindingAction)> {
     use winit::event::MouseButton;
 
@@ -739,6 +740,7 @@ pub fn mouse_bindings(bindings: &[MouseBinding]) -> Vec<(WidgetBinding<InputKind
             Action::Paste => BindingAction::Paste,
             Action::PasteSelection => BindingAction::PasteSelection,
             Action::Mouse(MouseAction::ExpandSelection) => BindingAction::ExpandSelection,
+            Action::SelectCommandOutput => BindingAction::SelectCommandOutput,
             _ => BindingAction::Ignore,
         };
         let trigger = WidgetBinding {
@@ -1258,8 +1260,59 @@ mod tests {
         assert_eq!(hotkeys.action(&arrow_left(), CTRL_ALT), None);
     }
 
+    /// What the prompt keys of a preset do on the primary and on the alternate screen.
+    fn assert_prompt_keys(hotkeys: &Hotkeys, scroll: Modifiers, select: (&str, Modifiers)) {
+        use keyboard::key::Named;
+
+        let previous = runs(&[AppAction::Scroll(ScrollTo::PreviousPrompt)]);
+        let next = runs(&[AppAction::Scroll(ScrollTo::NextPrompt)]);
+        let up = |mode| pressed_named(hotkeys, Named::ArrowUp, scroll, mode);
+        let down = |mode| pressed_named(hotkeys, Named::ArrowDown, scroll, mode);
+        assert_eq!(up(BindingMode::empty()), previous);
+        assert_eq!(down(BindingMode::empty()), next);
+        // On the alternate screen the arrows belong to the application.
+        assert_eq!(up(BindingMode::ALT_SCREEN), unbound());
+        assert_eq!(down(BindingMode::ALT_SCREEN), unbound());
+
+        let (key, modifiers) = select;
+        let output = runs(&[AppAction::SelectCommandOutput]);
+        assert_eq!(pressed(hotkeys, key, modifiers, BindingMode::empty()), output);
+        assert_eq!(pressed(hotkeys, key, modifiers, BindingMode::ALT_SCREEN), output);
+    }
+
     #[test]
-    fn leader_preset_keeps_three_direct_keys() {
+    fn prompt_keys_follow_the_preset() {
+        let tabby = hotkeys("", false);
+        assert_prompt_keys(&tabby, CTRL_SHIFT, ("g", CTRL_SHIFT));
+        assert_eq!(tabby.action(&arrow_left(), Modifiers::SHIFT), None);
+
+        let leader = hotkeys("[keyboard]\npreset = \"Leader\"\n", false);
+        assert_prompt_keys(&leader, CTRL_SHIFT, ("g", CTRL_SHIFT));
+
+        // `Control|Shift` and the arrows move between panes there.
+        let wezterm = hotkeys("[keyboard]\npreset = \"WezTerm\"\n", false);
+        assert_prompt_keys(&wezterm, Modifiers::SHIFT, ("g", CTRL_SHIFT));
+        assert_eq!(
+            wezterm.action(&Key::Named(keyboard::key::Named::ArrowUp), CTRL_SHIFT),
+            Some(AppAction::FocusPane(Direction::Up))
+        );
+
+        let command = Modifiers::LOGO;
+        for preset in ["Tabby", "WezTerm", "Leader"] {
+            let macos = hotkeys(&format!("[keyboard]\npreset = \"{preset}\"\n"), true);
+            assert_prompt_keys(&macos, command, ("a", command | Modifiers::SHIFT));
+        }
+
+        // The other keys with these modifiers keep their actions.
+        assert_eq!(
+            tabby.action(&Key::Named(keyboard::key::Named::PageUp), CTRL_SHIFT),
+            Some(AppAction::MoveTabLeft)
+        );
+        assert_eq!(tabby.action(&character("z"), CTRL_SHIFT), Some(AppAction::ToggleZoom));
+    }
+
+    #[test]
+    fn leader_preset_keeps_six_direct_keys() {
         use keyboard::key::Named;
 
         let hotkeys = hotkeys("[keyboard]\npreset = \"Leader\"\n", false);
@@ -1273,7 +1326,8 @@ mod tests {
             hotkeys.action(&character("d"), CTRL_SHIFT),
             Some(AppAction::Split(Axis::Horizontal))
         );
-        assert_eq!(hotkeys.direct.len(), 3);
+        // And the prompt keys, which are the same in every preset.
+        assert_eq!(hotkeys.direct.len(), 6);
 
         // Everything else passes through, unless it follows the leader key.
         assert_eq!(hotkeys.action(&character("w"), CTRL_SHIFT), None);
@@ -1335,7 +1389,7 @@ mod tests {
         assert_eq!(tabby.action(&character("t"), CTRL_SHIFT), None);
 
         let leader = hotkeys("[keyboard]\npreset = \"Leader\"\n", true);
-        assert_eq!(leader.direct.len(), 3);
+        assert_eq!(leader.direct.len(), 6);
         assert_eq!(leader.action(&character("t"), Modifiers::LOGO), Some(AppAction::NewTab));
         assert_eq!(
             leader.action(&character("d"), Modifiers::LOGO),

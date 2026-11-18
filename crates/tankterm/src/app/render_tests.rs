@@ -53,6 +53,7 @@ fn tabs_and_panes() {
         session_file: None,
         profiles: Vec::new(),
         confirm_multiline_paste: true,
+        shell_integration: false,
         copy_on_select: false,
         bindings: Vec::new(),
         bell: crate::bell::Bell::from_config(&config.bell),

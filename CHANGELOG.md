@@ -108,6 +108,19 @@ Notable changes to the `tankterm_terminal` crate are documented in its
     failed command; `ScrollToPreviousPrompt`, `ScrollToNextPrompt` and `SelectCommandOutput` move
     between prompts and select a command's output. Finished commands are noticed from the marks,
     and new tabs and panes start in the reported directory, on every platform
+- Default keys for the prompt actions: `Control+Shift+Up`/`Down` to scroll to prompts (`Shift` in
+    the `WezTerm` preset, `Command` on macOS), left to the application on the alternate screen,
+    and `Control+Shift+G` (`Command+Shift+A` on macOS) to select a command's output.
+    `terminal.prompt_marks = false` hides the marks at the left edge
+- bash, zsh and fish load the shell integration when TankTerm starts them, on Unix, like in
+    Ghostty: through `ENV` and POSIX mode, `ZDOTDIR` and `XDG_DATA_DIRS`, with the user's startup
+    files read as before. `terminal.shell_integration = "None"` turns it off; the scripts are in
+    `$TANKTERM_SHELL_INTEGRATION_DIR` for shells started otherwise
+- `Alt` and a right click select the output of the command under the mouse
+    (`SelectCommandOutput` on a mouse binding)
+- A click in a shell's command line moves its cursor there, for shells that take clicks with
+    OSC 133 `click_events` (fish 4.1 and later) or `cl` (the bash and zsh scripts);
+    `mouse.click_to_move = false` turns it off
 - Scrollback search in the iced front end: `SearchForward` and `SearchBackward` open a bar on the
     terminal's last row, and the search actions, its history and the `search_match`,
     `search_focused_match` and `footer_bar` styles work as they did in the OpenGL front end.
@@ -216,6 +229,8 @@ Notable changes to the `tankterm_terminal` crate are documented in its
     doesn't compile
 - A program's last output missing from a held terminal (`--hold`) when the window was drawing
     the terminal as the program exited
+- Prompts that fish 3 draws again, such as after a resize, losing their mark; the fish script
+    leaves the prompt marks to fish 4, which sends them itself
 
 ## Forked from Alacritty
 

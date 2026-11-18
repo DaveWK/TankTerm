@@ -151,6 +151,7 @@ impl App {
                 iced_tterm::Command::ChangeSelection(settings.selection.clone()),
                 iced_tterm::Command::ChangeMouse(settings.mouse),
                 iced_tterm::Command::ChangeDynamicPadding(settings.dynamic_padding),
+                iced_tterm::Command::ChangePromptMarks(settings.prompt_marks),
                 iced_tterm::Command::ChangeHints(settings.hints.clone()),
                 iced_tterm::Command::AddBindings(bindings.clone()),
             ] {

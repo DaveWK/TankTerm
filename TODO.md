@@ -20,16 +20,11 @@ Nothing below is started; each item lists what has to be decided or built first.
 
 ### Rest of shell integration
 
-- Injecting the integration into bash, zsh and fish when TankTerm starts them, like Ghostty and
-  kitty, instead of having users source the scripts in `extra/shell-integration`. Decide how to
-  reach each shell's startup (`ENV`/`--rcfile`, `ZDOTDIR`, `XDG_DATA_DIRS`) and how to turn it off.
-- Default keys for `ScrollToPreviousPrompt`, `ScrollToNextPrompt` and `SelectCommandOutput`, and
-  an option to hide the prompt marks.
-- Selecting a command's output with the mouse, and clicking in a command line to move the cursor
-  there (OSC 133 `click_events`).
-- The fish script marks the prompt on the `fish_prompt` event only; a prompt fish erases and
-  draws again, such as on a resize, loses its mark until the next prompt. Wrapping `fish_prompt`
-  would fix that, if it keeps `$status` and `$pipestatus` for the prompt.
+- `ssh` and `sudo` helpers like Ghostty's and kitty's: carrying the integration (and the
+  terminfo) to the other side of `ssh`, and keeping it in `sudo -s`. Decide whether they wrap the
+  commands in the scripts or come with `tankTerm ssh` (planned item 3).
+- A list of the integration's features to turn on and off one by one, in place of
+  `terminal.shell_integration = "Auto"`/`"None"`.
 
 ### Rest of WezTerm's key tables and pane select
 

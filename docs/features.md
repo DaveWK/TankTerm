@@ -399,9 +399,16 @@ close button under the mouse also with `tab_close_hovered`.
 ## Shell Integration
 
 Shells can tell TankTerm where their prompts, command lines and command output
-are (OSC 133) and which directory they are in (OSC 7). The `extra/shell-integration`
-folder has scripts that do this for bash, zsh and fish; source the one for your
-shell at the end of its startup file, after anything else that sets the prompt:
+are (OSC 133) and which directory they are in (OSC 7). On Linux, BSD and macOS,
+TankTerm starts bash, zsh and fish with scripts that do this, the way Ghostty
+does; the shells still read their own startup files. Shells started to run a
+command or a script, or told to read no startup files, are left alone, and
+`shell_integration = "None"` in the `[terminal]` section turns it off.
+
+Other shells, such as one started from another shell or over SSH, can source
+the script by hand at the end of their startup file. TankTerm writes the
+scripts to the directory in `$TANKTERM_SHELL_INTEGRATION_DIR`; they are also in
+the `extra/shell-integration` folder:
 
 ```sh
 source /path/to/tankterm.bash   # in ~/.bashrc
@@ -421,16 +428,27 @@ Shells that send these sequences themselves need nothing more. With them:
 - Finished commands are noticed on every platform, and new tabs and panes start
   in the shell's directory, also in nested shells.
 
-The three actions are in the command palette and have no keys by default; bind
-them in the `[keyboard]` section:
+The three actions are in the command palette and have keys in every preset:
 
-```toml
-[keyboard]
-bindings = [
-  { key = "ArrowUp", mods = "Shift", action = "ScrollToPreviousPrompt" },
-  { key = "ArrowDown", mods = "Shift", action = "ScrollToNextPrompt" },
-]
-```
+| Preset | Previous / next prompt | Select output |
+|---|---|---|
+| Tabby and Leader | <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>↑</kbd> / <kbd>↓</kbd> | <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>G</kbd> |
+| WezTerm | <kbd>Shift</kbd> <kbd>↑</kbd> / <kbd>↓</kbd> | <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>G</kbd> |
+| macOS, every preset | <kbd>Cmd</kbd> <kbd>↑</kbd> / <kbd>↓</kbd> | <kbd>Cmd</kbd> <kbd>Shift</kbd> <kbd>A</kbd> |
+
+Like <kbd>Shift</kbd> <kbd>PageUp</kbd>, the arrows reach the application on
+the alternate screen, such as an editor. To hide the marks at the left edge,
+set `prompt_marks = false` in the `[terminal]` section.
+
+With the mouse:
+
+- <kbd>Alt</kbd> and a right click select the output of the command under the
+  mouse, or of the command typed at the prompt under it.
+- A click in the command line moves the shell's cursor there, while the shell
+  waits at its prompt. TankTerm sends a mouse click to shells that ask for one
+  (OSC 133 `click_events`, like fish 4.1 and later) and arrow keys to shells
+  that take those (`cl`, like bash and zsh with TankTerm's scripts).
+  `click_to_move = false` in the `[mouse]` section turns this off.
 
 ## Copying and Pasting
 

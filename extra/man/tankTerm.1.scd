@@ -137,16 +137,28 @@ profiles, set up through a TOML configuration file; see *tankTerm*(5).
 # SHELL INTEGRATION
 
 Shells can mark their prompts, command lines and command output (OSC 133) and
-report their working directory (OSC 7). The scripts in
-_extra/shell-integration_ of the source code do this for bash, zsh and fish;
-source the one for your shell at the end of its startup file.
+report their working directory (OSC 7). On Linux, BSD and macOS, TankTerm
+starts bash, zsh and fish with scripts that do this, unless
+*terminal.shell_integration* in *tankTerm*(5) is _"None"_. The shells still
+read their own startup files.
+
+The scripts are written to
+_$XDG_RUNTIME_DIR/tankterm/shell-integration/<version>_, or to a directory in
+the temporary directory without a runtime directory, and the shells find it in
+*TANKTERM_SHELL_INTEGRATION_DIR*. Shells TankTerm doesn't start that way, such
+as a shell started from another one, can source _tankterm.bash_,
+_tankterm.zsh_ or _tankterm.fish_ from there, or from _extra/shell-integration_
+of the source code, at the end of their startup file. fish 4 marks its prompts
+itself. The bash script needs bash 4.4 to mark commands, and isn't loaded into
+the bash 3.2 of macOS.
 
 TankTerm then marks where every prompt starts at the left edge of the terminal,
 in red when the command typed at it failed. The _ScrollToPreviousPrompt_,
 _ScrollToNextPrompt_ and _SelectCommandOutput_ actions of *tankTerm*(5) move
-between prompts and select a command's output. Finished commands are noticed
-from the marks, and new tabs and panes start in the reported directory; without
-the marks, TankTerm watches the shell's processes for both, where it can.
+between prompts and select a command's output; see *tankTerm-bindings*(5) for
+their keys. Finished commands are noticed from the marks, and new tabs and panes
+start in the reported directory; without the marks, TankTerm watches the
+shell's processes for both, where it can.
 
 # SEE ALSO
 

@@ -529,6 +529,7 @@ pub fn default_mouse_bindings() -> Vec<MouseBinding> {
         MouseBinding;
         MouseButton::Right;                            MouseAction::ExpandSelection;
         MouseButton::Right,   ModifiersState::CONTROL; MouseAction::ExpandSelection;
+        MouseButton::Right,   ModifiersState::ALT;     Action::SelectCommandOutput;
         MouseButton::Middle, ~BindingMode::VI;         Action::PasteSelection;
     )
 }
@@ -827,6 +828,8 @@ pub fn preset_key_bindings(preset: KeyPreset, macos: bool) -> Vec<KeyBinding> {
         )
     };
 
+    bindings.extend(prompt_key_bindings(preset, macos));
+
     if preset == KeyPreset::Leader {
         // After the leader key. Only keys that need no Shift are used, so they are the same on
         // every keyboard layout.
@@ -944,6 +947,33 @@ pub fn preset_key_bindings(preset: KeyPreset, macos: bool) -> Vec<KeyBinding> {
     ));
 
     bindings
+}
+
+/// The keys that scroll to prompts and select a command's output, for shells with shell
+/// integration.
+///
+/// Like `Shift+PageUp`, the scrolling keys reach the application on the alternate screen.
+fn prompt_key_bindings(preset: KeyPreset, macos: bool) -> Vec<KeyBinding> {
+    const CTRL_SHIFT: ModifiersState = ModifiersState::CONTROL.union(ModifiersState::SHIFT);
+    const CMD_SHIFT: ModifiersState = ModifiersState::SUPER.union(ModifiersState::SHIFT);
+
+    if macos {
+        return bindings!(
+            KeyBinding;
+            ArrowUp,   ModifiersState::SUPER, ~BindingMode::ALT_SCREEN; Action::ScrollToPreviousPrompt;
+            ArrowDown, ModifiersState::SUPER, ~BindingMode::ALT_SCREEN; Action::ScrollToNextPrompt;
+            "a",       CMD_SHIFT;                                       Action::SelectCommandOutput;
+        );
+    }
+
+    // `Control|Shift` and the arrows move between panes in the WezTerm preset.
+    let scroll = if preset == KeyPreset::WezTerm { ModifiersState::SHIFT } else { CTRL_SHIFT };
+    bindings!(
+        KeyBinding;
+        ArrowUp,   scroll, ~BindingMode::ALT_SCREEN; Action::ScrollToPreviousPrompt;
+        ArrowDown, scroll, ~BindingMode::ALT_SCREEN; Action::ScrollToNextPrompt;
+        "g",       CTRL_SHIFT;                       Action::SelectCommandOutput;
+    )
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

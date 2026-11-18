@@ -146,6 +146,9 @@ pub struct AppOptions {
     pub profiles: Vec<Profile>,
     /// Ask before pasting text with line breaks into a program without bracketed paste.
     pub confirm_multiline_paste: bool,
+    /// Start bash, zsh and fish with the shell integration; only done on Unix.
+    #[cfg_attr(not(unix), allow(dead_code))]
+    pub shell_integration: bool,
     /// Copy selected text to the clipboard, not only to the selection clipboard.
     pub copy_on_select: bool,
     /// Bindings added to every terminal: what the middle and right mouse buttons do.

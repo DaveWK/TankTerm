@@ -392,9 +392,13 @@ extra/man/scdoc.sh extra/man/tankTerm-escapes.7.scd | gzip -c | sudo tee /usr/lo
 
 ### Shell integration
 
-The scripts in `extra/shell-integration` let bash, zsh and fish mark their prompts and commands
-and report their directory; see [shell integration](./docs/features.md#shell-integration). Copy
-the one for your shell somewhere it stays and source it at the end of the shell's startup file:
+TankTerm starts bash, zsh and fish with its shell integration, which marks their prompts and
+commands and reports their directory; see [shell integration](./docs/features.md#shell-integration).
+Nothing has to be installed for that.
+
+To have it in shells TankTerm doesn't start itself, such as over SSH, copy the script in
+`extra/shell-integration` for the shell somewhere it stays and source it at the end of the
+shell's startup file:
 
 ```sh
 mkdir -p ~/.local/share/tankterm
@@ -403,7 +407,7 @@ echo 'source ~/.local/share/tankterm/tankterm.bash' >> ~/.bashrc
 ```
 
 For zsh, use `tankterm.zsh` and `~/.zshrc`; for fish, `tankterm.fish` and
-`~/.config/fish/config.fish`.
+`~/.config/fish/config.fish`. A shell that loaded the integration once doesn't load it again.
 
 ### Shell completions
 

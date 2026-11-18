@@ -89,6 +89,14 @@ pub enum Command {
     /// view, or of the last command while the view is at the bottom, where
     /// the shell marks its commands (OSC 133).
     SelectCommandOutput,
+    /// Select the output of the command at this point of the grid: the
+    /// output the point is in, or the output of the command typed at the
+    /// prompt it is in.
+    SelectCommandOutputAt(Point),
+    /// A click at this point of the grid, without a drag: a shell that takes
+    /// clicks in its command line (OSC 133 `click_events` or `cl`) moves its
+    /// cursor there.
+    PromptClick(Point),
     /// The cursor's blink interval passed. The widget's subscription sends
     /// this while the cursor blinks.
     BlinkCursor,
@@ -537,6 +545,18 @@ impl Backend {
             },
             Command::SelectCommandOutput => {
                 term.select_command_output();
+            },
+            Command::SelectCommandOutputAt(point) => {
+                term.select_command_output_at(point);
+            },
+            // A click on a hint chooses the hint instead.
+            Command::PromptClick(point) => {
+                let keys = term.prompt_click(point);
+                if let Some(keys) =
+                    keys.filter(|_| self.hints.under_pointer(&term).is_none())
+                {
+                    self.write(keys);
+                }
             },
             // The cursor's blinking is the widget's, not the terminal's.
             Command::BlinkCursor => {},

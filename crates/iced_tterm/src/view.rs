@@ -250,6 +250,17 @@ impl<'a> TerminalView<'a> {
                             grid_origin,
                         ))
                     },
+                    BindingAction::SelectCommandOutput
+                        if state.is_focused() =>
+                    {
+                        let point = Backend::selection_point(
+                            cursor_position.x - grid_origin.x,
+                            cursor_position.y - grid_origin.y,
+                            &terminal_content.terminal_size,
+                            terminal_content.grid.display_offset(),
+                        );
+                        commands.push(Command::SelectCommandOutputAt(point));
+                    },
                     _ => (),
                 }
             },
@@ -295,6 +306,7 @@ impl<'a> TerminalView<'a> {
                 Self::handle_button_released(
                     state,
                     &terminal_mode,
+                    self.term.mouse.click_to_move,
                     &mut commands,
                 );
             },
@@ -431,6 +443,7 @@ impl<'a> TerminalView<'a> {
     fn handle_button_released(
         state: &mut TerminalViewState,
         terminal_mode: &TermMode,
+        click_to_move: bool,
         commands: &mut Vec<Command>,
     ) {
         state.is_dragged = false;
@@ -444,9 +457,14 @@ impl<'a> TerminalView<'a> {
             ));
         }
 
-        // The terminal knows whether there is a hint under the mouse.
+        // The terminal knows whether there is a hint under the mouse, and
+        // whether the shell takes a click in its command line otherwise.
         if std::mem::take(&mut state.hint_click) {
             commands.push(Command::Hint(HintCommand::OpenHovered));
+            if click_to_move {
+                commands
+                    .push(Command::PromptClick(state.mouse_position_on_grid));
+            }
         }
     }
 
@@ -994,7 +1012,9 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                 let (cell_fg, cell_bg) = (fg, bg);
 
                 if let cell::Zone::PromptStart(status) = indexed.cell.zone {
-                    if prompts.last().is_none_or(|(last, _)| *last != line) {
+                    if self.term.prompt_marks
+                        && prompts.last().is_none_or(|(last, _)| *last != line)
+                    {
                         prompts.push((line, status));
                     }
                 }
@@ -1388,9 +1408,13 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
             _ => Vec::new(),
         };
         let selection_finished = selection_finished
-            || commands
-                .iter()
-                .any(|cmd| matches!(cmd, Command::ExpandSelection(..)));
+            || commands.iter().any(|cmd| {
+                matches!(
+                    cmd,
+                    Command::ExpandSelection(..)
+                        | Command::SelectCommandOutputAt(_)
+                )
+            });
 
         if !commands.is_empty() {
             shell.capture_event();
@@ -2450,6 +2474,7 @@ mod tests {
             TerminalView::handle_button_released(
                 &mut state,
                 &terminal_mode,
+                true,
                 &mut commands,
             );
 
@@ -2469,19 +2494,28 @@ mod tests {
         }
 
         #[test]
-        fn a_click_chooses_the_hint_under_the_mouse() {
+        fn a_click_chooses_the_hint_under_the_mouse_or_moves_the_cursor() {
             let mut state = TerminalViewState::new(0);
             state.hint_click = true;
+            state.mouse_position_on_grid =
+                TerminalGridPoint::new(Line(2), Column(5));
             let mut commands = Vec::new();
 
+            // The terminal knows whether a hint or a prompt is under the
+            // mouse.
             TerminalView::handle_button_released(
                 &mut state,
                 &TermMode::empty(),
+                true,
                 &mut commands,
             );
+            let point = TerminalGridPoint::new(Line(2), Column(5));
             assert!(matches!(
                 &commands[..],
-                [Command::Hint(HintCommand::OpenHovered)]
+                [
+                    Command::Hint(HintCommand::OpenHovered),
+                    Command::PromptClick(clicked),
+                ] if *clicked == point
             ));
 
             // Releasing the button once more isn't another click.
@@ -2489,9 +2523,23 @@ mod tests {
             TerminalView::handle_button_released(
                 &mut state,
                 &TermMode::empty(),
+                true,
                 &mut commands,
             );
             assert!(commands.is_empty());
+
+            // Without click to move, only hints are chosen.
+            state.hint_click = true;
+            TerminalView::handle_button_released(
+                &mut state,
+                &TermMode::empty(),
+                false,
+                &mut commands,
+            );
+            assert!(matches!(
+                &commands[..],
+                [Command::Hint(HintCommand::OpenHovered)]
+            ));
         }
 
         #[test]
@@ -2505,6 +2553,7 @@ mod tests {
             TerminalView::handle_button_released(
                 &mut state,
                 &TermMode::MOUSE_MODE,
+                false,
                 &mut commands,
             );
             assert!(matches!(

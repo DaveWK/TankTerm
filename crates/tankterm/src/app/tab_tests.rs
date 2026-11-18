@@ -14,6 +14,7 @@ use iced_tterm::{AlacrittyEvent, BackendCommand, TermMode};
 use super::*;
 use crate::cli::Options;
 use crate::config::UiConfig;
+use crate::config::terminal::ShellIntegration;
 use crate::session::ordered_panes;
 use crate::term_settings;
 
@@ -68,6 +69,7 @@ pub(super) fn app_from(
         session_file,
         profiles,
         confirm_multiline_paste: config.terminal.confirm_multiline_paste,
+        shell_integration: config.terminal.shell_integration == ShellIntegration::Auto,
         copy_on_select: config.selection.save_to_clipboard,
         bindings: crate::hotkeys::mouse_bindings(config.mouse_bindings()),
         bell: crate::bell::Bell::from_config(&config.bell),
@@ -937,6 +939,9 @@ fn mouse_paste_bindings_come_from_the_configuration() {
     for modifiers in [Modifiers::empty(), Modifiers::CTRL] {
         assert!(default.contains(&(Button::Right, modifiers, BindingAction::ExpandSelection)));
     }
+    // `Alt` and the right button select a command's output.
+    let output = (Button::Right, Modifiers::ALT, BindingAction::SelectCommandOutput);
+    assert!(default.contains(&output));
 
     let right_click = bindings(
         "[mouse]\nbindings = [{ mouse = \"Right\", action = \"Paste\" }, { mouse = \"Middle\", \
@@ -1770,4 +1775,29 @@ fn gap_is_the_space_between_tabs() {
 
     let step = text_x(&app, "2: test") - text_x(&app, "1: test");
     assert!((step - MAX_TAB_WIDTH - 12.).abs() < 1., "{step}");
+}
+
+/// Shells get the shell integration where they are started, unless it is turned off.
+#[cfg(unix)]
+#[test]
+fn shells_are_started_with_the_shell_integration_unless_it_is_off() {
+    use std::os::unix::fs::PermissionsExt;
+
+    // A program named like zsh, which shows the directory zsh would read its files from.
+    let directory = tempfile::tempdir().unwrap();
+    let zsh = directory.path().join("zsh");
+    std::fs::write(&zsh, "#!/bin/sh\necho \"zdotdir=${ZDOTDIR-}.\"\nexec cat\n").unwrap();
+    std::fs::set_permissions(&zsh, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let shell = format!("terminal.shell = \"{}\"\n", zsh.display());
+
+    let app = app_with(&shell, Hotkeys::default());
+    wait_for_text(&app, 0, "/zsh.");
+    let text = app.terminals[&0].terminal.text().concat();
+    assert!(text.contains("/shell-integration/"), "{text}");
+
+    let app =
+        app_with(&format!("{shell}terminal.shell_integration = \"None\"\n"), Hotkeys::default());
+    wait_for_text(&app, 0, ".");
+    let text = app.terminals[&0].terminal.text().concat();
+    assert!(!text.contains("/shell-integration/"), "{text}");
 }

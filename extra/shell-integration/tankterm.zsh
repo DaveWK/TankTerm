@@ -4,7 +4,8 @@
 # can jump between prompts, select a command's output, mark prompts and failed commands, notice
 # finished commands and open new tabs in the right directory.
 #
-# Source it at the end of ~/.zshrc, after anything else that sets the prompt:
+# TankTerm loads it into the zsh it starts, before the first prompt. Elsewhere, source it at the
+# end of ~/.zshrc, after anything else that sets the prompt:
 #
 #     source /path/to/tankterm.zsh
 
@@ -43,8 +44,8 @@ _tankterm_precmd() {
 # Last precmd function: mark where the prompt starts and ends, in a prompt that was set anew.
 _tankterm_prompt() {
     local ret=$?
-    if [[ $PS1 != *$'\e]133;A\a'* ]]; then
-        PS1=$'%{\e]133;A\a%}'$PS1$'%{\e]133;B\a%}'
+    if [[ $PS1 != *$'\e]133;A;cl=m\a'* ]]; then
+        PS1=$'%{\e]133;A;cl=m\a%}'$PS1$'%{\e]133;B\a%}'
     fi
     return $ret
 }

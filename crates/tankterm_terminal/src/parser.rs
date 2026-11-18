@@ -202,7 +202,7 @@ mod tests {
     fn finds_sequences_with_every_terminator() {
         let found = scan(&[b"ab\x1b]133;A\x07$ \x1b]133;B\x1b\\ls\x1b]133;C\x18"]);
         assert_eq!(found, vec![
-            (10, prompt(PromptMark::PromptStart)),
+            (10, prompt(PromptMark::PromptStart(Default::default()))),
             (20, prompt(PromptMark::CommandStart)),
             (31, prompt(PromptMark::OutputStart)),
         ]);

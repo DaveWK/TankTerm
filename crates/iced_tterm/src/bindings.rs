@@ -16,6 +16,9 @@ pub enum BindingAction {
     /// Extend the selection to the pointer, or start one there. With
     /// Control the selection becomes a block.
     ExpandSelection,
+    /// Select the output of the command under the pointer, where the shell
+    /// marks its commands (OSC 133).
+    SelectCommandOutput,
     Ignore,
 }
 
