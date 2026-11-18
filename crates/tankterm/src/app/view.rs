@@ -335,7 +335,6 @@ impl App {
                         .padding(padding(styles.button.padding));
                     return mouse_area(icon)
                         .on_press(Message::TitleBarMenu)
-                        .on_double_click(Message::TitleBarMenu)
                         .into();
                 }
                 let action = match button {
