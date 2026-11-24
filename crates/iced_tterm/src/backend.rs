@@ -148,7 +148,8 @@ pub enum MouseButton {
     NoneMove = 35,
     ScrollUp = 64,
     ScrollDown = 65,
-    Other = 99,
+    ScrollLeft = 66,
+    ScrollRight = 67,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -580,7 +581,12 @@ impl Backend {
             },
             Command::ClearSelection => term.selection = None,
             Command::MouseReport(button, modifiers, point, pressed) => {
-                self.process_mouse_report(button, modifiers, point, pressed);
+                let mode = self.last_content.terminal_mode;
+                let report =
+                    mouse_report(mode, button, modifiers, point, pressed);
+                if let Some(report) = report {
+                    self.notifier.notify(report);
+                }
             },
             Command::Search(command) => {
                 self.search.handle(&mut term, command);
@@ -731,88 +737,6 @@ impl Backend {
         }
 
         Action::Hint(hint_action, text)
-    }
-
-    fn process_mouse_report(
-        &self,
-        button: MouseButton,
-        modifiers: Modifiers,
-        point: Point,
-        pressed: bool,
-    ) {
-        let mut mods = 0;
-        if modifiers.contains(Modifiers::SHIFT) {
-            mods += 4;
-        }
-        if modifiers.contains(Modifiers::ALT) {
-            mods += 8;
-        }
-        if modifiers.contains(Modifiers::COMMAND) {
-            mods += 16;
-        }
-
-        match MouseMode::from(self.last_content.terminal_mode) {
-            MouseMode::Sgr => {
-                self.sgr_mouse_report(point, button as u8 + mods, pressed)
-            },
-            MouseMode::Normal(is_utf8) => {
-                if pressed {
-                    self.normal_mouse_report(
-                        point,
-                        button as u8 + mods,
-                        is_utf8,
-                    )
-                } else {
-                    self.normal_mouse_report(point, 3 + mods, is_utf8)
-                }
-            },
-        }
-    }
-
-    fn sgr_mouse_report(&self, point: Point, button: u8, pressed: bool) {
-        let c = if pressed { 'M' } else { 'm' };
-
-        let msg = format!(
-            "\x1b[<{};{};{}{}",
-            button,
-            point.column + 1,
-            point.line + 1,
-            c
-        );
-
-        self.notifier.notify(msg.as_bytes().to_vec());
-    }
-
-    fn normal_mouse_report(&self, point: Point, button: u8, is_utf8: bool) {
-        let Point { line, column } = point;
-        let max_point = if is_utf8 { 2015 } else { 223 };
-
-        if line >= max_point || column >= max_point {
-            return;
-        }
-
-        let mut msg = vec![b'\x1b', b'[', b'M', 32 + button];
-
-        let mouse_pos_encode = |pos: usize| -> Vec<u8> {
-            let pos = 32 + 1 + pos;
-            let first = 0xC0 + pos / 64;
-            let second = 0x80 + (pos & 63);
-            vec![first as u8, second as u8]
-        };
-
-        if is_utf8 && column >= Column(95) {
-            msg.append(&mut mouse_pos_encode(column.0));
-        } else {
-            msg.push(32 + 1 + column.0 as u8);
-        }
-
-        if is_utf8 && line >= 95 {
-            msg.append(&mut mouse_pos_encode(line.0 as usize));
-        } else {
-            msg.push(32 + 1 + line.0 as u8);
-        }
-
-        self.notifier.notify(msg);
     }
 
     fn start_selection(
@@ -1371,9 +1295,127 @@ impl EventReceiver {
     }
 }
 
+/// What a report of the mouse sends to an application in `mode`: nothing for
+/// a point it can't be told of.
+fn mouse_report(
+    mode: TermMode,
+    button: MouseButton,
+    modifiers: Modifiers,
+    point: Point,
+    pressed: bool,
+) -> Option<Vec<u8>> {
+    let Point { line, column } = point;
+    // The scrollback isn't the application's.
+    if line < 0 {
+        return None;
+    }
+
+    let mut mods = 0;
+    if modifiers.contains(Modifiers::SHIFT) {
+        mods += 4;
+    }
+    if modifiers.contains(Modifiers::ALT) {
+        mods += 8;
+    }
+    if modifiers.contains(Modifiers::COMMAND) {
+        mods += 16;
+    }
+
+    let is_utf8 = match MouseMode::from(mode) {
+        MouseMode::Sgr => {
+            let button = button as u8 + mods;
+            let state = if pressed { 'M' } else { 'm' };
+            let (column, line) = (column + 1, line + 1);
+            return Some(
+                format!("\x1b[<{button};{column};{line}{state}").into_bytes(),
+            );
+        },
+        MouseMode::Normal(is_utf8) => is_utf8,
+    };
+
+    let max_point = if is_utf8 { 2015 } else { 223 };
+    if line >= max_point || column >= max_point {
+        return None;
+    }
+
+    // Releases don't name their button.
+    let button = if pressed { button as u8 } else { 3 };
+    let mut report = vec![b'\x1b', b'[', b'M', 32 + button + mods];
+    for position in [column.0, line.0 as usize] {
+        let code = 32 + 1 + position;
+        if is_utf8 && position >= 95 {
+            report.push((0xC0 + code / 64) as u8);
+            report.push((0x80 + (code & 63)) as u8);
+        } else {
+            report.push(code as u8);
+        }
+    }
+    Some(report)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn mouse_reports_are_encoded_as_the_application_asks() {
+        let report = |mode, button, modifiers, line, column, pressed| {
+            let point = Point::new(Line(line), Column(column));
+            mouse_report(mode, button, modifiers, point, pressed)
+        };
+        let none = Modifiers::empty();
+        let some = |bytes: &[u8]| Some(bytes.to_vec());
+
+        let sgr = TermMode::SGR_MOUSE;
+        let right = MouseButton::RightButton;
+        assert_eq!(report(sgr, right, none, 1, 3, true), some(b"\x1b[<2;4;2M"));
+        let right = MouseButton::RightButton;
+        assert_eq!(
+            report(sgr, right, none, 1, 3, false),
+            some(b"\x1b[<2;4;2m")
+        );
+        let down = MouseButton::ScrollDown;
+        let modifiers = Modifiers::CTRL | Modifiers::ALT;
+        assert_eq!(
+            report(sgr, down, modifiers, 0, 0, true),
+            some(b"\x1b[<89;1;1M")
+        );
+        let left = MouseButton::ScrollLeft;
+        assert_eq!(report(sgr, left, none, 0, 0, true), some(b"\x1b[<66;1;1M"));
+        let hover = MouseButton::NoneMove;
+        assert_eq!(
+            report(sgr, hover, none, 0, 0, true),
+            some(b"\x1b[<35;1;1M")
+        );
+
+        let normal = TermMode::empty();
+        let middle = MouseButton::MiddleButton;
+        assert_eq!(
+            report(normal, middle, none, 1, 3, true),
+            some(b"\x1b[M!$\"")
+        );
+        let middle = MouseButton::MiddleButton;
+        assert_eq!(
+            report(normal, middle, none, 1, 3, false),
+            some(b"\x1b[M#$\"")
+        );
+        let up = MouseButton::ScrollUp;
+        assert_eq!(report(normal, up, none, 1, 3, true), some(b"\x1b[M`$\""));
+        // Bytes end before wide windows do, unless they are encoded as UTF-8.
+        let up = MouseButton::ScrollUp;
+        assert_eq!(report(normal, up, none, 1, 300, true), None);
+        let up = MouseButton::ScrollUp;
+        assert_eq!(
+            report(TermMode::UTF8_MOUSE, up, none, 1, 300, true),
+            some(&[0x1b, b'[', b'M', b'`', 0xc5, 0x8d, b'"'])
+        );
+
+        // The scrollback isn't the application's.
+        for mode in [sgr, normal] {
+            let left = MouseButton::LeftButton;
+            assert_eq!(report(mode, left, none, -1, 0, true), None);
+        }
+    }
     use std::sync::Mutex;
     use tankterm_terminal::vte::ansi::Processor;
 

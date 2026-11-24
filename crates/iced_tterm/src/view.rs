@@ -226,8 +226,48 @@ impl<'a> TerminalView<'a> {
         let mut commands = Vec::new();
         let terminal_content = self.term.backend.renderable_content();
         let terminal_mode = mouse_modes(terminal_content.terminal_mode);
+        let reports = terminal_mode.intersects(TermMode::MOUSE_MODE)
+            && !state.keyboard_modifiers.shift();
+
+        // The pointer may be elsewhere than it last moved to, if it moved
+        // while the terminal was unfocused.
+        if matches!(
+            event,
+            iced_core::mouse::Event::ButtonPressed(_)
+                | iced_core::mouse::Event::WheelScrolled { .. }
+        ) {
+            state.mouse_position_on_grid = Backend::selection_point(
+                cursor_position.x - grid_origin.x,
+                cursor_position.y - grid_origin.y,
+                &terminal_content.terminal_size,
+                terminal_content.grid.display_offset(),
+            );
+        }
 
         match event {
+            iced_core::mouse::Event::ButtonPressed(button)
+                if reports && ReportedButton::new(*button).is_some() =>
+            {
+                state.hint_click = false;
+                commands.extend(Self::report_pressed(state, *button));
+            },
+            iced_core::mouse::Event::ButtonReleased(button)
+                if state.is_reported(*button) =>
+            {
+                commands.extend(Self::report_released(
+                    state,
+                    *button,
+                    terminal_mode,
+                ));
+            },
+            iced::mouse::Event::WheelScrolled { delta } if reports => {
+                Self::report_wheel(
+                    state,
+                    *delta,
+                    &self.term.font.measure,
+                    &mut commands,
+                );
+            },
             iced_core::mouse::Event::ButtonPressed(
                 button @ (iced_core::mouse::Button::Middle
                 | iced_core::mouse::Button::Right),
@@ -273,7 +313,6 @@ impl<'a> TerminalView<'a> {
 
                 Self::handle_left_button_pressed(
                     state,
-                    &terminal_mode,
                     cursor_position,
                     grid_origin,
                     &mut commands,
@@ -305,7 +344,6 @@ impl<'a> TerminalView<'a> {
 
                 Self::handle_button_released(
                     state,
-                    &terminal_mode,
                     self.term.mouse.click_to_move,
                     &mut commands,
                 );
@@ -325,45 +363,104 @@ impl<'a> TerminalView<'a> {
         commands
     }
 
+    /// Report a press to the application, which gets the button's moves and
+    /// its release too.
+    fn report_pressed(
+        state: &mut TerminalViewState,
+        button: mouse::Button,
+    ) -> Option<Command> {
+        let button = ReportedButton::new(button)?;
+        state.reported[button as usize] = true;
+        Some(Command::MouseReport(
+            button.pressed(),
+            state.keyboard_modifiers,
+            state.mouse_position_on_grid,
+            true,
+        ))
+    }
+
+    /// Report the release of a button whose press was reported, unless the
+    /// application doesn't ask for reports any more.
+    fn report_released(
+        state: &mut TerminalViewState,
+        button: mouse::Button,
+        terminal_mode: TermMode,
+    ) -> Option<Command> {
+        let button = ReportedButton::new(button)?;
+        let reported = std::mem::take(&mut state.reported[button as usize]);
+        (reported && terminal_mode.intersects(TermMode::MOUSE_MODE)).then_some(
+            Command::MouseReport(
+                button.pressed(),
+                state.keyboard_modifiers,
+                state.mouse_position_on_grid,
+                false,
+            ),
+        )
+    }
+
+    /// Report every step of a wheel, or every cell of a touchpad's pixels.
+    fn report_wheel(
+        state: &mut TerminalViewState,
+        delta: ScrollDelta,
+        cell: &Size<f32>,
+        commands: &mut Vec<Command>,
+    ) {
+        let (columns, lines) = match delta {
+            ScrollDelta::Lines { x, y } => (x.round(), y.round()),
+            ScrollDelta::Pixels { x, y } => {
+                let steps = |pixels: &mut f32, moved: f32, cell: f32| {
+                    *pixels += moved;
+                    let steps = (*pixels / cell).trunc();
+                    *pixels %= cell;
+                    steps
+                };
+                (
+                    steps(&mut state.scroll_columns, x, cell.width),
+                    steps(&mut state.scroll_pixels, y, cell.height),
+                )
+            },
+        };
+
+        for (steps, forward, back) in [
+            (lines, MouseButton::ScrollUp, MouseButton::ScrollDown),
+            (columns, MouseButton::ScrollLeft, MouseButton::ScrollRight),
+        ] {
+            let button = if steps > 0. { forward } else { back };
+            for _ in 0..steps.abs() as usize {
+                commands.push(Command::MouseReport(
+                    button.clone(),
+                    state.keyboard_modifiers,
+                    state.mouse_position_on_grid,
+                    true,
+                ));
+            }
+        }
+    }
+
     fn handle_left_button_pressed(
         state: &mut TerminalViewState,
-        terminal_mode: &TermMode,
         cursor_position: Point,
         grid_origin: Point,
         commands: &mut Vec<Command>,
     ) {
+        let current_click =
+            Click::new(cursor_position, mouse::Button::Left, state.last_click);
+        let selection_type = match current_click.kind() {
+            mouse::click::Kind::Single => SelectionType::Simple,
+            mouse::click::Kind::Double => SelectionType::Semantic,
+            mouse::click::Kind::Triple => SelectionType::Lines,
+        };
         // A click chooses the hint under the mouse when the button is
         // released, unless the mouse moved meanwhile.
-        state.hint_click = true;
-        let cmd = if terminal_mode.intersects(TermMode::MOUSE_MODE) {
-            Command::MouseReport(
-                MouseButton::LeftButton,
-                state.keyboard_modifiers,
-                state.mouse_position_on_grid,
-                true,
-            )
-        } else {
-            let current_click = Click::new(
-                cursor_position,
-                mouse::Button::Left,
-                state.last_click,
-            );
-            let selection_type = match current_click.kind() {
-                mouse::click::Kind::Single => SelectionType::Simple,
-                mouse::click::Kind::Double => SelectionType::Semantic,
-                mouse::click::Kind::Triple => SelectionType::Lines,
-            };
-            state.hint_click = selection_type == SelectionType::Simple;
-            state.last_click = Some(current_click);
-            Command::SelectStart(
-                selection_type,
-                (
-                    cursor_position.x - grid_origin.x,
-                    cursor_position.y - grid_origin.y,
-                ),
-            )
-        };
-        commands.push(cmd);
+        state.hint_click = selection_type == SelectionType::Simple;
+        state.last_click = Some(current_click);
+        commands.push(Command::SelectStart(
+            selection_type,
+            (
+                cursor_position.x - grid_origin.x,
+                cursor_position.y - grid_origin.y,
+            ),
+        ));
         state.is_dragged = true;
     }
 
@@ -411,51 +508,45 @@ impl<'a> TerminalView<'a> {
             &terminal_content.terminal_size,
             terminal_content.grid.display_offset(),
         );
-        if point != state.mouse_position_on_grid {
+        let moved = point != state.mouse_position_on_grid;
+        if moved {
             state.hint_click = false;
         }
         state.mouse_position_on_grid = point;
 
-        // Handle command or selection update based on terminal mode and modifiers
         if state.is_dragged {
-            let terminal_mode = mouse_modes(terminal_content.terminal_mode);
-            // Report drags when the app requested button-motion (1002) or
-            // any-motion (1003) tracking. Checking only MOUSE_MOTION left
-            // 1002-mode apps (e.g. tmux with `mouse on`) seeing press and
-            // release but never the drag, while the widget drew its own
-            // selection over the app's — two selection systems at once.
-            let cmd = if terminal_mode
+            commands.push(Command::SelectUpdate((cursor_x, cursor_y)));
+            return;
+        }
+
+        // Applications ask for the moves of a held button (1002) or for all
+        // of them (1003), and get those to another cell. A held button that
+        // was reported stays the application's, whether Shift is held or not.
+        let terminal_mode = mouse_modes(terminal_content.terminal_mode);
+        let button = match state.held_reported() {
+            Some(button) => terminal_mode
                 .intersects(TermMode::MOUSE_DRAG | TermMode::MOUSE_MOTION)
-            {
-                Command::MouseReport(
-                    MouseButton::LeftMove,
-                    state.keyboard_modifiers,
-                    state.mouse_position_on_grid,
-                    true,
-                )
-            } else {
-                Command::SelectUpdate((cursor_x, cursor_y))
-            };
-            commands.push(cmd);
+                .then(|| button.moved()),
+            None => (terminal_mode.contains(TermMode::MOUSE_MOTION)
+                && !state.keyboard_modifiers.shift())
+            .then_some(MouseButton::NoneMove),
+        };
+        if let Some(button) = button.filter(|_| moved) {
+            commands.push(Command::MouseReport(
+                button,
+                state.keyboard_modifiers,
+                state.mouse_position_on_grid,
+                true,
+            ));
         }
     }
 
     fn handle_button_released(
         state: &mut TerminalViewState,
-        terminal_mode: &TermMode,
         click_to_move: bool,
         commands: &mut Vec<Command>,
     ) {
         state.is_dragged = false;
-
-        if terminal_mode.intersects(TermMode::MOUSE_MODE) {
-            commands.push(Command::MouseReport(
-                MouseButton::LeftButton,
-                state.keyboard_modifiers,
-                state.mouse_position_on_grid,
-                false,
-            ));
-        }
 
         // The terminal knows whether there is a hint under the mouse, and
         // whether the shell takes a click in its command line otherwise.
@@ -1366,19 +1457,14 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
         self.handle_focus(event, state, is_cursor_in_layout);
 
         // Releasing the left button ends a selection, wherever the pointer
-        // is by then, unless the drag was reported to the application.
+        // is by then. A press that was reported doesn't start one.
         let released_left = matches!(
             event,
             iced::Event::Mouse(mouse::Event::ButtonReleased(
                 mouse::Button::Left
             ))
         );
-        let selection_finished = released_left
-            && state.is_dragged
-            && !mouse_modes(
-                self.term.backend.renderable_content().terminal_mode,
-            )
-            .intersects(TermMode::MOUSE_MODE);
+        let selection_finished = released_left && state.is_dragged;
 
         let commands = match event {
             iced::Event::Mouse(mouse_event) if is_cursor_in_layout => self
@@ -1389,9 +1475,14 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
                     cursor.position().unwrap(),
                     mouse_event,
                 ),
-            iced::Event::Mouse(_) if released_left => {
-                state.is_dragged = false;
-                Vec::new()
+            iced::Event::Mouse(mouse::Event::ButtonReleased(button)) => {
+                state.is_dragged &= !released_left;
+                let terminal_mode = mouse_modes(
+                    self.term.backend.renderable_content().terminal_mode,
+                );
+                Self::report_released(state, *button, terminal_mode)
+                    .into_iter()
+                    .collect()
             },
             iced::Event::Keyboard(keyboard_event) => {
                 if !state.is_focused() {
@@ -1481,9 +1572,15 @@ impl<'a> From<TerminalView<'a>> for Element<'a, Event, Theme, iced::Renderer> {
 #[derive(Debug, Clone)]
 struct TerminalViewState {
     focus: bool,
+    /// The left button is held and selects text.
     is_dragged: bool,
+    /// The buttons that are held and whose press was reported to the
+    /// application, by [`ReportedButton`].
+    reported: [bool; 3],
     last_click: Option<mouse::Click>,
     scroll_pixels: f32,
+    /// Like `scroll_pixels`, sideways.
+    scroll_columns: f32,
     keyboard_modifiers: Modifiers,
     size: Size<f32>,
     mouse_position_on_grid: TerminalGridPoint,
@@ -1504,8 +1601,10 @@ impl TerminalViewState {
         Self {
             focus: false,
             is_dragged: false,
+            reported: [false; 3],
             last_click: None,
             scroll_pixels: 0.0,
+            scroll_columns: 0.0,
             keyboard_modifiers: Modifiers::empty(),
             size: Size::from([0.0, 0.0]),
             mouse_position_on_grid: TerminalGridPoint::default(),
@@ -1513,6 +1612,56 @@ impl TerminalViewState {
             pointer_hidden: false,
             hint_pointer: None,
             hint_click: false,
+        }
+    }
+
+    /// Whether `button` is held and its press was reported.
+    fn is_reported(&self, button: mouse::Button) -> bool {
+        ReportedButton::new(button)
+            .is_some_and(|button| self.reported[button as usize])
+    }
+
+    /// The held button whose press was reported.
+    fn held_reported(&self) -> Option<ReportedButton> {
+        ReportedButton::ALL
+            .into_iter()
+            .find(|button| self.reported[*button as usize])
+    }
+}
+
+/// The buttons of the mouse that are reported to applications.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ReportedButton {
+    Left,
+    Middle,
+    Right,
+}
+
+impl ReportedButton {
+    const ALL: [Self; 3] = [Self::Left, Self::Middle, Self::Right];
+
+    fn new(button: mouse::Button) -> Option<Self> {
+        match button {
+            mouse::Button::Left => Some(Self::Left),
+            mouse::Button::Middle => Some(Self::Middle),
+            mouse::Button::Right => Some(Self::Right),
+            _ => None,
+        }
+    }
+
+    fn pressed(self) -> MouseButton {
+        match self {
+            Self::Left => MouseButton::LeftButton,
+            Self::Middle => MouseButton::MiddleButton,
+            Self::Right => MouseButton::RightButton,
+        }
+    }
+
+    fn moved(self) -> MouseButton {
+        match self {
+            Self::Left => MouseButton::LeftMove,
+            Self::Middle => MouseButton::MiddleMove,
+            Self::Right => MouseButton::RightMove,
         }
     }
 }
@@ -2049,44 +2198,9 @@ mod tests {
 
     mod handle_left_button_pressed_tests {
         use super::*;
-        use tankterm_terminal::index::{Column, Line};
-
-        #[test]
-        fn handles_mouse_mode_with_left_click() {
-            let mut state = TerminalViewState::new(0);
-            let terminal_mode = TermMode::MOUSE_MODE;
-            let layout_position = Point { x: 5.0, y: 5.0 };
-            let cursor_position = Point { x: 100.0, y: 150.0 };
-            let mut commands = Vec::new();
-            let _modifiers = Modifiers::empty();
-
-            TerminalView::handle_left_button_pressed(
-                &mut state,
-                &terminal_mode,
-                cursor_position,
-                layout_position,
-                &mut commands,
-            );
-
-            assert_eq!(commands.len(), 1);
-            assert!(matches!(
-                commands[0],
-                Command::MouseReport(
-                    MouseButton::LeftButton,
-                    _modifiers,
-                    TerminalGridPoint {
-                        line: Line(0),
-                        column: Column(0),
-                    },
-                    true,
-                )
-            ));
-            assert!(state.is_dragged);
-        }
 
         #[test]
         fn starts_simple_selection_with_left_click() {
-            let terminal_mode = TermMode::SGR_MOUSE;
             let cursor_position = Point { x: 200.0, y: 150.0 };
             let layout_position = Point { x: 50.0, y: 50.0 };
 
@@ -2103,7 +2217,6 @@ mod tests {
 
                 TerminalView::handle_left_button_pressed(
                     &mut state,
-                    &terminal_mode,
                     cursor_position,
                     layout_position,
                     &mut commands,
@@ -2189,7 +2302,6 @@ mod tests {
             let mut commands = Vec::new();
             TerminalView::handle_left_button_pressed(
                 &mut state,
-                &TermMode::empty(),
                 pointer,
                 origin,
                 &mut commands,
@@ -2385,7 +2497,7 @@ mod tests {
         #[test]
         fn generates_drag_update_command_when_dragged_in_mouse_motion_mode() {
             let mut state = TerminalViewState::new(0);
-            state.is_dragged = true; // Simulate an ongoing drag operation
+            state.reported[0] = true; // Simulate an ongoing drag operation
             let terminal_content = RenderableContent {
                 terminal_mode: TermMode::MOUSE_MOTION,
                 ..Default::default()
@@ -2424,7 +2536,7 @@ mod tests {
             // requests — must also report drags, not fall back to the
             // widget's own selection.
             let mut state = TerminalViewState::new(0);
-            state.is_dragged = true;
+            state.reported[0] = true;
             let terminal_content = RenderableContent {
                 terminal_mode: TermMode::MOUSE_DRAG,
                 ..Default::default()
@@ -2526,35 +2638,6 @@ mod tests {
         use tankterm_terminal::index::{Column, Line};
 
         #[test]
-        fn mouse_mode_activated() {
-            let mut state = TerminalViewState::new(0);
-            let terminal_mode = TermMode::MOUSE_MODE;
-            let mut commands = Vec::new();
-            let _modifiers = Modifiers::empty();
-
-            TerminalView::handle_button_released(
-                &mut state,
-                &terminal_mode,
-                true,
-                &mut commands,
-            );
-
-            assert_eq!(commands.len(), 1);
-            assert!(matches!(
-                commands[0],
-                Command::MouseReport(
-                    MouseButton::LeftButton,
-                    _modifiers,
-                    TerminalGridPoint {
-                        line: Line(0),
-                        column: Column(0)
-                    },
-                    false
-                )
-            ));
-        }
-
-        #[test]
         fn a_click_chooses_the_hint_under_the_mouse_or_moves_the_cursor() {
             let mut state = TerminalViewState::new(0);
             state.hint_click = true;
@@ -2566,7 +2649,6 @@ mod tests {
             // mouse.
             TerminalView::handle_button_released(
                 &mut state,
-                &TermMode::empty(),
                 true,
                 &mut commands,
             );
@@ -2583,7 +2665,6 @@ mod tests {
             commands.clear();
             TerminalView::handle_button_released(
                 &mut state,
-                &TermMode::empty(),
                 true,
                 &mut commands,
             );
@@ -2593,36 +2674,12 @@ mod tests {
             state.hint_click = true;
             TerminalView::handle_button_released(
                 &mut state,
-                &TermMode::empty(),
                 false,
                 &mut commands,
             );
             assert!(matches!(
                 &commands[..],
                 [Command::Hint(HintCommand::OpenHovered)]
-            ));
-        }
-
-        #[test]
-        fn a_reported_click_chooses_a_hint_too() {
-            let mut state = TerminalViewState::new(0);
-            state.hint_click = true;
-            let mut commands = Vec::new();
-
-            // The terminal underlines hints in mouse mode only while Shift
-            // is held, and knows whether there is one.
-            TerminalView::handle_button_released(
-                &mut state,
-                &TermMode::MOUSE_MODE,
-                false,
-                &mut commands,
-            );
-            assert!(matches!(
-                &commands[..],
-                [
-                    Command::MouseReport(MouseButton::LeftButton, ..),
-                    Command::Hint(HintCommand::OpenHovered)
-                ]
             ));
         }
     }
