@@ -224,6 +224,8 @@ Notable changes to the `tankterm_terminal` crate are documented in its
     opaque needs a restart to become transparent
 - `window.padding` defaults to 8 pixels on the left and right and 4 at the top and bottom
 - The padding around a terminal takes the background color its application sets with OSC 11
+- Release builds have no debug info, which makes the Linux binary five times smaller; they keep
+    the symbols for backtraces
 
 ### Removed
 
