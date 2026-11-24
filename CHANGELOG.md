@@ -238,6 +238,9 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 
 ### Fixed
 
+- Applications that ask for mouse reports only got those of the left button. They get the middle
+    and right button, the wheel and all moves too, as they ask for them, and `Shift` keeps the
+    mouse from them
 - `Alt` with a character, `Enter`, `Tab`, `Space` or `Escape` sends an escape before the key's text
     outside the Kitty keyboard protocol too, so `Alt+B` or `Alt+.` work in the shell. Characters
     were sent without it, and the other keys weren't sent at all

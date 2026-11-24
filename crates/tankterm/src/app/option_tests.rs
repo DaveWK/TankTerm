@@ -1525,3 +1525,182 @@ fn resize_steps_leave_no_part_of_a_cell_over() {
         }
     }
 }
+
+/// An application whose terminal runs a program that turned on the private `modes`.
+fn app_with_mouse(modes: &str) -> App {
+    let shell = format!(
+        "[terminal]\nshell = {{ program = \"sh\", args = [\"-c\", \"printf \
+         '\\\\033[?{modes}hready'; exec cat\"] }}\n"
+    );
+    let mut app = app_with(&shell, Hotkeys::default());
+    wait_for_text(&app, 0, "ready");
+    let _ = app.update(wakeup(0));
+    app
+}
+
+/// What the mouse does in the focused terminal of `app`: the events, each at a position, after
+/// the terminal was laid out and focused. Reports are the button, its modifiers, the cell's
+/// column and line, and whether it is pressed.
+fn mouse_commands(app: &App, batches: &[((f32, f32), Vec<Event>)]) -> Vec<String> {
+    let (_, messages) = ui_events(app, batches);
+    let commands = messages.into_iter().filter_map(|message| match message {
+        Message::Terminal(iced_tterm::Event::BackendCall(_, command)) => match command {
+            BackendCommand::MouseReport(button, modifiers, point, pressed) => {
+                let modifiers = if modifiers.is_empty() { "" } else { " with modifiers" };
+                let state = if pressed { "pressed" } else { "released" };
+                Some(format!("{button:?} {},{} {state}{modifiers}", point.column, point.line))
+            },
+            BackendCommand::Scroll(lines) => Some(format!("Scroll {lines}")),
+            BackendCommand::SelectStart(..) => Some("SelectStart".into()),
+            BackendCommand::SelectUpdate(..) => Some("SelectUpdate".into()),
+            BackendCommand::Paste(_) => Some("Paste".into()),
+            _ => None,
+        },
+        _ => None,
+    });
+    commands.collect()
+}
+
+/// The middle of a cell of a terminal with the default font.
+fn cell_at(column: f32, line: f32) -> (f32, f32) {
+    let settings = crate::term_settings::settings(&UiConfig::default(), &Default::default());
+    let cell = crate::term_settings::cell_size(&settings.font);
+    ((column + 0.5) * cell.width, (line + 0.5) * cell.height)
+}
+
+fn press(button: mouse::Button) -> Event {
+    Event::Mouse(mouse::Event::ButtonPressed(button))
+}
+
+fn release(button: mouse::Button) -> Event {
+    Event::Mouse(mouse::Event::ButtonReleased(button))
+}
+
+fn move_to(position: (f32, f32)) -> Event {
+    Event::Mouse(mouse::Event::CursorMoved { position: position.into() })
+}
+
+fn wheel(x: f32, y: f32) -> Event {
+    Event::Mouse(mouse::Event::WheelScrolled { delta: ScrollDelta::Lines { x, y } })
+}
+
+fn hold(modifiers: Modifiers) -> Event {
+    Event::Keyboard(iced::keyboard::Event::ModifiersChanged(modifiers))
+}
+
+#[test]
+fn every_button_is_reported_where_the_pointer_is() {
+    let app = app_with_mouse("1000;1006");
+    for (button, name) in [
+        (mouse::Button::Left, "LeftButton"),
+        (mouse::Button::Middle, "MiddleButton"),
+        (mouse::Button::Right, "RightButton"),
+    ] {
+        // The first event of the mouse: the position isn't known from a move.
+        let commands =
+            mouse_commands(&app, &[(cell_at(4., 2.), vec![press(button), release(button)])]);
+        assert_eq!(commands, [format!("{name} 4,2 pressed"), format!("{name} 4,2 released")]);
+    }
+}
+
+#[test]
+fn the_wheel_is_reported_a_step_at_a_time() {
+    let app = app_with_mouse("1000;1006");
+    // The scroll multiplier is for the scrollback.
+    let commands = mouse_commands(&app, &[(cell_at(3., 1.), vec![wheel(0., 1.), wheel(0., -2.)])]);
+    assert_eq!(commands, [
+        "ScrollUp 3,1 pressed",
+        "ScrollDown 3,1 pressed",
+        "ScrollDown 3,1 pressed",
+    ]);
+
+    let commands = mouse_commands(&app, &[(cell_at(3., 1.), vec![wheel(1., 0.), wheel(-1., 0.)])]);
+    assert_eq!(commands, ["ScrollLeft 3,1 pressed", "ScrollRight 3,1 pressed"]);
+}
+
+#[test]
+fn shift_takes_the_mouse_from_the_application() {
+    let app = app_with_mouse("1002;1006");
+    let (from, to) = (cell_at(1., 1.), cell_at(5., 1.));
+    let focus = vec![press(mouse::Button::Left), release(mouse::Button::Left)];
+    let commands = mouse_commands(&app, &[
+        (from, focus),
+        (from, vec![hold(Modifiers::SHIFT), press(mouse::Button::Left)]),
+        (to, vec![move_to(to)]),
+        (to, vec![release(mouse::Button::Left), wheel(0., 1.)]),
+    ]);
+    assert_eq!(commands[..2], ["LeftButton 1,1 pressed", "LeftButton 1,1 released"]);
+    assert_eq!(commands[2..4], ["SelectStart", "SelectUpdate"]);
+    assert!(commands[4].starts_with("Scroll ") && commands.len() == 5, "{commands:?}");
+}
+
+#[test]
+fn a_press_and_its_release_go_to_the_same_place() {
+    let app = app_with_mouse("1002;1006");
+    let (from, to) = (cell_at(1., 1.), cell_at(5., 1.));
+    // Shift is pressed during a reported drag, which stays the application's.
+    let commands = mouse_commands(&app, &[
+        (from, vec![press(mouse::Button::Left), hold(Modifiers::SHIFT)]),
+        (to, vec![move_to(to)]),
+        (to, vec![release(mouse::Button::Left)]),
+    ]);
+    assert_eq!(commands, [
+        "LeftButton 1,1 pressed",
+        "LeftMove 5,1 pressed with modifiers",
+        "LeftButton 5,1 released with modifiers",
+    ]);
+
+    // A reported button is also released outside the terminal.
+    let outside = (900., 900.);
+    let commands = mouse_commands(&app, &[
+        (from, vec![press(mouse::Button::Right)]),
+        (outside, vec![release(mouse::Button::Right)]),
+    ]);
+    assert_eq!(commands, ["RightButton 1,1 pressed", "RightButton 1,1 released"]);
+}
+
+#[test]
+fn moves_are_reported_as_the_application_asks() {
+    let (from, near, to) = (cell_at(1., 1.), cell_at(1.2, 1.), cell_at(5., 1.));
+    let moves = |modes: &str, button: mouse::Button| {
+        let app = app_with_mouse(modes);
+        let focus = vec![press(mouse::Button::Left), release(mouse::Button::Left)];
+        let commands = mouse_commands(&app, &[
+            (from, focus),
+            // A move within the cell isn't reported.
+            (near, vec![move_to(near)]),
+            (to, vec![move_to(to)]),
+            (to, vec![press(button)]),
+            (from, vec![move_to(from)]),
+        ]);
+        let moves = commands
+            .into_iter()
+            .filter(|command| command.contains("Move") || command.contains("Select"));
+        moves.collect::<Vec<_>>()
+    };
+
+    // Only clicks: no moves, and no selection of a drag that was reported.
+    assert_eq!(moves("1000;1006", mouse::Button::Left), [""; 0]);
+    // Drags, of every button.
+    assert_eq!(moves("1002;1006", mouse::Button::Left), ["LeftMove 1,1 pressed"]);
+    assert_eq!(moves("1002;1006", mouse::Button::Middle), ["MiddleMove 1,1 pressed"]);
+    assert_eq!(moves("1002;1006", mouse::Button::Right), ["RightMove 1,1 pressed"]);
+    // Every move.
+    assert_eq!(moves("1003;1006", mouse::Button::Right), [
+        "NoneMove 5,1 pressed",
+        "RightMove 1,1 pressed",
+    ]);
+}
+
+#[test]
+fn the_mouse_scrolls_and_selects_without_reports() {
+    let app = app_with_mouse("25");
+    let (from, to) = (cell_at(1., 1.), cell_at(5., 1.));
+    let commands = mouse_commands(&app, &[
+        (from, vec![press(mouse::Button::Left)]),
+        (to, vec![move_to(to)]),
+        (to, vec![release(mouse::Button::Left), move_to(from), wheel(0., 1.)]),
+    ]);
+    assert_eq!(commands[..2], ["SelectStart", "SelectUpdate"]);
+    assert!(commands[2].starts_with("Scroll ") && commands.len() == 3, "{commands:?}");
+}
