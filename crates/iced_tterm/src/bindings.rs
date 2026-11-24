@@ -300,6 +300,7 @@ fn default_keyboard_bindings() -> Vec<(Binding<InputKind>, BindingAction)> {
         ArrowLeft,  Modifiers::ALT; BindingAction::Esc("\x1b[1;3D".into());
         ArrowRight, Modifiers::ALT; BindingAction::Esc("\x1b[1;3C".into());
         // SHIFT + ALT
+        Tab,        Modifiers::SHIFT | Modifiers::ALT; BindingAction::Esc("\x1b\x1b[Z".into());
         End,        Modifiers::SHIFT | Modifiers::ALT; BindingAction::Esc("\x1b[1;4F".into());
         Home,       Modifiers::SHIFT | Modifiers::ALT; BindingAction::Esc("\x1b[1;4H".into());
         ArrowUp,    Modifiers::SHIFT | Modifiers::ALT; BindingAction::Esc("\x1b[1;4A".into());

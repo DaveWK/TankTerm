@@ -165,7 +165,7 @@ fn write_or_nothing(bytes: Vec<u8>) -> KittyOutput {
 ///
 /// On macOS Option composes characters, so it is only a modifier for keys
 /// without text (arrows, function keys, ...).
-fn alt_send_esc(input: &KeyInput, text: &str) -> bool {
+pub(crate) fn alt_send_esc(input: &KeyInput, text: &str) -> bool {
     let alt = input.modifiers.alt();
     let alt_composes = cfg!(target_os = "macos");
 
@@ -184,7 +184,7 @@ fn alt_send_esc(input: &KeyInput, text: &str) -> bool {
 }
 
 /// winit's `NamedKey::to_text`.
-fn named_to_text(named: Named) -> Option<&'static str> {
+pub(crate) fn named_to_text(named: Named) -> Option<&'static str> {
     match named {
         Named::Enter => Some("\r"),
         Named::Backspace => Some("\x08"),
