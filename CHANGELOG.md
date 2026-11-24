@@ -49,9 +49,6 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 - `general.accessible`, or `ACCESSIBLE`/`TANKTERM_ACCESSIBLE` like Huh, turns off cursor blinking and
     the visual bell
 - `[style.blurred]` styles for unfocused windows, like Huh's focused and blurred styles
-- Key help like Charm's Bubbles: `ToggleHelp` (`Ctrl+Shift+H`, `Cmd+Shift+H` on macOS) shows the key
-    bindings as a single line or in columns, with `help` descriptions on bindings and
-    `[style.help_*]` blocks
 - Themes in the style of Glamour and Huh: `theme = "<name or path>"`, `--theme` or `TANKTERM_THEME`,
     with built-in `green_screen`, `charm`, `dracula`, `catppuccin` and `base16` themes
 - Colors can be named: ANSI names like `"bright_red"` and CharmTone names like `"charple"`
@@ -198,8 +195,7 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 - The window and rendering use iced through `iced_tterm` instead of the OpenGL renderer
 - Config file font, colors, shell, environment, working directory and the window's title, class,
     `dimensions`, `position`, `startup_mode`, `decorations` and `level` apply to the iced front
-    end; other config options are ignored for now. `Transparent` and `Buttonless` decorations are
-    drawn like `Full`
+    end. `Transparent` and `Buttonless` decorations are drawn like `Full`
 - `scrolling.history` and `scrolling.multiplier` apply to the iced front end
 - Key bindings to `Copy`, `Paste`, `PasteSelection`, `IncreaseFontSize`, `DecreaseFontSize`,
     `ResetFontSize`, the `Scroll` actions, `ClearHistory`, `ToggleFullscreen` and
@@ -233,10 +229,9 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 - `tankTerm migrate --skip-renames`, and migrating TankTerm's own configuration file in place;
     `migrate` converts other terminals' configurations instead
 - `--daemon`, and the `create-window`, `config` and `get-config` messages of `tankTerm msg`
-- Key bindings to the key help (`ToggleHelp`), new windows (`SpawnNewInstance`,
-    `CreateNewWindow`), `HideOtherApplications`, `ClearLogNotice` and `ToggleSimpleFullscreen`;
-    mouse bindings other than pasting, expanding the selection and selecting a command's output;
-    the message bar
+- Key bindings to new windows (`SpawnNewInstance`, `CreateNewWindow`), `HideOtherApplications`,
+    `ClearLogNotice` and `ToggleSimpleFullscreen`; mouse bindings other than pasting, expanding
+    the selection and selecting a command's output; the message bar
 - `--embed`, `--print-events`, `--ref-test` and the `debug.renderer`, `debug.prefer_egl`,
     `debug.render_timer`, `debug.highlight_damage` and `debug.print_events` options, which only
     applied to the OpenGL front end

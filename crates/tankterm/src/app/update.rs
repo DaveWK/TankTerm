@@ -810,11 +810,12 @@ impl App {
         was_busy && !shell.busy
     }
 
-    /// Look up the directories the shells are in, which the session file remembers.
+    /// Look up the directories the shells are in, for the session file, the status segments and
+    /// the tab titles.
     ///
     /// This takes the file system, so it runs with the ticks and not with every output of a
-    /// terminal, and not at all if there is no session file to write the directories to, and no
-    /// status segment or tab title to show them in.
+    /// terminal, and not at all while there is no session file, nothing shows the directories
+    /// and titles aren't dynamic.
     fn poll_directories(&mut self) {
         let title = &self.options.tabs.title;
         // The tab titles fall back to where the shells are while titles are dynamic.

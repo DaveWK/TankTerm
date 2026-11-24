@@ -12,10 +12,10 @@ rust-version.workspace = true
 
 [features]
 default = ["serde"]
-serde = ["dep:serde", "bitflags/serde", "vte/serde"]
+serde = ["dep:serde", "arrayvec/serde", "bitflags/serde", "vte/serde"]
 
 [dependencies]
-arrayvec = { version = "0.7.8", features = ["serde"] }
+arrayvec = "0.7.8"
 base64 = "0.23.1"
 bitflags = "2.13.2"
 log = "0.4"
@@ -44,7 +44,6 @@ windows-sys = { version = "0.61.2", features = [
     "Win32_Security",
     "Win32_System_LibraryLoader",
     "Win32_System_Threading",
-    "Win32_System_WindowsProgramming",
 ]}
 
 [dev-dependencies]

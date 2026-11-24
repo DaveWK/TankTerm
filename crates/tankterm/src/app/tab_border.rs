@@ -20,7 +20,7 @@ use iced_core::{
     Widget, mouse, overlay, renderer,
 };
 
-use crate::color::Rgb;
+use super::view::color;
 use crate::config::style::{Border, Sides, TabStyle};
 
 /// Radius of the corners of a `Rounded` border.
@@ -236,10 +236,6 @@ fn dashes(length: f32) -> Vec<(f32, f32)> {
         .collect()
 }
 
-fn color(rgb: Rgb) -> Color {
-    Color::from_rgb8(rgb.r, rgb.g, rgb.b)
-}
-
 /// `content` with a border drawn over its edge.
 pub struct Bordered<'a, Message, Theme, Renderer> {
     content: Element<'a, Message, Theme, Renderer>,
@@ -360,6 +356,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::color::Rgb;
 
     use crate::config::style::TextAttributes;
     use crate::config::window::Spacing;

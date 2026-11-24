@@ -9,11 +9,9 @@ use std::cmp::min;
 use std::mem;
 use std::ops::{Bound, Range, RangeBounds};
 
-use crate::grid::{Dimensions, GridCell, Indexed};
+use crate::grid::Dimensions;
 use crate::index::{Boundary, Column, Line, Point, Side};
 use crate::term::Term;
-use crate::term::cell::{Cell, Flags};
-use crate::vte::ansi::CursorShape;
 
 /// A Point and side within that point.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -54,37 +52,6 @@ impl SelectionRange {
             && (self.start.column <= point.column
                 || (self.start.line != point.line && !self.is_block))
             && (self.end.column >= point.column || (self.end.line != point.line && !self.is_block))
-    }
-
-    /// Check if the cell at a point is part of the selection.
-    pub fn contains_cell(
-        &self,
-        indexed: &Indexed<&Cell>,
-        point: Point,
-        shape: CursorShape,
-    ) -> bool {
-        // Do not invert block cursor at selection boundaries.
-        if shape == CursorShape::Block
-            && point == indexed.point
-            && (self.start == indexed.point
-                || self.end == indexed.point
-                || (self.is_block
-                    && ((self.start.line == indexed.point.line
-                        && self.end.column == indexed.point.column)
-                        || (self.end.line == indexed.point.line
-                            && self.start.column == indexed.point.column))))
-        {
-            return false;
-        }
-
-        // Point itself is selected.
-        if self.contains(indexed.point) {
-            return true;
-        }
-
-        // Check if a wide char's trailing spacer is selected.
-        indexed.cell.flags().contains(Flags::WIDE_CHAR)
-            && self.contains(Point::new(indexed.point.line, indexed.point.column + 1))
     }
 }
 

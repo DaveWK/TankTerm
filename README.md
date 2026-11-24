@@ -62,7 +62,8 @@ This front end is new and doesn't support everything the OpenGL one did yet:
   `ClearLogNotice` and `ToggleSimpleFullscreen`; mouse bindings other than pasting, expanding
   the selection and selecting a command's output with the middle and right buttons. A binding
   like these in the configuration file is logged as a warning.
-- `colors.transparent_background_colors` and `window.option_as_alt`
+- `colors.transparent_background_colors`, `window.decorations_theme_variant` and
+  `window.option_as_alt`
 
 Command line options that aren't supported yet fail with an error; config
 options that aren't supported yet are ignored. Changes to the configuration
