@@ -50,13 +50,29 @@ fn prompt_mark_color(
     }
 }
 
+/// The mark's distance to the text, in a margin that has room for it.
+const PROMPT_MARK_GAP: f32 = 3.;
+
 pub struct TerminalView<'a> {
     term: &'a Terminal,
+    /// Blank space to the left of the widget that prompt marks can be drawn
+    /// in.
+    margin: f32,
 }
 
 impl<'a> TerminalView<'a> {
     pub fn show(term: &'a Terminal) -> Element<'a, Event> {
-        container(Self { term })
+        Self::show_with_margin(term, 0.)
+    }
+
+    /// Show a terminal that has `margin` pixels of blank space to its left,
+    /// which prompt marks are drawn in if it has room for them. Without it
+    /// they are drawn over the first cells.
+    pub fn show_with_margin(
+        term: &'a Terminal,
+        margin: f32,
+    ) -> Element<'a, Event> {
+        container(Self { term, margin })
             .width(Length::Fill)
             .height(Length::Fill)
             .style(|_| {
@@ -1334,12 +1350,18 @@ impl Widget<Event, Theme, iced::Renderer> for TerminalView<'_> {
             // Prompt marks go under the cursor, which can be on a prompt's
             // first cell.
             let mark_width = (cell_width * 0.15).round().max(2.);
+            let margin = self.margin + layout_offset_x - layout.position().x;
+            let mark_x = if margin >= mark_width + PROMPT_MARK_GAP {
+                layout_offset_x - PROMPT_MARK_GAP - mark_width
+            } else {
+                layout_offset_x
+            };
             for (line, status) in prompts {
                 let y = layout_offset_y
                     + ((line as f32) + display_offset) * cell_height;
                 let color = prompt_mark_color(theme, overrides, status);
                 frame.fill_rectangle(
-                    Point::new(layout_offset_x, y),
+                    Point::new(mark_x, y),
                     Size::new(mark_width, cell_height),
                     color,
                 );
@@ -2275,12 +2297,20 @@ mod tests {
             // Without dynamic padding the grid starts at the layout.
             let term = terminal(false, size);
             assert_eq!(
-                TerminalView { term: &term }.grid_origin(layout),
+                TerminalView {
+                    term: &term,
+                    margin: 0.
+                }
+                .grid_origin(layout),
                 position
             );
 
             let mut term = terminal(true, size);
-            let origin = TerminalView { term: &term }.grid_origin(layout);
+            let origin = TerminalView {
+                term: &term,
+                margin: 0.,
+            }
+            .grid_origin(layout);
             assert_eq!(origin, Point::new(33., 22.));
 
             // A pointer over the middle of the cell drawn at line 1, column 2
@@ -2315,7 +2345,11 @@ mod tests {
             // layout again.
             term.handle(crate::Command::ChangeDynamicPadding(false));
             assert_eq!(
-                TerminalView { term: &term }.grid_origin(layout),
+                TerminalView {
+                    term: &term,
+                    margin: 0.
+                }
+                .grid_origin(layout),
                 position
             );
         }

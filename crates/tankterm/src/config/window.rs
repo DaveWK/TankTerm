@@ -315,9 +315,9 @@ pub enum Padding {
 }
 
 impl Default for Padding {
-    /// A little space on the left and right, so text doesn't touch the window's edges.
+    /// A little space, so text doesn't touch the window's edges or the tab bar.
     fn default() -> Self {
-        Self::Pixels(Delta { x: 8, y: 0 })
+        Self::Pixels(Delta { x: 8, y: 4 })
     }
 }
 
