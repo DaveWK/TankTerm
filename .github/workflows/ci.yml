@@ -120,7 +120,8 @@ jobs:
     steps:
       - name: Install packages
         run: |
-          $DNF_INSTALL git-core gcc rustup
+          # The tests measure text, and without a monospace font iced has a proportional one.
+          $DNF_INSTALL git-core gcc rustup liberation-mono-fonts
           rustup-init -y --profile minimal --default-toolchain none --no-modify-path
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 

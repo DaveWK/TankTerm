@@ -426,7 +426,10 @@ fn untitled_shells_are_named_after_where_they_are() {
     let mut app = app();
     let focused = app.focused_terminal().unwrap();
     let home = home::home_dir().unwrap();
-    let (user, host) = (status::user_name().unwrap(), status::host_name().unwrap());
+    // A computer that doesn't tell the user's name, like a container without `$USER`, leaves the
+    // configured title.
+    let names = status::user_name().zip(status::host_name());
+    let named = names.map_or("test".into(), |(user, host)| format!("{user}@{host}:~/src"));
 
     // Until the directory is known, the configured title.
     app.terminals.get_mut(&focused).unwrap().working_directory = None;
@@ -435,8 +438,8 @@ fn untitled_shells_are_named_after_where_they_are() {
     let shell = app.terminals.get_mut(&focused).unwrap();
     shell.working_directory = Some(home.join("src"));
     shell.process = Some("bash".into());
-    assert_eq!(app.tab_title(&app.tabs[0]), format!("{user}@{host}:~/src"));
-    assert_eq!(app.title(), format!("{user}@{host}:~/src"));
+    assert_eq!(app.tab_title(&app.tabs[0]), named);
+    assert_eq!(app.title(), named);
 
     // ssh's local directory says nothing about the remote one.
     app.terminals.get_mut(&focused).unwrap().process = Some("ssh".into());
@@ -1352,7 +1355,8 @@ fn hovered_tabs_handle_a_click_once() {
     perform(&mut app, &[AppAction::NewTab, AppAction::NewTab]);
 
     let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
-    let tab = ui.find(tab_text(&app, 1)).unwrap();
+    // The tab is found by its number, as its title may be the other tabs' too.
+    let tab = ui.find("2").unwrap();
     ui.point_at(iced_test::selector::Bounded::visible_bounds(&tab).unwrap().center());
     ui.simulate([
         iced::Event::Mouse(MouseEvent::ButtonPressed(Button::Middle)),
@@ -1790,7 +1794,7 @@ fn tabs_are_as_wide_as_their_titles_by_default() {
     let mut app = app();
     perform(&mut app, &[AppAction::NewTab]);
     app.tabs[0].title = Some("a".into());
-    app.tabs[1].title = Some("a much longer title".into());
+    app.tabs[1].title = Some("a longer title".into());
 
     let (first, second) = (text_x(&app, tab_text(&app, 0)), text_x(&app, tab_text(&app, 1)));
     let plus = text_x(&app, icons::id(Icon::Plus));
@@ -1860,7 +1864,7 @@ fn tab_widths_are_in_cells() {
 
     // The second tab is shown, and the first is 10 cells wide.
     perform(&mut app, &[AppAction::NewTab]);
-    let second = text_x(&app, tab_text(&app, 1)) - text_x(&app, tab_text(&app, 0));
+    let second = text_x(&app, "2") - text_x(&app, "1");
     assert!((second - (10. * cell).floor() - 1.).abs() < 1., "{second} {cell}");
 }
 
@@ -1872,12 +1876,12 @@ fn tabs_with_a_width_keep_it_in_a_crowded_bar() {
     perform(&mut app, &[AppAction::SelectTab(0)]);
     let cell = app.settings.font.cell_size().width;
 
-    // Where things start, also those squeezed out of sight. The other tabs have the same
-    // title, so they are told apart by their close buttons.
+    // Where things start, also those squeezed out of sight. The tabs may have the same title,
+    // so they are told apart by their numbers, which are first in them, and close buttons.
     let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
     let mut x =
         |selector: String| iced_test::selector::Bounded::bounds(&ui.find(selector).unwrap()).x;
-    let shown = x(tab_text(&app, 1)) - x(tab_text(&app, 0));
+    let shown = x("2".into()) - x("1".into());
     assert!((shown - (30. * cell).floor() - 1.).abs() < 1., "{shown} {cell}");
 
     // The other tabs share what is left.
@@ -2016,7 +2020,7 @@ fn gap_is_the_space_between_tabs() {
     let mut app = app_with(config, Hotkeys::default());
     perform(&mut app, &[AppAction::NewTab]);
 
-    let step = text_x(&app, tab_text(&app, 1)) - text_x(&app, tab_text(&app, 0));
+    let step = text_x(&app, "2") - text_x(&app, "1");
     assert!((step - MAX_TAB_WIDTH - 12.).abs() < 1., "{step}");
 }
 
