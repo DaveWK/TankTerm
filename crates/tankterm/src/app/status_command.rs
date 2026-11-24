@@ -424,8 +424,16 @@ mod tests {
         assert!(started.elapsed() < Duration::from_secs(3), "{:?}", started.elapsed());
 
         let pid: libc::pid_t = std::fs::read_to_string(&pid_file).unwrap().trim().parse().unwrap();
+        // Nobody may be left to collect a killed process, like in a container whose first process
+        // isn't an init, which leaves it as a zombie.
+        let is_zombie = || {
+            let stat = std::fs::read_to_string(format!("/proc/{pid}/stat")).unwrap_or_default();
+            // The state is after the program's name, which is in parentheses.
+            stat.rsplit(')').next().is_some_and(|rest| rest.trim_start().starts_with('Z'))
+        };
         // SAFETY: Signal 0 only asks whether the process exists.
-        wait_until("the program's child kept running", || unsafe { libc::kill(pid, 0) } == -1);
+        let is_gone = || unsafe { libc::kill(pid, 0) } == -1;
+        wait_until("the program's child kept running", || is_gone() || is_zombie());
     }
 
     #[test]
