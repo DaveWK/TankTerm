@@ -245,6 +245,8 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 - `Alt` with a character, `Enter`, `Tab`, `Space` or `Escape` sends an escape before the key's text
     outside the Kitty keyboard protocol too, so `Alt+B` or `Alt+.` work in the shell. Characters
     were sent without it, and the other keys weren't sent at all
+- `window.dimensions` opening more columns than it says, and `window.padding` in cells being
+    bigger than the cells, with a font whose cells aren't whole pixels
 - `-o colors.mode=...` not changing which color of light/dark pairs is used
 - Setting only one color of `colors.cursor`, `colors.selection`, search or hint colors no longer
     resets the other one

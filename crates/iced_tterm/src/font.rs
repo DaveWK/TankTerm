@@ -73,6 +73,12 @@ impl FontSettings {
             (glyph.height + self.offset.y).max(MIN_CELL),
         )
     }
+
+    /// Size of a cell as the grid counts it, which is in whole pixels.
+    pub fn grid_cell_size(&self) -> Size<f32> {
+        let cell = self.cell_size();
+        Size::new(cell.width.trunc(), cell.height.trunc())
+    }
 }
 
 fn font_measure(
@@ -118,6 +124,26 @@ mod tests {
             ..FontSettings::default()
         };
         assert_eq!(crushed.cell_size(), Size::new(MIN_CELL, MIN_CELL));
+    }
+
+    #[test]
+    fn the_grids_cells_are_whole_pixels() {
+        let plain = FontSettings::default();
+        let cell = plain.cell_size();
+
+        // An offset that leaves 7.5 by 19.75 pixels.
+        let offset = Vector::new(7.5 - cell.width, 19.75 - cell.height);
+        let settings = FontSettings {
+            offset,
+            ..FontSettings::default()
+        };
+        assert_eq!(settings.grid_cell_size(), Size::new(7., 19.));
+
+        let crushed = FontSettings {
+            offset: Vector::new(-1000., -1000.),
+            ..FontSettings::default()
+        };
+        assert_eq!(crushed.grid_cell_size(), Size::new(1., 1.));
     }
 
     #[test]
