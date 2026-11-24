@@ -77,11 +77,11 @@ fn terminal_fills_window_without_padding() {
 }
 
 #[test]
-fn terminal_keeps_off_the_sides_by_default() {
+fn terminal_keeps_off_the_edges_by_default() {
     let window = Size::new(800., 400.);
     let (size, _) = terminal_size("", window);
 
-    assert_eq!(size, Size::new(800. - 2. * 8., 400.));
+    assert_eq!(size, Size::new(800. - 2. * 8., 400. - 2. * 4.));
 }
 
 #[test]

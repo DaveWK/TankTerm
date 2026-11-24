@@ -222,6 +222,7 @@ Notable changes to the `tankterm_terminal` crate are documented in its
     of the terminals and their padding is drawn at that opacity, while cells with a background
     color of their own, the tab bar and the command palette stay opaque. A window that started
     opaque needs a restart to become transparent
+- `window.padding` defaults to 8 pixels on the left and right and 4 at the top and bottom
 - The padding around a terminal takes the background color its application sets with OSC 11
 
 ### Removed
@@ -238,6 +239,9 @@ Notable changes to the `tankterm_terminal` crate are documented in its
 
 ### Fixed
 
+- Prompt marks covering the left of the first letter; they are in the padding
+- Terminals below the tab bar drawn between the pixels of the screen, as the bar's height wasn't
+    whole pixels at most font sizes
 - Applications that ask for mouse reports only got those of the left button. They get the middle
     and right button, the wheel and all moves too, as they ask for them, and `Shift` keeps the
     mouse from them

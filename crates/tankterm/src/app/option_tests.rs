@@ -1704,3 +1704,76 @@ fn the_mouse_scrolls_and_selects_without_reports() {
     assert_eq!(commands[..2], ["SelectStart", "SelectUpdate"]);
     assert!(commands[2].starts_with("Scroll ") && commands.len() == 3, "{commands:?}");
 }
+
+/// The height the tab bar of `app` is laid out with.
+fn tab_bar_height(app: &App) -> f32 {
+    let redraw = Event::Window(window::Event::RedrawRequested(Instant::now()));
+    let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
+    ui.simulate([redraw]);
+    let size = ui.into_messages().find_map(|message| match message {
+        Message::TabBarSized(size) => Some(size),
+        _ => None,
+    });
+    size.unwrap().height
+}
+
+#[test]
+fn the_tab_bar_is_a_whole_number_of_pixels_high() {
+    // Terminals below a bar that isn't are drawn between the pixels of the screen.
+    for size in ["9", "10", "11", "11.25", "12", "13.5"] {
+        let config = format!(
+            "[font]\nsize = {size}\n[window]\nresize_increments = true\ndecorations = \
+             \"None\"\n[[tabs.status]]\nkind = \"Text\"\nformat = \"text\"\n"
+        );
+        let height = tab_bar_height(&app_with(&config, Hotkeys::default()));
+        assert!(height > 10. && height.fract() == 0., "{height} at {size}");
+    }
+}
+
+/// The columns of logical pixels, at the height of the first line, in which the picture of
+/// `app` isn't the color of its corner.
+#[cfg(all(feature = "x11", not(target_os = "macos")))]
+fn drawn_columns(app: &App) -> Vec<usize> {
+    let directory = tempfile::tempdir().unwrap();
+    let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
+    let snapshot = ui.snapshot(&Theme::Dark).unwrap();
+    assert!(snapshot.matches_image(directory.path().join("picture")).unwrap());
+
+    let file = std::fs::read_dir(directory.path()).unwrap().next().unwrap().unwrap();
+    let file = std::io::BufReader::new(std::fs::File::open(file.path()).unwrap());
+    let mut reader = png::Decoder::new(file).read_info().unwrap();
+    let mut pixels = vec![0; reader.output_buffer_size().unwrap()];
+    let info = reader.next_frame(&mut pixels).unwrap();
+    let (width, scale) = (info.width as usize, info.width as usize / 800);
+    let pixel = |x: usize, y: usize| &pixels[(y * width + x) * 4..][..4];
+
+    let line = cell_at(0., 0.).1 as usize + app.options.layout.padding.top as usize;
+    let drawn = |x: &usize| {
+        (0..scale).any(|dx| pixel(x * scale + dx, line * scale) != pixel(width - 1, line * scale))
+    };
+    (0..100).filter(drawn).collect()
+}
+
+#[cfg(all(feature = "x11", not(target_os = "macos")))]
+#[test]
+fn prompt_marks_are_in_the_padding() {
+    let script = "printf '\\\\033]133;A\\\\007  \\\\033]133;B\\\\007ready\\\\033[?25l'; exec cat";
+    let shell =
+        format!("[terminal]\nshell = {{ program = \"sh\", args = [\"-c\", \"{script}\"] }}\n");
+    let marks = |padding: f32| {
+        let mut app = app_with(&shell, Hotkeys::default());
+        app.options.layout.padding = iced::Padding::new(padding);
+        wait_for_text(&app, 0, "ready");
+        let _ = app.update(wakeup(0));
+        // The text starts after two blank cells.
+        let text = padding as usize + 2 * cell_at(0.5, 0.).0 as usize;
+        drawn_columns(&app).into_iter().filter(|x| *x < text).collect::<Vec<_>>()
+    };
+
+    // Two pixels wide, three pixels before the text.
+    assert_eq!(marks(8.), [3, 4]);
+    assert_eq!(marks(5.), [0, 1]);
+    // Too little padding leaves the mark on the first cell.
+    assert_eq!(marks(4.), [4, 5]);
+    assert_eq!(marks(0.), [0, 1]);
+}

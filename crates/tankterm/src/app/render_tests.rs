@@ -295,6 +295,28 @@ fn prompt_marks() {
 
 #[test]
 #[ignore = "writes screenshots for manual inspection"]
+fn default_window_edges() {
+    let Some(dir) = env::var_os("TANKTERM_SNAPSHOT_DIR").map(PathBuf::from) else { return };
+    let window = Size::new(480., 160.);
+
+    let config = r#"
+        [window]
+        decorations = "None"
+        [terminal.shell]
+        program = "sh"
+        args = ["-c", '''printf '\033]133;A\007user@host:~$ \033]133;B\007'; exec cat''']
+    "#;
+    let mut app = super::tab_tests::app_with(config, Hotkeys::default());
+    let config: UiConfig = toml::from_str(config).unwrap();
+    let cell = term_settings::cell_size(&app.settings.font);
+    app.options.layout.padding = term_settings::padding(&config, cell);
+    shown(&mut app, 0, "user@host");
+    settle(&mut app, window);
+    snapshot(&app, window, &dir, "default-window-edges");
+}
+
+#[test]
+#[ignore = "writes screenshots for manual inspection"]
 fn box_drawing() {
     let Some(dir) = env::var_os("TANKTERM_SNAPSHOT_DIR").map(PathBuf::from) else { return };
     let window = Size::new(1100., 560.);

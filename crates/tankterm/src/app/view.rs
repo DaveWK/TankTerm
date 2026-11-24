@@ -9,7 +9,7 @@ use iced::widget::{
     Space, button, column, container, keyed_column, mouse_area, row, sensor, span, stack, text,
 };
 use iced::window::Direction;
-use iced::{Background, Border, Color, Element, Font, Length, Padding};
+use iced::{Background, Border, Color, Element, Font, Length, Padding, Pixels};
 use iced_tterm::TerminalView;
 use unicode_width::UnicodeWidthStr;
 
@@ -123,7 +123,8 @@ impl App {
         let Some(shell) = self.terminals.get(&terminal) else { return container("").into() };
         let background = self.pane_background(shell);
 
-        let terminal = container(TerminalView::show(&shell.terminal).map(Message::Terminal))
+        let terminal = TerminalView::show_with_margin(&shell.terminal, padding.left);
+        let terminal = container(terminal.map(Message::Terminal))
             .padding(padding)
             .width(Length::Fill)
             .height(Length::Fill)
@@ -338,7 +339,7 @@ impl App {
                 if button == TitleButton::Menu {
                     // As big as the bar leaves room for, so the bar keeps its height.
                     let padding = styles.button.padding;
-                    let room = size * LINE_HEIGHT + f32::from(padding.top + padding.bottom);
+                    let room = line_height(size) + f32::from(padding.top + padding.bottom);
                     let side = (size * APP_ICON).round().min(room).max(0.);
                     let vertical = (room - side) / 2.;
                     let icon = container(icons::app_icon(side)).padding(Padding {
@@ -461,6 +462,12 @@ const CLOSE_PADDING: f32 = 8.;
 /// How high a line of text is, in font sizes: iced's default line height.
 const LINE_HEIGHT: f32 = 1.3;
 
+/// How high a line of text on the bar is, for a font `size`: whole pixels, so the terminals below
+/// the bar are drawn on whole pixels too.
+fn line_height(size: f32) -> f32 {
+    (size * LINE_HEIGHT).round()
+}
+
 /// How wide the app's icon at the end of the title bar is, in font sizes, at most: as high as
 /// the bar allows.
 const APP_ICON: f32 = 1.8;
@@ -536,7 +543,7 @@ fn window_icon(
 fn bar_icon(icon: Icon, style: &TabStyle, size: f32, scale: f32) -> Element<'static, Message> {
     let (side, foreground) = (bar_icon_size(size), color(style.colors().0));
     let drawn = icons::icon(icon, side, foreground, icons::id(icon), scale);
-    container(drawn).center_y(size * LINE_HEIGHT).into()
+    container(drawn).center_y(line_height(size)).into()
 }
 
 /// How wide the icon of a button on the bar is, for a font `size`: a little more than the
@@ -579,11 +586,18 @@ fn label<'a>(content: String, style: &TabStyle, font: Font, size: f32) -> Elemen
         Rich::<(), Message>::with_spans([span])
             .font(font)
             .size(size)
+            .line_height(Pixels(line_height(size)))
             .color(foreground)
             .wrapping(Wrapping::None)
             .into()
     } else {
-        text(content).font(font).size(size).color(foreground).wrapping(Wrapping::None).into()
+        text(content)
+            .font(font)
+            .size(size)
+            .line_height(Pixels(line_height(size)))
+            .color(foreground)
+            .wrapping(Wrapping::None)
+            .into()
     }
 }
 

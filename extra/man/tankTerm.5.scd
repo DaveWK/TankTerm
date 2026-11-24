@@ -173,7 +173,7 @@ This section documents the *[window]* table of the configuration file.
 
 	Example: _padding = [1, 2]_
 
-	Default: { x = _8_, y = _0_ }
+	Default: { x = _8_, y = _4_ }
 
 *dynamic_padding* = _true_ | _false_
 
@@ -1454,7 +1454,9 @@ Windows: _"powershell"_
 *prompt_marks* = _true_ | _false_
 
 	Mark where every prompt starts at the left edge of the terminal, in red
-	when the command typed at it failed. Only shells that mark their prompts
+	when the command typed at it failed. The marks are in the padding
+	on the left if they fit, which takes 5 pixels for most fonts, and over the
+	first cells otherwise. Only shells that mark their prompts
 	get marks; see *SHELL INTEGRATION* in *tankTerm*(1). With _false_ the
 	marks are hidden, and the prompt keys and actions still work.
 
