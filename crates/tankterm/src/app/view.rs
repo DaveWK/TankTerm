@@ -6,7 +6,7 @@ use iced::mouse::Interaction;
 use iced::widget::pane_grid::{self, PaneGrid};
 use iced::widget::text::{Rich, Wrapping};
 use iced::widget::{
-    Space, button, column, container, keyed_column, mouse_area, row, span, stack, text,
+    Space, button, column, container, keyed_column, mouse_area, row, sensor, span, stack, text,
 };
 use iced::window::Direction;
 use iced::{Background, Border, Color, Element, Font, Length, Padding};
@@ -54,18 +54,19 @@ impl App {
         let terminals =
             keyed_column([(tab.id, Element::from(panes))]).width(Length::Fill).height(Length::Fill);
 
-        // A tab bar that is the title bar is always there.
-        let show_tabs = match self.options.tabs.show {
-            _ if self.title_buttons().is_some() => true,
-            ShowTabs::Always => true,
-            ShowTabs::Multiple => self.tabs.len() > 1,
-            ShowTabs::Never => false,
+        // The steps of a window that resizes in whole cells leave the tab bar out.
+        let tab_bar = || -> Element<'_, Message> {
+            if self.options.resize_increments {
+                sensor(self.tab_bar()).on_resize(Message::TabBarSized).into()
+            } else {
+                self.tab_bar()
+            }
         };
-
-        let content: Element<'_, Message> = match (show_tabs, self.options.tabs.position) {
+        let position = self.options.tabs.position;
+        let content: Element<'_, Message> = match (self.shows_tab_bar(), position) {
             (false, _) => terminals.into(),
-            (true, TabsPosition::Top) => column![self.tab_bar(), terminals].into(),
-            (true, TabsPosition::Bottom) => column![terminals, self.tab_bar()].into(),
+            (true, TabsPosition::Top) => column![tab_bar(), terminals].into(),
+            (true, TabsPosition::Bottom) => column![terminals, tab_bar()].into(),
         };
 
         // The palette is drawn over the terminals and takes the keyboard while it is shown.
@@ -407,6 +408,16 @@ impl App {
         let [focused, blurred] = self.options.layout.tab_bar;
         let bar = if self.window_focused { focused } else { blurred }.bar;
         Color { a: self.opacity(), ..color(bar.colors().1) }
+    }
+
+    /// Whether the tab bar is shown. One that is the title bar is always there.
+    pub(super) fn shows_tab_bar(&self) -> bool {
+        match self.options.tabs.show {
+            _ if self.title_buttons().is_some() => true,
+            ShowTabs::Always => true,
+            ShowTabs::Multiple => self.tabs.len() > 1,
+            ShowTabs::Never => false,
+        }
     }
 
     /// The window buttons of the tab bar, while it is the title bar: in a window opened

@@ -289,6 +289,10 @@ enum Asked {
     DragResize(String),
     SystemMenu,
     IsMaximized,
+    /// Width and height of the window's resize steps.
+    SetResizeIncrements(Option<(f32, f32)>),
+    /// Width and height of the smallest window.
+    SetMinSize(Option<(f32, f32)>),
 }
 
 /// Run a task the way iced's runtime would, with `clipboard` as the text of the regular and of
@@ -352,6 +356,17 @@ fn run_task(
             runtime::Action::Window(runtime::window::Action::ShowSystemMenu(id)) => {
                 assert_eq!(id, window);
                 asked.push(Asked::SystemMenu);
+            },
+            runtime::Action::Window(runtime::window::Action::SetResizeIncrements(id, size)) => {
+                assert_eq!(id, window);
+                asked.push(Asked::SetResizeIncrements(size.map(|size| (size.width, size.height))));
+            },
+            runtime::Action::Window(runtime::window::Action::SetMinSize(id, size)) => {
+                assert_eq!(id, window);
+                asked.push(Asked::SetMinSize(size.map(|size| (size.width, size.height))));
+            },
+            runtime::Action::Window(runtime::window::Action::GetScaleFactor(_, channel)) => {
+                let _ = channel.send(1.);
             },
             // The window is never maximized.
             runtime::Action::Window(runtime::window::Action::GetMaximized(id, channel)) => {
@@ -1402,4 +1417,111 @@ fn mouse_selects_command_output_and_moves_the_cursor_in_the_command_line() {
     handle(&mut app, &[focus, (position, events)]);
     wait_for_text(&app, 0, &"^[[D".repeat(6));
     assert!(!app.terminals[&0].terminal.text().concat().contains(&"^[[D".repeat(7)));
+}
+
+/// What the tasks of an application that handles `message` ask about the window's size, and the
+/// messages the tasks produced.
+fn size_hints(app: &mut App, message: Message) -> Vec<Asked> {
+    let (asked, _) = run_task(app.update(message), [None; 2], window::Mode::Windowed);
+    let size =
+        |asked: &Asked| matches!(asked, Asked::SetResizeIncrements(_) | Asked::SetMinSize(_));
+    asked.into_iter().filter(size).collect()
+}
+
+/// The steps and the smallest size a window is asked to have.
+fn asked_size(asked: &[Asked]) -> Option<((f32, f32), (f32, f32))> {
+    let increments = asked.iter().find_map(|asked| match asked {
+        Asked::SetResizeIncrements(size) => *size,
+        _ => None,
+    });
+    let min = asked.iter().find_map(|asked| match asked {
+        Asked::SetMinSize(size) => *size,
+        _ => None,
+    });
+    increments.zip(min)
+}
+
+#[test]
+fn windows_resize_freely_by_default() {
+    let mut app = app_with("", Hotkeys::default());
+    assert_eq!(size_hints(&mut app, Message::WindowFocused(true)), []);
+    assert_eq!(size_hints(&mut app, Message::Action(AppAction::IncreaseFontSize)), []);
+}
+
+#[test]
+fn windows_resize_in_cells_with_resize_increments() {
+    let config = "[font]\nsize = 12\n[window]\nresize_increments = true\n";
+    let mut app = app_with(config, Hotkeys::default());
+
+    // There is no window to ask for anything yet.
+    assert_eq!(size_hints(&mut app, Message::Tick), []);
+
+    let measured = app.settings.font.cell_size();
+    let cell = (measured.width.trunc(), measured.height.trunc());
+    let asked = size_hints(&mut app, Message::WindowFocused(true));
+    // The smallest window shows a cell; the test application has no padding and no tab bar.
+    assert_eq!(asked_size(&asked), Some((cell, cell)));
+
+    // Nothing is asked for again until it changes.
+    assert_eq!(size_hints(&mut app, Message::WindowFocused(true)), []);
+    assert_eq!(size_hints(&mut app, Message::Tick), []);
+
+    // The steps follow the font size.
+    let asked = size_hints(&mut app, Message::Action(AppAction::IncreaseFontSize));
+    let (bigger, _) = asked_size(&asked).unwrap();
+    assert!(bigger.1 > cell.1, "{bigger:?} {cell:?}");
+    let asked = size_hints(&mut app, Message::Action(AppAction::ResetFontSize));
+    assert_eq!(asked_size(&asked), Some((cell, cell)));
+
+    // Sizes are rounded for the scale of the screen, so a new scale asks again.
+    let asked = size_hints(&mut app, Message::ScaleFactor(1.25));
+    assert_eq!(asked_size(&asked), Some((cell, cell)));
+    assert_eq!(size_hints(&mut app, Message::ScaleFactor(1.25)), []);
+
+    // Turned off, the window resizes freely again.
+    app.options.resize_increments = false;
+    let asked = size_hints(&mut app, Message::Tick);
+    assert_eq!(asked, [Asked::SetMinSize(None), Asked::SetResizeIncrements(None)]);
+}
+
+#[test]
+fn resize_steps_leave_no_part_of_a_cell_over() {
+    for position in ["Top", "Bottom"] {
+        // The default font size has cells that aren't whole pixels.
+        let config = format!(
+            "[window]\nresize_increments = true\ndecorations = \"None\"\n[tabs]\nposition = \
+             \"{position}\"\n"
+        );
+        let mut app = app_with(&config, Hotkeys::default());
+        app.options.layout.padding = iced::Padding { top: 3., right: 8., bottom: 4., left: 8. };
+        let _ = size_hints(&mut app, Message::WindowFocused(true));
+
+        // The tab bar's height is known once it was drawn.
+        let redraw = || Event::Window(window::Event::RedrawRequested(Instant::now()));
+        let mut ui = Simulator::with_size(Default::default(), Size::new(800., 400.), app.view());
+        ui.simulate([redraw()]);
+        let messages: Vec<_> = ui.into_messages().collect();
+        let mut asked = Vec::new();
+        for message in messages {
+            asked.extend(size_hints(&mut app, message));
+        }
+        let (step, min) = asked_size(&asked).unwrap();
+
+        for (columns, lines) in [(1., 1.), (40., 10.), (93., 31.)] {
+            // The smallest window has a cell already.
+            let window = Size::new(min.0 + (columns - 1.) * step.0, min.1 + (lines - 1.) * step.1);
+            let mut ui = Simulator::with_size(Default::default(), window, app.view());
+            ui.simulate([redraw()]);
+            let size = ui.into_messages().find_map(|message| match message {
+                Message::Terminal(iced_tterm::Event::BackendCall(
+                    _,
+                    BackendCommand::Resize(Some(size), _),
+                )) => Some(size),
+                _ => None,
+            });
+            let size = size.unwrap();
+            let left = (size.width - columns * step.0, size.height - lines * step.1);
+            assert!((0. ..1.).contains(&left.0) && (0. ..1.).contains(&left.1), "{left:?}");
+        }
+    }
 }

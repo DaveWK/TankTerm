@@ -323,9 +323,9 @@ pub fn profile_settings(profile: &Profile, config: &UiConfig, options: &Options)
     settings
 }
 
-/// Size of a terminal cell, as `iced_tterm` measures its grid.
+/// Size of a terminal cell, as `iced_tterm` counts it in its grid.
 pub fn cell_size(font: &FontSettings) -> Size {
-    font.cell_size()
+    font.grid_cell_size()
 }
 
 /// Padding around the terminal, in logical pixels.

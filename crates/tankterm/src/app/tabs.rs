@@ -437,7 +437,7 @@ impl App {
     }
 
     /// What the tab at `index` shows in the tab bar, in one piece.
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     pub(super) fn tab_label(&self, index: usize, tab: &Tab) -> String {
         let parts = self.tab_label_parts(index, tab).into_iter();
         parts.map(|(text, _)| text).collect()

@@ -46,6 +46,7 @@ fn terminal_size(config: &str, window: Size) -> (Size, Padding) {
         bindings: Vec::new(),
         bell: crate::bell::Bell::from_config(&config.bell),
         opacity: config.window_opacity(),
+        resize_increments: config.window.resize_increments,
     };
     let app = App::new(options, settings.clone(), settings).unwrap();
 
@@ -99,4 +100,27 @@ fn terminal_is_inset_by_pixel_padding() {
     let (size, _) = terminal_size("[window]\npadding = { x = 10, y = 20 }\n", window);
 
     assert_eq!(size, Size::new(780., 360.));
+}
+
+#[test]
+fn window_dimensions_open_that_many_cells() {
+    // Sizes whose cells aren't whole pixels, and one whose are.
+    for size in ["11.25", "11", "9", "12"] {
+        let text = format!(
+            "[font]\nsize = {size}\n[window]\npadding = {{ x = 8, y = 4 }}\ndimensions = {{ \
+             columns = 80, lines = 24 }}\n"
+        );
+        let config: UiConfig = toml::from_str(&text).unwrap();
+        let settings = term_settings::settings(&config, &Options::default());
+        let cell = term_settings::cell_size(&settings.font);
+        let padding = term_settings::padding(&config, cell);
+        let window = term_settings::window_size(&config, cell, padding).unwrap();
+
+        let (terminal, _) = terminal_size(&text, window);
+        // The terminal counts the whole pixels of its cells.
+        let measured = settings.font.cell_size();
+        let columns = (terminal.width / measured.width.trunc()).floor();
+        let lines = (terminal.height / measured.height.trunc()).floor();
+        assert_eq!((columns, lines), (80., 24.), "font size {size}");
+    }
 }

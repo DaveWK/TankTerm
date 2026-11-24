@@ -810,12 +810,23 @@ fn key_output(
             Some(KeyOutput::Write(str.as_bytes().to_vec()))
         },
         BindingAction::Esc(seq) => Some(KeyOutput::Write(seq.into_bytes())),
-        // If no binding matched a character key, only write printable text
-        // (when provided).
-        BindingAction::Ignore if matches!(input.key, Key::Character(_)) => {
-            input
-                .text
-                .map(|text| KeyOutput::Write(text.as_bytes().to_vec()))
+        // Without a binding, a key sends its text, which Alt puts an escape
+        // before.
+        BindingAction::Ignore => {
+            let text = match input.key {
+                Key::Character(_) => input.text?,
+                // Without Alt, the keys with text have bindings.
+                Key::Named(named) if keyboard::alt_send_esc(input, "") => {
+                    keyboard::named_to_text(*named)?
+                },
+                _ => return None,
+            };
+            let mut bytes = Vec::with_capacity(text.len() + 1);
+            if keyboard::alt_send_esc(input, text) {
+                bytes.push(b'\x1b');
+            }
+            bytes.extend_from_slice(text.as_bytes());
+            Some(KeyOutput::Write(bytes))
         },
         _ => None,
     }
@@ -1709,6 +1720,56 @@ mod tests {
             assert_eq!(
                 press_named(Named::Tab, Modifiers::SHIFT, mode),
                 write("\x1b[Z")
+            );
+        }
+
+        #[test]
+        #[cfg(not(target_os = "macos"))]
+        fn alt_sends_escape_before_a_character() {
+            let mode = TermMode::empty();
+            let shift = Modifiers::ALT | Modifiers::SHIFT;
+            let ctrl = Modifiers::ALT | Modifiers::CTRL;
+            let alt = Modifiers::ALT;
+
+            assert_eq!(press_char("b", "b", "b", alt, mode), write("\x1bb"));
+            assert_eq!(press_char("b", "B", "B", shift, mode), write("\x1bB"));
+            assert_eq!(press_char(".", ".", ".", alt, mode), write("\x1b."));
+            assert_eq!(press_char("é", "é", "é", alt, mode), write("\x1bé"));
+            assert_eq!(
+                press_char("b", "b", "\x02", ctrl, mode),
+                write("\x1b\x02")
+            );
+        }
+
+        #[test]
+        #[cfg(not(target_os = "macos"))]
+        fn alt_sends_escape_before_a_named_key_with_text() {
+            let mode = TermMode::empty();
+            let alt = Modifiers::ALT;
+
+            assert_eq!(press_named(Named::Enter, alt, mode), write("\x1b\r"));
+            assert_eq!(press_named(Named::Tab, alt, mode), write("\x1b\t"));
+            assert_eq!(press_named(Named::Space, alt, mode), write("\x1b "));
+            assert_eq!(
+                press_named(Named::Tab, alt | Modifiers::SHIFT, mode),
+                write("\x1b\x1b[Z")
+            );
+            assert_eq!(
+                press_named(Named::Escape, alt, mode),
+                write("\x1b\x1b")
+            );
+            assert_eq!(
+                press_named(Named::Backspace, alt, mode),
+                write("\x1b\x7f")
+            );
+        }
+
+        #[test]
+        fn alt_sends_no_escape_before_composed_text() {
+            // Text of several characters isn't a key Alt modifies.
+            assert_eq!(
+                press_char("a", "a", "ab", Modifiers::ALT, TermMode::empty()),
+                write("ab")
             );
         }
 

@@ -81,6 +81,7 @@ pub(super) fn app_from(
         bindings: crate::hotkeys::mouse_bindings(config.mouse_bindings()),
         bell: crate::bell::Bell::from_config(&config.bell),
         opacity: config.window_opacity(),
+        resize_increments: config.window.resize_increments,
     };
 
     let mut first_settings = settings.clone();
