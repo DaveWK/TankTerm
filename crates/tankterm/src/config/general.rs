@@ -25,7 +25,7 @@ pub struct General {
     pub live_config_reload: bool,
 
     /// Offer IPC through a unix socket.
-    #[allow(unused)]
+    #[cfg_attr(not(unix), allow(dead_code))]
     pub ipc_socket: bool,
 
     /// Reduce motion: no cursor blinking or visual bell animation. Also enabled by a non-empty

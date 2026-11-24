@@ -134,13 +134,6 @@ impl Default for TermMode {
     }
 }
 
-/// Convert a terminal point to a viewport relative point.
-#[inline]
-pub fn point_to_viewport(display_offset: usize, point: Point) -> Option<Point<usize>> {
-    let viewport_line = point.line.0 + display_offset as i32;
-    usize::try_from(viewport_line).ok().map(|line| Point::new(line, point.column))
-}
-
 /// Convert a viewport relative point to a terminal point.
 #[inline]
 pub fn viewport_to_point(display_offset: usize, point: Point<usize>) -> Point {

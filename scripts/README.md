@@ -3,7 +3,7 @@
 ## Flamegraph
 
 Run the release version of TankTerm while recording call stacks. After the
-TankTerm process exits, a flamegraph will be generated and it's URI printed
+TankTerm process exits, a flamegraph will be generated and its URI printed
 as the only output to STDOUT.
 
 ```sh
@@ -21,5 +21,5 @@ all the colors of a standard terminal. The third enumerates the 24-bit colors.
 ```sh
 ./fg-bg.sh
 ./colors.sh
-./24-bit-colors.sh
+./24-bit-color.sh
 ```

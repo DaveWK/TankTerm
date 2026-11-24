@@ -54,7 +54,6 @@ the default bindings inherited from Alacritty.
 
 ### Rest of `tankTerm migrate`
 
-- SSH profiles from Tabby and WezTerm run `ssh`; switch them to `tankTerm ssh` once it exists.
 - VHS theme JSON (`name`, `background`, `foreground`, `cursor`, `selection`, `black` …
   `brightWhite`) as a source of colors, if wanted: it is Charm's only file format with a
   terminal palette. Lip Gloss and CharmTone have no theme files, only Go code.
@@ -74,7 +73,7 @@ the default bindings inherited from Alacritty.
 
 - `ssh` and `sudo` helpers like Ghostty's and kitty's: carrying the integration (and the
   terminfo) to the other side of `ssh`, and keeping it in `sudo -s`. Decide whether they wrap the
-  commands in the scripts or come with `tankTerm ssh` (planned item 3).
+  commands in the scripts or come with `tankTerm ssh`.
 - A list of the integration's features to turn on and off one by one, in place of
   `terminal.shell_integration = "Auto"`/`"None"`.
 
@@ -177,7 +176,6 @@ Minor findings from the final review of `title-bar-styling` (merged 2026-11-18),
   `[style.tab_bar]` background.
 - The bar ignores an application's OSC 11 background, which shows now that the bar is always
   there (base16-shell and tinted-shell set it at every prompt).
-- Stale comments: `poll_directories` in `app/update.rs`, `bar_button` in `app/view.rs`.
 - No frameless variant of `long_titles_and_crowded_bars_keep_the_buttons_on_the_bar` that checks
   the window buttons.
 - Not tried in a real KWin session yet.

@@ -296,9 +296,7 @@ impl App {
         let [left, right] =
             [Side::Left, Side::Right].map(|side| self.status_row(side, styles.status));
 
-        // A button on the bar. Content that is as high as the padding leaves the other buttons
-        // gets only the horizontal padding.
-        // The window's close button turns red under the mouse.
+        // A button on the bar. The window's close button turns red under the mouse.
         let bar_button = |content: &dyn Fn(&TabStyle) -> Element<'static, Message>,
                           close: bool,
                           action: AppAction| {
@@ -626,6 +624,6 @@ fn padding(spacing: Spacing) -> Padding {
     }
 }
 
-fn color(rgb: Rgb) -> Color {
+pub(super) fn color(rgb: Rgb) -> Color {
     Color::from_rgb8(rgb.r, rgb.g, rgb.b)
 }

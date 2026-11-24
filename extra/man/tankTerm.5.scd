@@ -324,6 +324,9 @@ close_button = _"Always"_
 	Override the variant of the System theme/GTK theme/Wayland client side
 	decorations. Set this to _"None"_ to use the system's default theme variant.
 
+	This isn't supported by the iced front end yet: the system's default is
+	used.
+
 	Default: _"None"_
 
 *resize_increments* = _true_ | _false_ # _(works on macOS/X11/Wayland)_
@@ -1073,7 +1076,8 @@ belong to a feature it doesn't have yet.
 		to the primary colors.
 
 	*help_key*, *help_desc*, *help_separator*
-		Keys, descriptions and separators of the key help. Only colors apply.
+		Keys, descriptions and separators of the key help, which TankTerm
+		doesn't have yet. Only colors apply.
 		They default to the grays of Bubbles' help view, lighter on dark
 		backgrounds, on the primary background.
 
@@ -1794,9 +1798,8 @@ _https://docs.rs/winit/latest/winit/keyboard/enum.Key.html_
 
 	*help* = _"<string>"_
 
-		Description shown for this binding in the key help (see _ToggleHelp_),
-		like Bubbles' _key.WithHelp_. Common actions have a default description;
-		bindings without one aren't listed.
+		Description of this binding for the key help, which TankTerm doesn't
+		have yet, like Bubbles' _key.WithHelp_. It isn't shown anywhere.
 
 	*action*
 
@@ -1869,8 +1872,7 @@ _https://docs.rs/winit/latest/winit/keyboard/enum.Key.html_
 			text and the scrollback, and its line is shown in the top right
 			corner, counted up from the last line.
 		*ToggleHelp*
-			Cycle the key help between hidden, a single line and full columns, like
-			Charm's Bubbles help view. It's generated from the key bindings.
+			Show the key help, which TankTerm doesn't have yet. Does nothing.
 		*SearchForward*
 			Start a forward buffer search, from the top of the view. The regex
 			is typed into a bar on the terminal's last row.

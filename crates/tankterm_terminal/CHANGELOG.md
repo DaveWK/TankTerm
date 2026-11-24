@@ -31,12 +31,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Child processes receive `TANKTERM_WINDOW_ID` instead of `ALACRITTY_WINDOW_ID`**
 - Ref test recordings are written to `tankterm.recording` instead of `alacritty.recording`
 - Generated hyperlink IDs end in `_tankterm` instead of `_alacritty`
+- `serde` is only built with the `serde` feature
 
 ### Fixed
 
 - Output read from the PTY right before it reported an error, such as the hang-up after the
     program exited, was dropped when the terminal was locked at that moment
 - `CSI 1 J` (erase above) not clearing the first line when the cursor is on the second line
+
+### Removed
+
+- **`SelectionRange::contains_cell` and `term::point_to_viewport`, which nothing used**
 
 ## Forked from Alacritty
 
