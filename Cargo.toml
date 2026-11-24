@@ -14,7 +14,6 @@ rust-version = "1.95.0"
 
 [profile.release]
 lto = "thin"
-debug = 1
 incremental = false
 
 [workspace.dependencies]
