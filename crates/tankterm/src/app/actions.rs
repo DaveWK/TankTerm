@@ -12,6 +12,7 @@ use super::{App, Message, Shell};
 use crate::config::ui_config::Program;
 use crate::daemon::spawn_daemon;
 use crate::hotkeys::ScrollTo;
+use crate::term_settings;
 
 /// How much a font size action changes the font size by, in logical pixels.
 pub(super) const FONT_SIZE_STEP: f32 = 1.;
@@ -73,10 +74,18 @@ impl App {
         let smallest = MIN_FONT_SIZE - self.settings.font.size.round();
         self.font_zoom = step.map_or(0., |step| (self.font_zoom + step).max(smallest.min(0.)));
 
+        self.measure_cell();
+
         let font = zoomed(self.settings.font.clone(), self.font_zoom);
         for shell in self.terminals.values_mut() {
             shell.terminal.handle(iced_tterm::Command::ChangeFont(font.clone()));
         }
+    }
+
+    /// Measure the cells of the font as it is now.
+    pub(super) fn measure_cell(&mut self) {
+        let font = zoomed(self.settings.font.clone(), self.font_zoom);
+        self.cell = term_settings::cell_size(&font);
     }
 
     /// Scroll the focused terminal through its scrollback buffer. In vi mode, scrolling by

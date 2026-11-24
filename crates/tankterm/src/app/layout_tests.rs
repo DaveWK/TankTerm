@@ -46,6 +46,7 @@ fn terminal_size(config: &str, window: Size) -> (Size, Padding) {
         bindings: Vec::new(),
         bell: crate::bell::Bell::from_config(&config.bell),
         opacity: config.window_opacity(),
+        resize_increments: config.window.resize_increments,
     };
     let app = App::new(options, settings.clone(), settings).unwrap();
 

@@ -26,6 +26,7 @@ use crate::hotkeys::Hotkeys;
 use crate::palette::{self, Palette};
 use crate::session::{SavedNode, SavedTab, Session, ordered_panes};
 use crate::setup::{ConfigSource, Setup};
+use crate::term_settings;
 use crate::watch::changes;
 
 impl App {
@@ -41,6 +42,10 @@ impl App {
             title_drag: TitleDrag::default(),
             maximized: false,
             fullscreen: false,
+            cell: term_settings::cell_size(&settings.font),
+            tab_bar_height: 0.,
+            window_open: false,
+            size_hints: None,
             options,
             settings,
             tabs: Vec::new(),
@@ -124,6 +129,7 @@ impl App {
         let Setup { options, settings, .. } = setup;
         let previous = mem::replace(&mut self.options, options);
         self.settings = settings;
+        self.measure_cell();
 
         // Mouse buttons that had a binding and have none now are the terminal's again.
         let mut bindings = self.options.bindings.clone();
@@ -446,7 +452,7 @@ impl App {
         self.save_session(tick);
 
         // Status commands that are due, also because another pane has the focus now, start.
-        Task::batch([task, self.run_status_commands()])
+        Task::batch([task, self.run_status_commands(), self.ask_size_hints()])
     }
 
     fn handle(&mut self, message: Message) -> Task<Message> {
@@ -541,8 +547,16 @@ impl App {
             Message::ResizeWindow(direction) => {
                 window::latest().and_then(move |id| window::drag_resize(id, direction))
             },
+            Message::TabBarSized(size) => {
+                self.tab_bar_height = size.height;
+                Task::none()
+            },
             Message::WindowResized => self.window_state(),
             Message::ScaleFactor(scale) => {
+                // The window was asked for sizes rounded for its old scale.
+                if self.scale_factor != scale {
+                    self.size_hints = None;
+                }
                 self.scale_factor = scale;
                 Task::none()
             },
@@ -583,6 +597,8 @@ impl App {
             },
             Message::WindowFocused(focused) => {
                 self.window_focused = focused;
+                // Only an open window has focus.
+                self.window_open |= focused;
                 // The terminals draw with the theme's focused or blurred elements.
                 for shell in self.terminals.values_mut() {
                     shell.terminal.handle(iced_tterm::Command::WindowFocus(focused));

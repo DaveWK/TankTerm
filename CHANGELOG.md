@@ -151,6 +151,7 @@ Notable changes to the `tankterm_terminal` crate are documented in its
     are backed up to `<name>.bak` first. `--from` picks the source, `--dry-run` prints the result
 - TankTerm logs a hint about `tankTerm migrate` when it starts without a configuration file and
     finds another terminal's
+- `window.resize_increments` resizes the window in whole cells
 
 ### Changed
 

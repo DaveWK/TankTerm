@@ -562,3 +562,18 @@ fn prompt_marks_are_hidden_and_shown_again() {
     changed(&mut app);
     assert!(same_picture(&app, &shown));
 }
+
+#[test]
+fn resize_increments_follow_the_font_of_a_reloaded_configuration() {
+    let file = ConfigFile::new("[window]\nresize_increments = true\n[font]\nsize = 12\n");
+    let mut app = file.start();
+    let before = app.size_hints().unwrap().increments;
+
+    file.write("[window]\nresize_increments = true\n[font]\nsize = 24\n");
+    let _ = app.update(Message::ConfigChanged);
+    assert!(app.size_hints().unwrap().increments.height > before.height * 1.5);
+
+    file.write("");
+    let _ = app.update(Message::ConfigChanged);
+    assert_eq!(app.size_hints(), None);
+}

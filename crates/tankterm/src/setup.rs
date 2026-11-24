@@ -117,6 +117,7 @@ pub fn setup(config: &UiConfig, options: &mut Options) -> Setup {
         bindings: hotkeys::mouse_bindings(config.mouse_bindings()),
         bell: Bell::from_config(&config.bell),
         opacity: config.window_opacity(),
+        resize_increments: config.window.resize_increments,
     };
 
     Setup {

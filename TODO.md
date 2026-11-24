@@ -5,8 +5,6 @@
 Approved and waiting their turn, in this order.
 
 1. Delete the `xitely/iced_term` repository on Forgejo (web UI; `forgejo-repos` can't).
-2. Config options the iced front end ignores:
-   - Port later, low priority: `window.resize_increments` and `window.option_as_alt`.
 
 ## Deferred
 
@@ -79,6 +77,15 @@ the default bindings inherited from Alacritty.
   commands in the scripts or come with `tankTerm ssh` (planned item 3).
 - A list of the integration's features to turn on and off one by one, in place of
   `terminal.shell_integration = "Auto"`/`"None"`.
+
+### Rest of the window options
+
+- `window.option_as_alt` (macOS). iced 0.14 has no access to the winit window or its
+  `set_option_as_alt`. Encoding the keys in `iced_tterm` isn't enough: iced's `key` leaves out
+  Shift, so `Option+Shift+.` can't become `M->` on every layout. Rewriting the `NSEvent`s with a
+  local event monitor, as winit does, could work; it needs someone with a Mac to test it.
+- `window.dimensions` doesn't count the tab bar, which is always there by default, so the window
+  opens with fewer lines than it says.
 
 ### Rest of WezTerm's key tables and pane select
 

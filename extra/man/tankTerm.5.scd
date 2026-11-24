@@ -328,13 +328,19 @@ close_button = _"Always"_
 
 *resize_increments* = _true_ | _false_ # _(works on macOS/X11/Wayland)_
 
-	Prefer resizing window by discrete steps equal to cell dimensions.
+	Prefer resizing window by discrete steps equal to cell dimensions. The
+	panes of a split tab share the window, so only a tab with a single pane
+	always has whole cells. Maximized, tiled and fullscreen windows aren't
+	limited to the steps on Wayland.
 
 	Default: _false_
 
 *option_as_alt* = _"OnlyLeft"_ | _"OnlyRight"_ | _"Both"_ | _"None"_ # _(macOS only)_
 
 	Make _Option_ key behave as _Alt_.
+
+	This isn't supported by the iced front end: iced doesn't give access to the
+	window setting it needs. _Option_ types characters, as with _"None"_.
 
 	Default: _"None"_
 

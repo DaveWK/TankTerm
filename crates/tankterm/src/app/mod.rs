@@ -13,6 +13,7 @@ use iced::{Color, Padding};
 use iced_tterm::bindings::{Binding, BindingAction, InputKind};
 use iced_tterm::settings::Settings;
 
+use self::size_hints::SizeHints;
 use crate::bell::Bell;
 use crate::config::style::TabBarStyles;
 use crate::config::tabs::Tabs;
@@ -43,6 +44,7 @@ mod reload_tests;
 mod render_tests;
 #[cfg(all(test, unix))]
 mod search_tests;
+mod size_hints;
 pub mod status;
 mod status_command;
 mod tab_border;
@@ -106,6 +108,8 @@ pub enum Message {
     TitleBarMenu,
     /// The left button was pressed on an edge or corner of a frameless window.
     ResizeWindow(iced::window::Direction),
+    /// The tab bar was laid out with another size, while the window resizes in whole cells.
+    TabBarSized(iced::Size),
     /// The window was resized, which it also is when it is maximized or made fullscreen.
     WindowResized,
     /// Whether the window is maximized or fullscreen now.
@@ -161,6 +165,8 @@ pub struct AppOptions {
     pub bell: Bell,
     /// How opaque the background of the terminals is, from 0 to 1.
     pub opacity: f32,
+    /// Whether the window resizes in whole cells.
+    pub resize_increments: bool,
 }
 
 /// A configured shell profile, ready to be opened in a tab.
@@ -227,6 +233,14 @@ pub struct App {
     maximized: bool,
     /// Whether the window is fullscreen, as far as a frameless window has been told.
     fullscreen: bool,
+    /// Size of a cell of the grid, at the size the font size actions left the font at.
+    cell: iced::Size,
+    /// Height of the tab bar, as it was last drawn while the window resizes in whole cells.
+    tab_bar_height: f32,
+    /// Whether the window is open, and can be asked for sizes.
+    window_open: bool,
+    /// The sizes the window was last asked to have.
+    size_hints: Option<SizeHints>,
     /// The socket `tankTerm msg` talks to, while there is one.
     #[cfg(unix)]
     socket: Option<crate::ipc::Listener>,
